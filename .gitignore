@@ -1,0 +1,52 @@
+# --- Secrets and local configuration ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- OAuth tokens (normally stored outside the repo; belt and braces) ---
+.cache/
+.cache-*
+*.token.json
+token.json
+
+# --- Plans, backups, write log, and any other local data ---
+plans/
+data/
+backups/
+*.tmp
+*.log
+
+# --- Personal / local notes and Claude Code local settings ---
+CLAUDE.local.md
+.claude/settings.local.json
+scratch/
+tmp/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
