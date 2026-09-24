@@ -100,6 +100,13 @@ def get_playlist(client: SpotifyClient, ref: str, market: str | None = None) -> 
     return {"playlist": playlist, "items": items, "warnings": warnings}
 
 
+def get_playlist_meta(client: SpotifyClient, ref: str) -> dict[str, Any]:
+    """Playlist metadata only (no items): one request."""
+    playlist_id = parse_id(ref, "playlist")
+    meta = client.get(f"/playlists/{playlist_id}", fields=PLAYLIST_META_FIELDS + ",items(total)")
+    return normalize_playlist(meta, client.current_user_id())
+
+
 def require_editable(playlist: dict[str, Any]) -> None:
     if not (playlist["owned"] or playlist["collaborative"]):
         raise Forbidden(

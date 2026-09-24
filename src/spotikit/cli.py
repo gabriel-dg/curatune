@@ -241,6 +241,13 @@ def _plan_reorder(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
     )
 
 
+def _plan_details(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    description = _read_text(args.description_file) if args.description_file else args.description
+    return plans.build_details_plan(
+        _client(s), args.playlist, s.plans_dir, name=args.name, description=description, reason=args.reason
+    )
+
+
 def _recordings_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
     data = recordings.playlist_recordings(_client(s), RecordingStore(s.recordings_path), args.playlist)
     return _brief_recordings(data) if args.brief else data
@@ -373,6 +380,15 @@ def _build_parser() -> _Parser:
         action="store_true",
         help="Order by the recording dates in the local store; ties keep their current order.",
     )
+    p.add_argument("--reason")
+    p = command(
+        pn, "details", _plan_details, "Plan a rename and/or description change (does not modify Spotify)."
+    )
+    p.add_argument("playlist", help="Playlist ID, URI, or URL.")
+    p.add_argument("--name", help="New playlist name.")
+    text = p.add_mutually_exclusive_group()
+    text.add_argument("--description", help="New description (an empty string clears it).")
+    text.add_argument("--description-file", help="Read the new description from a UTF-8 text file.")
     p.add_argument("--reason")
     p = command(pn, "show", _plan_show, "Show and validate a plan.")
     p.add_argument("plan", help="Plan file path or plan_id.")

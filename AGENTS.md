@@ -52,7 +52,9 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
   and verifies the result after. Mutating primitives live in `_writes.py` and are only called by
   `plans.apply_plan` (and `playlists.add_items` for inserts).
 - Before applying any plan, the user must see it and give an explicit OK (per plan).
-- There is deliberately **no** operation to change a playlist's name, description, or visibility.
+- Rename / change description: only through **details plans** (`plan details`), same confirmation flow.
+  `_writes.set_details` accepts only `name` and `description`, and `validate_plan` rejects any other field.
+- There is deliberately **no** operation to change a playlist's visibility (the API doesn't apply it anyway).
 - Never bypass these rules with ad-hoc scripts or private functions that mutate Spotify.
 - `validate_plan` also checks that a plan's human-readable parts (`after` positions, `changes`) match its
   operations, so an edited plan file cannot show one change and apply another (`PLAN_INCONSISTENT`).

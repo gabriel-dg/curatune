@@ -84,10 +84,11 @@ about a third of the size, with every key always present:
 | `album tracks <album> [--market CC] [--brief]` | `{album: {…, id, total_tracks, url}, tracks: [Track \| Brief track]}` |
 | `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | plan summary (below) |
 | `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --by-recording-date) [--reason R]` | plan summary. `--by-recording-date` sorts by the local recording store (ties keep current order); fails with `RECORDING_DATES_MISSING` listing undated items. |
+| `plan details <playlist> [--name N] [--description D \| --description-file F] [--reason R]` | Plan summary with `summary: {fields}` and `changes: {field: {from, to}}`. At least one field is required; unchanged fields are left out (`NO_CHANGES` if nothing differs). Warns `DUPLICATE_NAME` if you own another playlist with the new name. Visibility is never part of a plan. |
 | `recordings show <playlist> [--brief]` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}`; with `--brief`, items are `{position, uri, name, artists, recorded, confidence}` |
 | `recordings set --from-file F` | `{created, updated, total, path}`. Validates every entry before writing anything. |
-| `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?: {applicable, same_snapshot, same_items, current_snapshot_id}}` |
-| `plan apply <plan>` | `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}` |
+| `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?}`. For item plans, `check` is `{applicable, same_snapshot, same_items, current_snapshot_id}`; for details plans, `{applicable, same_values, current}`. |
+| `plan apply <plan>` | Item plans: `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}`. Details plans: `{applied, plan_id, playlist_id, operations_done, verified, current, backup_path}` + warning `DETAILS_NOT_CONFIRMED` when `verified` is false. |
 
 `<playlist>`, `<track>`, `<album>` accept a bare ID, a `spotify:` URI, or an `open.spotify.com` URL.
 `<plan>` accepts a plan file path or a `plan_id`. `--from-file` accepts a JSON array (strings or
@@ -95,7 +96,7 @@ objects with `uri`) or one reference per line.
 
 Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, items_after, operations}, changes}`.
 
-## Plans (remove / reorder)
+## Plans (remove / reorder / details)
 
 
 `plan remove` and `plan reorder` only read the playlist and write `plans/<plan_id>.json`:
@@ -142,6 +143,34 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
    `operations_done`, the failed operation, and `backup_path`.
 5. Re-reads the playlist and compares with `after`. Mismatch: `VERIFICATION_FAILED` (changes were applied).
 6. Records `applied` in the plan file. The reported `snapshot_id` is the one returned by the last write.
+
+### Details plans (rename and description)
+
+`plan details` reads only the playlist's metadata and writes a plan with `"kind": "details"`:
+
+```jsonc
+{
+  "kind": "details",
+  "playlist": {"id", "uri", "name", "snapshot_id"},
+  "before":  {"name": "Old name", "description": "Old text"},   // only the fields being changed
+  "after":   {"name": "New name", "description": "New text"},
+  "changes": {"name": {"from": "Old name", "to": "New name"}, "description": {"from": "…", "to": "…"}},
+  "operations": [{"op": "set_details", "fields": {"name": "New name", "description": "New text"}}],
+  "checksum": "sha256:…"                   // over playlist id, snapshot, before, after, operations
+}
+```
+
+- Only `name` and `description` can appear. Validation rejects any other field (`PLAN_INCONSISTENT`),
+  and the write primitive refuses one too, so visibility can never be changed through a plan.
+- `plan apply` requires the **current values of the fields being changed** to equal `before`. Otherwise it
+  fails with `SNAPSHOT_MISMATCH` and nothing changes. Item changes don't block a details plan.
+- It backs up the metadata, sends `PUT /playlists/{id}` with only those fields, and reads the result back
+  (up to 3 reads, 2 s apart). Spotify answers 200 even for changes it ignores (it does so for
+  visibility), so `verified: false` plus the warning `DETAILS_NOT_CONFIRMED` means reads still show other
+  values. That can be read lag or an ignored change; check in the Spotify app.
+- Descriptions are exposed unescaped (Spotify returns them HTML-escaped, e.g. `&#x27;`).
+- A details write returns no `snapshot_id`. The next item plan on that playlist may therefore hit a
+  one-off `SNAPSHOT_MISMATCH` while reads catch up; regenerate the plan.
 
 ## Recording dates
 
@@ -214,3 +243,5 @@ Warning codes (in `warnings`; the command still succeeded):
 | `VISIBILITY_UNVERIFIED` | Spotify reports the playlist as private but is known to ignore it. |
 | `REINSERTED_DUPLICATES` | A removal plan re-inserts kept copies of a repeated URI, and their `added_at` resets. |
 | `LOCAL_FILE_REMOVAL` | A removal plan touches local files; removing them through the API is unverified. |
+| `DUPLICATE_NAME` | A details plan renames the playlist to a name you already use for another playlist. |
+| `DETAILS_NOT_CONFIRMED` | A details plan was sent and accepted (HTTP 200), but reads still show other values. |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
 TRACK_KEYS = (
@@ -87,11 +88,13 @@ def normalize_playlist_item(entry: dict[str, Any], position: int) -> dict[str, A
 def normalize_playlist(playlist: dict[str, Any], current_user_id: str | None) -> dict[str, Any]:
     owner = playlist.get("owner") or {}
     items_ref = playlist.get("items") or playlist.get("tracks") or {}
+    description = playlist.get("description")
     return {
         "id": playlist.get("id"),
         "uri": playlist.get("uri"),
         "name": playlist.get("name"),
-        "description": playlist.get("description"),
+        # Spotify returns descriptions HTML-escaped (e.g. "&#x27;" for "'"); expose the plain text.
+        "description": html.unescape(description) if isinstance(description, str) else description,
         "owner_id": owner.get("id"),
         "owner_name": owner.get("display_name"),
         "owned": current_user_id is not None and owner.get("id") == current_user_id,
