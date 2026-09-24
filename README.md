@@ -37,7 +37,11 @@ create the Spotify app, fill in `.env`, and approve the browser login.
 | Agent | Reads |
 |---|---|
 | Claude Code | `CLAUDE.md` (imports `AGENTS.md`) and `.claude/skills/spotikit/` (points to the shared skill) |
-| Codex CLI, Cursor, Gemini CLI, GitHub Copilot (VS Code), and other agents that support Agent Skills | `AGENTS.md` and `.agents/skills/spotikit/` |
+| Gemini CLI | `GEMINI.md` (imports `AGENTS.md`; Gemini CLI does not read `AGENTS.md` by default) and `.agents/skills/spotikit/` |
+| Codex CLI, Cursor, GitHub Copilot (VS Code), and other agents that support Agent Skills | `AGENTS.md` and `.agents/skills/spotikit/` |
+
+GitHub Copilot also scans `.claude/skills/`, so it lists two `spotikit` skills. Either one works: the
+`.claude/skills/` entry only points to the shared skill.
 
 The skill uses the open [Agent Skills](https://agentskills.io) format. Agents that sandbox commands must
 allow spotikit network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
