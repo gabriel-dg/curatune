@@ -156,6 +156,22 @@ def test_paginate_follows_next_links():
     assert s.calls[1]["url"] == page1["next"]
 
 
+@pytest.mark.parametrize(
+    "next_url",
+    [
+        "https://evil.example/v1/x?offset=2",
+        "http://api.spotify.com/v1/x?offset=2",  # plain HTTP would expose the token
+        "https://api.spotify.com.evil.example/v1/x",
+    ],
+)
+def test_token_is_never_sent_outside_the_web_api(next_url):
+    c, s = client(Resp(200, {"items": [1], "next": next_url}))
+    with pytest.raises(ApiError) as exc:
+        list(c.paginate("/x"))
+    assert exc.value.code == "UNTRUSTED_URL"
+    assert len(s.calls) == 1  # the untrusted URL was never requested
+
+
 def test_metrics_count_every_http_attempt():
     c, _ = client(Resp(429, headers={"Retry-After": "0"}), Resp(200, {"ok": 1}))
     c.get("/x")

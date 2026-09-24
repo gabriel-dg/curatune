@@ -185,6 +185,48 @@ def validate_plan(plan: dict[str, Any]) -> None:
     before_uris = [i["uri"] for i in plan["before"]]
     if simulate(before_uris, plan["operations"]) != [i["uri"] for i in plan["after"]]:
         raise PlanError("Plan operations do not produce the declared resulting state.", code="PLAN_INCONSISTENT")
+    _check_descriptions(plan)
+
+
+def _check_descriptions(plan: dict[str, Any]) -> None:
+    """The human-readable parts of a plan (`after` positions, `changes`) must match what it does.
+
+    The checksum only detects accidental edits, and `simulate` ties `operations` to the `after` URIs.
+    This ties `after` to `before` and `changes` to both, so a plan cannot show one change and apply
+    another.
+    """
+    before, after, changes = plan["before"], plan["after"], plan.get("changes") or {}
+
+    def inconsistent(reason: str) -> PlanError:
+        return PlanError(f"Plan description is inconsistent: {reason}.", code="PLAN_INCONSISTENT")
+
+    if [b.get("position") for b in before] != list(range(len(before))):
+        raise inconsistent("before positions are not 0..n-1")
+    for i, a in enumerate(after):
+        src = a.get("from_position")
+        if a.get("position") != i or not isinstance(src, int) or not 0 <= src < len(before):
+            raise inconsistent(f"after[{i}] has invalid positions")
+        if a.get("uri") != before[src]["uri"]:
+            raise inconsistent(f"after[{i}] does not match before[{src}]")
+    sources = [a["from_position"] for a in after]
+
+    if plan["kind"] == "remove":
+        kept = set(sources)
+        if len(kept) != len(sources) or sources != sorted(sources):
+            raise inconsistent("a removal cannot reorder or duplicate items")
+        removed = changes.get("remove") or []
+        described = [(r.get("position"), r.get("uri")) for r in removed]
+        actual = [(p, before[p]["uri"]) for p in range(len(before)) if p not in kept]
+        if described != actual:
+            raise inconsistent("the listed removals differ from what the plan removes")
+    else:
+        if sorted(sources) != list(range(len(before))):
+            raise inconsistent("a reorder must keep every item exactly once")
+        if changes.get("new_order") != sources:
+            raise inconsistent("new_order differs from the resulting order")
+        moves = [{k: v for k, v in m.items() if k != "items"} for m in changes.get("moves") or []]
+        if moves != plan["operations"]:
+            raise inconsistent("the listed moves differ from the operations")
 
 
 # --- Plan files -------------------------------------------------------------------------------
