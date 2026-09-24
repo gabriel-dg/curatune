@@ -131,7 +131,10 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
 
 `plan apply`:
 1. Validates the schema and checksum (`PLAN_CHECKSUM_MISMATCH` if the file was edited), and re-simulates the
-   operations to confirm they produce `after` (`PLAN_INCONSISTENT`). Refuses already-applied plans (`PLAN_ALREADY_APPLIED`).
+   operations to confirm they produce `after`. It also checks that the human-readable parts match what the
+   plan does: `after` traces back to `before`, and `changes` (removals, `new_order`, `moves`) match the
+   operations. Any mismatch fails with `PLAN_INCONSISTENT`, so a plan cannot show one change and apply
+   another. Refuses already-applied plans (`PLAN_ALREADY_APPLIED`).
 2. Re-reads the playlist (without market, so URIs are exactly the stored ones) and requires the **same
    `snapshot_id` and the same URI list** as `before`; otherwise `SNAPSHOT_MISMATCH` and nothing changes.
 3. Writes a full backup to `data/backups/`.
@@ -194,7 +197,10 @@ never relaxes.
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,
 `CONCURRENT_MODIFICATION`, `DUPLICATE_NAME`, `PLAN_INVALID`, `PLAN_NOT_FOUND`, `PLAN_CHECKSUM_MISMATCH`,
 `PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
-`VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
+`VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
+
+`UNTRUSTED_URL`: a response pointed to a URL (such as a pagination `next` link) outside
+`https://api.spotify.com`. The request is refused so the access token is never sent elsewhere.
 
 Warning codes (in `warnings`; the command still succeeded):
 

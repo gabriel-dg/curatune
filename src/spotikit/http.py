@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from typing import Any, Iterator, Protocol
+from urllib.parse import urlparse
 
 import requests
 
@@ -11,7 +12,8 @@ from . import metrics
 from .errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
 from .writelog import WriteLog
 
-API_BASE = "https://api.spotify.com/v1"
+API_HOST = "api.spotify.com"
+API_BASE = f"https://{API_HOST}/v1"
 MAX_RETRY_AFTER_SECONDS = 60
 
 
@@ -47,7 +49,7 @@ class SpotifyClient:
         params: dict[str, Any] | None = None,
         json: Any = None,
     ) -> Any:
-        url = path if path.startswith("http") else f"{API_BASE}{path}"
+        url = _resolve_url(path)
         params = {k: v for k, v in (params or {}).items() if v is not None}
         refreshed = False
         force_refresh = False
@@ -123,6 +125,23 @@ class SpotifyClient:
         if self._user_id is None:
             self._user_id = self.tokens.user_id() or self.get("/me")["id"]
         return self._user_id
+
+
+def _resolve_url(path: str) -> str:
+    """Absolute URLs (e.g. `next` links taken from responses) must point to the Web API.
+
+    The bearer token is attached to every request, so it must never be sent to another host.
+    """
+    if not path.startswith(("http://", "https://")):
+        return f"{API_BASE}{path}"
+    parsed = urlparse(path)
+    if parsed.scheme != "https" or parsed.netloc != API_HOST:
+        raise ApiError(
+            "Refusing to send credentials to a URL outside the Spotify Web API.",
+            code="UNTRUSTED_URL",
+            details={"scheme": parsed.scheme, "host": parsed.netloc},
+        )
+    return path
 
 
 def _map_error(resp: requests.Response, method: str, path: str) -> ApiError:

@@ -105,6 +105,50 @@ def test_apply_rejects_tampered_plan(fake, tmp_path):
     assert fake.mutations == []
 
 
+def _tamper(path, mutate):
+    plan = json.loads(path.read_text())
+    mutate(plan)
+    path.write_text(json.dumps(plan))
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        # Shows removing position 3 while the operations remove position 1.
+        lambda p: p["changes"]["remove"][0].update(position=3, uri=p["before"][3]["uri"]),
+        # Claims an extra removal.
+        lambda p: p["changes"]["remove"].append({**p["before"][5]}),
+        # after no longer traces back to before.
+        lambda p: p["after"][0].update(from_position=4),
+    ],
+)
+def test_remove_plan_description_must_match_operations(fake, tmp_path, mutate):
+    built = plans.build_remove_plan(fake, PLAYLIST_ID, [1], tmp_path)
+    path = tmp_path / f"{built['plan_id']}.json"
+    _tamper(path, mutate)
+    with pytest.raises(PlanError) as exc:
+        plans.apply_plan(fake, path, tmp_path / "backups")
+    assert exc.value.code == "PLAN_INCONSISTENT"
+    assert fake.mutations == []
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda p: p["changes"].update(new_order=list(range(len(p["before"])))),
+        lambda p: p["changes"]["moves"][0].update(insert_before=7),
+    ],
+)
+def test_reorder_plan_description_must_match_operations(fake, tmp_path, mutate):
+    built = plans.build_reorder_plan(fake, PLAYLIST_ID, tmp_path, new_order=[7, 0, 1, 2, 3, 4, 5, 6])
+    path = tmp_path / f"{built['plan_id']}.json"
+    _tamper(path, mutate)
+    with pytest.raises(PlanError) as exc:
+        plans.apply_plan(fake, path, tmp_path / "backups")
+    assert exc.value.code == "PLAN_INCONSISTENT"
+    assert fake.mutations == []
+
+
 def test_apply_twice_is_refused(fake, tmp_path):
     built = plans.build_remove_plan(fake, PLAYLIST_ID, [0], tmp_path)
     path = tmp_path / f"{built['plan_id']}.json"
