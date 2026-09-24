@@ -11,7 +11,7 @@ Removals and reorders are only exposed through `plans` (build, show, apply).
 
 from __future__ import annotations
 
-from . import catalog, playlists, plans
+from . import catalog, playlists, plans, recordings
 from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import SpotikitError
@@ -36,4 +36,5 @@ __all__ = [
     "load_settings",
     "playlists",
     "plans",
+    "recordings",
 ]

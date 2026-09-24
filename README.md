@@ -4,6 +4,15 @@ Deterministic toolkit for Spotify playlists: a Python library (`src/spotikit`) p
 Every CLI call prints exactly one JSON document to stdout. Judgment (what to add, what counts as
 a duplicate, how to rank) is intentionally **not** in this code.
 
+## Using it with Claude Code
+
+spotikit is meant to be driven by an AI agent. Open Claude Code in this repository and ask in natural
+language, for example "add 10 landmark bebop recordings to my playlist X", "check playlist Y for
+duplicate versions", or "reorder it by recording date". The project skill in
+`.claude/skills/spotikit/` teaches Claude the commands, the workflows, and the safety rules:
+removals and reorders are shown to you as plans and applied only after your OK. On first use, Claude
+walks you through setup. You only create the Spotify app, fill in `.env`, and approve the browser login.
+
 ## Setup
 
 1. Create an app at <https://developer.spotify.com/dashboard> (Web API) and register the redirect URI
@@ -91,10 +100,13 @@ Spotify Web API requests (retries included), `http.auth` token exchanges/refresh
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
 | `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position}], skipped: [{uri, reason}], item_count, snapshot_id}`. Skips URIs already present unless `--allow-duplicates`. |
 | `search tracks [query] [--track T] [--artist A] [--album B] [--year Y\|Y-Y] [--limit ≤10] [--offset N] [--market CC]` | `{query, market, limit, offset, total, next_offset, results: [Track]}` |
+| `search tracks --from-file F [--workers 1-4] [--market CC]` | Batch: `{count, failed, searches: [{id, ok, …single-search fields \| error}]}`, in input order. `F` is a JSON array (max 50) of `{"id", "query", "track", "artist", "album", "year", "limit", "offset", "market"}`; unknown keys are rejected. One failed search does not fail the batch. |
 | `track show <track> [--market CC]` | `{track: Track}` |
 | `album tracks <album> [--market CC]` | `{album: {…, id, total_tracks, url}, tracks: [Track]}` |
 | `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | plan summary (below) |
-| `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO) [--reason R]` | plan summary |
+| `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --by-recording-date) [--reason R]` | plan summary. `--by-recording-date` sorts by the local recording store (ties keep current order); fails with `RECORDING_DATES_MISSING` listing undated items. |
+| `recordings show <playlist>` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}` |
+| `recordings set --from-file F` | `{created, updated, total, path}`. Validates every entry before writing anything. |
 | `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?: {applicable, same_snapshot, same_items, current_snapshot_id}}` |
 | `plan apply <plan>` | `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}` |
 
@@ -148,6 +160,32 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
 5. Re-reads the playlist and compares with `after`. Mismatch: `VERIFICATION_FAILED` (changes were applied).
 6. Records `applied` in the plan file. The reported `snapshot_id` is the one returned by the last write.
 
+## Recording dates
+
+Spotify only knows an edition's release date. Recording dates are researched elsewhere and kept in
+`data/recordings.json` (gitignored), keyed by track URI:
+
+```json
+{
+  "spotify:track:…": {
+    "recorded": "1947-12-05",
+    "confidence": "high",
+    "source": "AllMusic session notes",
+    "note": "master take",
+    "name": "Nostalgia",
+    "artists": ["Fats Navarro"],
+    "isrc": "…"
+  }
+}
+```
+
+- `recorded` is `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`.
+- `confidence` is `high`, `medium`, or `low`.
+- `source` is required.
+- The other fields are optional.
+- An entry's `isrc` also matches the same recording on another edition.
+- Write entries with `recordings set` (input: a JSON array of entries with a `uri` field).
+
 ### Playlist visibility
 
 Spotify ignores `public: false` when creating a playlist through the API, while its response echoes
@@ -172,7 +210,7 @@ never relaxes.
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,
 `CONCURRENT_MODIFICATION`, `DUPLICATE_NAME`, `PLAN_INVALID`, `PLAN_NOT_FOUND`, `PLAN_CHECKSUM_MISMATCH`,
 `PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
-`VERIFICATION_FAILED`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
+`VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
 
 ## Tests
 

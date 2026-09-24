@@ -1,144 +1,93 @@
-# Spotify Playlist Toolkit
+# spotikit — Spotify Playlist Toolkit
 
 ## Goal
 
-A Python toolkit for working with the user's own Spotify playlists through the Spotify Web API.
-Claude Code uses it to fulfil natural-language requests such as:
+A Python toolkit for working with the user's own Spotify playlists through the Spotify Web API. The user
+asks Claude in natural language ("add 10 landmark bebop tracks", "reorder by recording date", "find
+duplicates"), and Claude fulfils it with spotikit. Scope: **playlists only** (create, read, edit, analyze);
+no playback, library, or listening history.
 
-- "Create a playlist with the landmark recordings of <genre/era>."
-- "Check whether <playlist> has duplicates or repeated versions of the same tune."
-- "Add 10 tracks that complete the playlist according to <criterion>."
-- "Rank this playlist's tracks by historical importance."
-- "Reorder the playlist by recording date."
+**Using spotikit** (commands, workflows, rules, error handling) is covered by the project skill
+`.claude/skills/spotikit/SKILL.md`, which loads when a request is about the user's playlists. This file
+covers **developing** spotikit.
 
-Scope: **playlists only** (create, read, edit, analyze). No playback, library, or listening history.
-
-Personal context (conversation language, reference playlists, curation criteria) lives in the
-gitignored `CLAUDE.local.md`, which Claude Code loads after this file. Never put personal data
-(user IDs, playlist IDs, names, emails, local paths) in versioned files.
-
-## Language
-
-- Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
+Personal context (conversation language, reference playlists, curation criteria) lives in the gitignored
+`CLAUDE.local.md`. Never put personal data (user IDs, playlist IDs, names, emails, local paths) in
+versioned files.
 
 ## Division of responsibilities
 
-- **Execution layer (this code):** deterministic operations against the API. Input via arguments,
-  output as stable, documented JSON. No judgment or curation logic in the scripts.
-- **Judgment layer (Claude):** interprets the request, combines commands, applies domain knowledge
-  (and web search when needed), and explains every decision to the user.
+- **Execution layer (this code):** deterministic operations against the API. Input via arguments, output
+  as stable, documented JSON (see README). No judgment or curation logic in the code.
+- **Judgment layer (Claude):** interprets requests, combines commands, applies domain knowledge (and web
+  search), explains decisions and confidence.
 
-Architecture: a library package with all API logic, and a thin CLI on top. The library must stay
-usable on its own so it can later be wrapped as an MCP server without rewriting anything.
+Architecture: library package `src/spotikit/` with all logic; thin CLI (`cli.py`) on top. Keep the library
+usable on its own so it can be wrapped as an MCP server later without rewriting anything. Any new CLI
+command must be documented in README.md and in the skill.
 
-## Confirmation rules (enforced in code, not only by behavior)
+## Confirmation rules (enforced in code — keep them that way)
 
-- **Create playlist / add items:** executed directly.
-- **Remove / reorder:** by default only generate a **plan** (JSON file with current state, proposed
-  change, and resulting state). Nothing is sent to Spotify.
-- A plan is applied **only** through the explicit apply command, which verifies that the playlist
-  has not changed since the plan was generated (snapshot_id + item list). If it changed, it aborts.
-- **Before applying any plan, always show it to the user and wait for an explicit OK.** Approval is
-  per plan; it never carries over to another plan.
-- **Never** modify the name, description, or visibility of an existing playlist unless the user
-  explicitly asks for it. The library does not expose that operation.
-- Never bypass these rules by writing ad-hoc scripts or calling low-level/private library functions
-  that mutate Spotify. All removals and reorders go through plans.
+- Create playlist / add items: executed directly.
+- Remove / reorder: only through **plans** (`plans.py`). A plan records the current state, the change, the
+  resulting state, and the exact operations; `plan apply` verifies snapshot + item list before running
+  and verifies the result after. Mutating primitives live in `_writes.py` and are only called by
+  `plans.apply_plan` (and `playlists.add_items` for inserts).
+- Before applying any plan, the user must see it and give an explicit OK (per plan).
+- There is deliberately **no** operation to change a playlist's name, description, or visibility.
+- Never bypass these rules with ad-hoc scripts or private functions that mutate Spotify.
 
 ## Secrets and authorization
 
-- Authorization is OAuth Authorization Code **with PKCE**: no Client Secret is used or read. The Client ID
-  lives **only** in `.env` (loaded manually by the user; never ask for credentials in chat). Never print
-  or log credentials or tokens, or write them to versioned files.
+- OAuth Authorization Code **with PKCE**; no client secret. The Client ID lives only in `.env` (the user
+  fills it in; never ask for credentials in chat). Never print or log credentials or tokens.
 - `state` is validated on the callback. The token is stored **outside the repo** (default
-  `%LOCALAPPDATA%\spotikit\token.json`; `SPOTIKIT_TOKEN_DIR` overrides, and a path inside the repo is rejected).
-- Callback port: `SPOTIFY_REDIRECT_PORT` (default 8888) or `auth login --port`. Registered in the
-  dashboard: `http://127.0.0.1:8888/callback`. The dashboard rejects portless URIs, so a new port
-  needs its URI registered first.
-- If a command fails with `AUTH_EXPIRED` or `AUTH_REQUIRED`, tell the user to run `spotikit auth login`
-  (it opens a browser; the user completes it). Do not try to work around it.
-- `.env`, `plans/`, and `data/` are gitignored.
+  `%LOCALAPPDATA%\spotikit\token.json` or `~/.config/spotikit/token.json`; `SPOTIKIT_TOKEN_DIR` overrides;
+  a path inside the repo is rejected).
+- Callback port: `SPOTIFY_REDIRECT_PORT` (default 8888) or `auth login --port`; the exact
+  `http://127.0.0.1:<port>/callback` must be registered in the dashboard (portless URIs are rejected).
+- Gitignored: `.env`, `plans/`, `data/` (backups, write log, recordings), `CLAUDE.local.md`.
+- Before every commit, scan the files to be committed for personal data and secrets (including partial
+  IDs). The repo is intended to be published.
 
-## Data limitations (assume these always)
+## Data limitations
 
-- Spotify no longer provides audio features (tempo, energy, etc.), and since the 2026 migration it no
-  longer returns `popularity`, `followers`, `label`, or `available_markets`. Any ranking or criterion
-  depends on Claude's knowledge or external sources, not on Spotify data.
-- **When there is no reliable information, say so instead of inventing it.** Mark confidence explicitly.
-- Spotify's `release_date` is the date of the **edition** (album/compilation), not the recording date.
-  Recording dates must come from discographies/external sources and are stored locally
-  (see `data/recordings.json`, once implemented) with source and confidence.
-- `external_ids` (ISRC) was restored in March 2026 and is useful to detect the same recording across
-  editions (not fully reliable across remasters).
+- No audio features; since the 2026 migration no `popularity`, `followers`, `label`, or
+  `available_markets`. Rankings and criteria depend on knowledge or external sources.
+- `release_date` is the **edition** date, not the recording date. Recording dates live in
+  `data/recordings.json` (`recordings.py`), with source and confidence.
+- ISRC (`external_ids`, restored March 2026) helps match the same recording across editions (not fully
+  reliable across remasters).
 
-## Spotify Web API facts (verified against official docs, September 2026)
+## Spotify Web API facts (verified September 2026)
 
-- Development Mode: app owner needs Premium; max 5 users per app; 1 client ID per developer; quota
-  shared per developer account.
-- Playlist item endpoints are `/playlists/{id}/items` (GET/POST/PUT/DELETE); the old `/tracks`
-  endpoints return 403. In responses, `tracks` → `items` and `track` → `item`.
-- Playlist items are only returned for playlists the user **owns or collaborates on**.
-- Verified live (2026-09-23, 41-track playlist): reading with and without a market returned identical
-  URIs (no relinking), ISRC present on every item, `is_playable` populated only with a market.
-- Create playlist: `POST /me/playlists` (`/users/{id}/playlists` was removed).
-- **Visibility cannot be set to private through the API** (confirmed live 2026-09-23): create ignores
-  `public: false` while echoing it back, and `PUT /playlists/{id}` with `public: false` returns 200
-  without effect (also confirmed in the Spotify app, not just in API reads). After creating a playlist, tell the user it is (probably) public and that they can
-  make it private from the Spotify app. Never claim a playlist is private based on API responses.
-- Batch fetch endpoints (`GET /tracks?ids=`, `GET /albums?ids=`, ...) were removed; only single-item
-  fetches remain.
-- `GET /search`: max `limit` 10 (default 5); paginate with `offset`.
-- `DELETE /playlists/{id}/items` takes URIs only (no positions) and removes **every** occurrence of a
-  URI (verified live 2026-09-23). Plans re-insert kept occurrences; their `added_at` resets.
-- **Read lag on snapshot_id** (observed 2026-09-23): after a write, `GET /playlists/{id}` keeps returning
-  the previous `snapshot_id` for a few minutes, while the item list is already up to date. The
-  snapshot returned by the write is the one reads eventually converge to. spotikit compensates via
-  `data/write_log.json` (see README, "Snapshot read lag"); `SNAPSHOT_READ_LAG` warnings are expected
-  right after writes and are not a problem. Verified live: add → immediate reorder plan → apply works.
-- `snapshot_id` is **not** a lock:
-  Spotify applies changes even if the playlist changed since that snapshot. Our apply command does its
-  own check.
-- `PUT /playlists/{id}/items` either replaces (max 100 URIs, loses `added_at`) or reorders a range
-  (`range_start`, `insert_before`, `range_length`). Prefer reorder moves.
-- Refresh tokens expire 6 months after the original authorization (refreshing does not extend it).
-  On `invalid_grant`, discard the token and re-run the login flow.
-- Redirect URI must use `http://127.0.0.1:<port>/callback` (`localhost` is not allowed).
+- Development Mode: app owner needs Premium; max 5 users per app; 1 client ID per developer; quota shared
+  per developer account.
+- Playlist items: `/playlists/{id}/items` (GET/POST/PUT/DELETE); old `/tracks` endpoints return 403. In
+  responses `tracks` → `items`, `track` → `item`. Items are only returned for playlists the user owns or
+  collaborates on. `GET …/items` limit max 50.
+- Verified live (2026-09-23): reads with and without a market returned identical URIs (no relinking); ISRC
+  present on items; `is_playable` only with a market. Plans always read without a market.
+- Create playlist: `POST /me/playlists`. **Visibility cannot be set to private through the API**: create
+  ignores `public: false` while echoing it back, and `PUT /playlists/{id}` with `public: false` returns
+  200 without effect (confirmed in the app too). `create_playlist` re-reads and reports real visibility.
+- Batch fetch endpoints (`GET /tracks?ids=` etc.) were removed; only single-item fetches remain.
+- `GET /search`: max `limit` 10; paginate with `offset`. Batch search runs ≤4 requests concurrently.
+- `DELETE …/items` takes URIs only and removes **every** occurrence of a URI (verified live); plans
+  re-insert kept occurrences.
+- **snapshot_id read lag** (observed live): after a write, reads return the previous `snapshot_id` for a
+  few minutes while items are already current; the write's snapshot is what reads converge to. Handled
+  by `writelog.py` (`data/write_log.json`, `SNAPSHOT_READ_LAG`).
+- `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; `plan apply` checks itself.
+- `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; spotikit only uses moves.
+- Refresh tokens expire 6 months after the original authorization (not extended by refreshing); on
+  `invalid_grant` the token is discarded and `AUTH_EXPIRED` is raised.
 - Scopes: `playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`.
 
-## Conventions
+## Development
 
-- Positions in JSON are **0-based** (same as the API). When talking to the user, use 1-based numbering
-  and say so if there is any room for confusion.
-
-## Curation judgment
-
-Curation criteria are per playlist and come from the user (see `CLAUDE.local.md` when present).
-Typical judgment calls: telling a composition apart from a specific recording (same melody under
-another title, contrafacts), master vs alternate takes, original vs re-recordings, preferred editions.
-Use durations, album names, labels, and ISRC as signals, and state confidence for every call.
-
-## Command reference
-
-Run from the project root with `.venv/Scripts/spotikit` (or `.venv/Scripts/python -m spotikit`).
-Full JSON shapes, plan format, and error codes: [README.md](README.md). Every call prints one JSON envelope:
-`{"schema_version":1,"ok":true,"command":…,"data":…,"warnings":[…]}` or `{"ok":false,"error":{"code","message","details"}}`.
-Refs accept a bare ID, `spotify:` URI, or `open.spotify.com` URL. Positions are 0-based.
-
-| Command | Effect |
-|---|---|
-| `auth login [--port N] [--no-browser]` / `auth status` / `auth logout` | Authorization (user-driven). |
-| `playlists list [--owned-only]` | List the user's playlists. |
-| `playlist show <playlist> [--market CC]` | Metadata + all items (position, name, artists, album, duration, ISRC, URI, added_at). |
-| `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** Requests private, but Spotify makes it public (see visibility note); relay the warning. |
-| `playlist add <playlist> [refs…] [--from-file F] [--position N] [--allow-duplicates]` | **Executes.** Skips URIs already present unless told otherwise. |
-| `search tracks [q] [--track --artist --album --year] [--limit ≤10] [--offset N] [--market CC]` | Candidates. `--year` is the edition's release year. |
-| `track show <track>` | One track, with ISRC. |
-| `album tracks <album>` | Album listing (e.g. to find the master take inside a preferred edition). No ISRC. |
-| `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | **Plan only**, writes `plans/<plan_id>.json`. |
-| `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO) [--reason R]` | **Plan only.** `--order` is a permutation of current positions. |
-| `plan show <plan> [--check]` | Show and validate a plan; `--check` compares it with the live playlist. |
-| `plan apply <plan>` | **Only after the user's explicit OK for that plan.** Checks snapshot + items, backs up, applies, verifies. |
-
-Workflow for remove/reorder: build the plan → `plan show` → present it to the user in chat (1-based
-numbering, what moves/leaves and why) → wait for explicit OK → `plan apply`. If apply returns
-`SNAPSHOT_MISMATCH`, regenerate the plan and ask again.
+- Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
+- Positions in JSON are **0-based** (same as the API).
+- Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`. Plan logic is tested
+  against an in-memory fake of the playlist API (`tests/fakes.py`); HTTP behaviour against a scripted
+  session (`tests/test_http.py`).

@@ -16,6 +16,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
 import webbrowser
 from datetime import datetime, timezone
@@ -196,6 +197,8 @@ class TokenManager:
         self.settings = settings
         self.session = session or requests.Session()
         self.store = TokenStore(settings.token_path)
+        # Serializes refreshes when several threads (batch search) need a token at once.
+        self._lock = threading.Lock()
 
     # Public API
 
@@ -273,10 +276,11 @@ class TokenManager:
         return token.get("user_id") if token else None
 
     def access_token(self, force_refresh: bool = False) -> str:
-        token = self._load_required()
-        if force_refresh or token["expires_at"] - ACCESS_TOKEN_SKEW_SECONDS <= time.time():
-            token = self._refresh(token)
-        return token["access_token"]
+        with self._lock:
+            token = self._load_required()
+            if force_refresh or token["expires_at"] - ACCESS_TOKEN_SKEW_SECONDS <= time.time():
+                token = self._refresh(token)
+            return token["access_token"]
 
     # Internals
 
