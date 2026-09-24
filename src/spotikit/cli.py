@@ -20,6 +20,7 @@ from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import InvalidArgument, PlanError, SpotikitError
 from .http import SpotifyClient
+from .models import brief_track
 from .recordings import RecordingStore
 
 OUTPUT_SCHEMA_VERSION = 1
@@ -49,6 +50,44 @@ def _emit(envelope: dict[str, Any]) -> None:
 
 def _client(settings: Settings) -> SpotifyClient:
     return connect(settings)
+
+
+# --- Brief views (presentation only; the library always returns full objects) ---------------
+
+
+def _brief_playlist(data: dict[str, Any]) -> dict[str, Any]:
+    data["items"] = [brief_track(i) for i in data["items"]]
+    return data
+
+
+def _brief_search(data: dict[str, Any]) -> dict[str, Any]:
+    if "searches" in data:
+        for search in data["searches"]:
+            if search.get("ok"):
+                search["results"] = [brief_track(t) for t in search["results"]]
+    else:
+        data["results"] = [brief_track(t) for t in data["results"]]
+    return data
+
+
+def _brief_album(data: dict[str, Any]) -> dict[str, Any]:
+    data["tracks"] = [brief_track(t) for t in data["tracks"]]
+    return data
+
+
+def _brief_recordings(data: dict[str, Any]) -> dict[str, Any]:
+    data["items"] = [
+        {
+            "position": i["position"],
+            "uri": i["uri"],
+            "name": i["name"],
+            "artists": i["artists"],
+            "recorded": (i["recording"] or {}).get("recorded"),
+            "confidence": (i["recording"] or {}).get("confidence"),
+        }
+        for i in data["items"]
+    ]
+    return data
 
 
 def _read_text(path: str) -> str:
@@ -126,7 +165,8 @@ def _playlists_list(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _playlist_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
-    return playlists.get_playlist(_client(s), args.playlist, market=args.market or s.market)
+    data = playlists.get_playlist(_client(s), args.playlist, market=args.market or s.market)
+    return _brief_playlist(data) if args.brief else data
 
 
 def _playlist_create(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
@@ -150,6 +190,11 @@ def _playlist_add(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _search_tracks(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    data = _run_search(args, s)
+    return _brief_search(data) if args.brief else data
+
+
+def _run_search(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
     if args.from_file:
         if args.query or any([args.track, args.artist, args.album, args.year]):
             raise InvalidArgument("--from-file cannot be combined with a query or filters; put them in the file.")
@@ -174,7 +219,8 @@ def _track_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _album_tracks(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
-    return catalog.get_album_tracks(_client(s), args.album, market=args.market or s.market)
+    data = catalog.get_album_tracks(_client(s), args.album, market=args.market or s.market)
+    return _brief_album(data) if args.brief else data
 
 
 def _plan_remove(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
@@ -196,7 +242,8 @@ def _plan_reorder(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _recordings_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
-    return recordings.playlist_recordings(_client(s), RecordingStore(s.recordings_path), args.playlist)
+    data = recordings.playlist_recordings(_client(s), RecordingStore(s.recordings_path), args.playlist)
+    return _brief_recordings(data) if args.brief else data
 
 
 def _recordings_set(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
@@ -225,6 +272,13 @@ def _build_parser() -> _Parser:
         sub.set_defaults(handler=handler)
         return sub
 
+    def add_brief(sub: _Parser) -> None:
+        sub.add_argument(
+            "--brief",
+            action="store_true",
+            help="Compact flat items: position, uri, name, artists (names), album, released, duration, isrc, playable.",
+        )
+
     # auth
     auth = groups.add_parser("auth", help="Authorization (OAuth PKCE).").add_subparsers(dest="action", required=True)
     p = command(auth, "login", _auth_login, "Run the browser authorization flow and store the token.")
@@ -244,6 +298,7 @@ def _build_parser() -> _Parser:
     p = command(pl, "show", _playlist_show, "Show playlist metadata and all items.")
     p.add_argument("playlist", help="Playlist ID, URI, or URL.")
     p.add_argument("--market")
+    add_brief(p)
     p = command(pl, "create", _playlist_create, "Create a playlist (requests private by default).")
     p.add_argument("--name", required=True)
     p.add_argument("--description", default="")
@@ -263,6 +318,7 @@ def _build_parser() -> _Parser:
     # search
     se = groups.add_parser("search", help="Catalog search.").add_subparsers(dest="action", required=True)
     p = command(se, "tracks", _search_tracks, "Search tracks (max 10 per request; paginate with --offset).")
+    add_brief(p)
     p.add_argument("query", nargs="?", default=None, help="Free-text query.")
     p.add_argument("--track")
     p.add_argument("--artist")
@@ -281,6 +337,7 @@ def _build_parser() -> _Parser:
     rc = groups.add_parser("recordings", help="Local recording-date store.").add_subparsers(dest="action", required=True)
     p = command(rc, "show", _recordings_show, "Join a playlist's items with stored recording dates.")
     p.add_argument("playlist", help="Playlist ID, URI, or URL.")
+    add_brief(p)
     p = command(rc, "set", _recordings_set, "Add or update recording entries (all-or-nothing validation).")
     p.add_argument(
         "--from-file",
@@ -297,6 +354,7 @@ def _build_parser() -> _Parser:
     p = command(al, "tracks", _album_tracks, "List an album's tracks.")
     p.add_argument("album", help="Album ID, URI, or URL.")
     p.add_argument("--market")
+    add_brief(p)
 
     # plan
     pn = groups.add_parser("plan", help="Plans for remove/reorder.").add_subparsers(dest="action", required=True)

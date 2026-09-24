@@ -87,6 +87,10 @@ command must be documented in README.md and in the skill.
 ## Development
 
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
+- The package is installed in editable mode: other sessions using spotikit run this working tree
+  **live**. A half-finished edit breaks their commands (seen 2026-09-24: `NameError` in `cli.py` mid-edit).
+  When another session may be using spotikit, develop in a separate git worktree, or make every save
+  leave the package importable (define helpers before the code that calls them).
 - Positions in JSON are **0-based** (same as the API).
 - Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`. Plan logic is tested
   against an in-memory fake of the playlist API (`tests/fakes.py`); HTTP behaviour against a scripted

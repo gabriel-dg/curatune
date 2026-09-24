@@ -1,6 +1,50 @@
 import json
 
-from spotikit import cli
+import pytest
+
+from spotikit import catalog, cli
+
+from .fakes import PLAYLIST_ID, FakeSpotify, track_uri
+
+
+@pytest.fixture
+def offline_settings(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.delenv("SPOTIKIT_MARKET", raising=False)
+
+
+BRIEF_KEYS = {"uri", "name", "artists", "album", "released", "duration", "isrc", "playable"}
+
+
+def test_playlist_show_brief_is_flat(capsys, monkeypatch, offline_settings):
+    fake = FakeSpotify([track_uri(1), track_uri(2)])
+    monkeypatch.setattr(cli, "_client", lambda s: fake)
+    code, out = _run(capsys, ["playlist", "show", PLAYLIST_ID, "--brief"])
+    assert code == 0
+    items = out["data"]["items"]
+    assert set(items[0]) == BRIEF_KEYS | {"position"}
+    assert items[1]["position"] == 1 and items[0]["artists"] == ["Artist"] and items[0]["album"] == "Album"
+    assert out["data"]["playlist"]["id"] == PLAYLIST_ID
+
+
+def test_batch_search_brief_keeps_errors(capsys, monkeypatch, offline_settings, tmp_path):
+    track = {"uri": "spotify:track:x", "name": "Rain", "artists": [{"name": "The Beatles", "uri": "u"}],
+             "album": {"name": "Revolver", "release_date": "2022-10-28"}, "duration": "2:59"}  # fmt: skip
+    canned = {"count": 2, "failed": 1, "searches": [
+        {"id": "a", "ok": True, "results": [track]},
+        {"id": "b", "ok": False, "error": {"code": "NOT_FOUND", "message": "x", "details": {}}},
+    ]}  # fmt: skip
+    monkeypatch.setattr(cli, "_client", lambda s: None)
+    monkeypatch.setattr(catalog, "search_tracks_batch", lambda *a, **k: canned)
+    queries = tmp_path / "q.json"
+    queries.write_text("[]")
+    code, out = _run(capsys, ["search", "tracks", "--from-file", str(queries), "--brief"])
+    assert code == 0
+    first = out["data"]["searches"][0]["results"][0]
+    assert set(first) == BRIEF_KEYS
+    assert first["artists"] == ["The Beatles"] and first["album"] == "Revolver" and first["released"] == "2022-10-28"
+    assert out["data"]["searches"][1]["error"]["code"] == "NOT_FOUND"
 
 
 def _run(capsys, argv):
