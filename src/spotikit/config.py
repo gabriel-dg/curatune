@@ -68,6 +68,10 @@ class Settings:
     def write_log_path(self) -> Path:
         return self.data_dir / "write_log.json"
 
+    @property
+    def recordings_path(self) -> Path:
+        return self.data_dir / "recordings.json"
+
     def require_client_id(self) -> str:
         if not self.client_id:
             raise ConfigError(

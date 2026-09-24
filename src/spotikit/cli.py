@@ -15,11 +15,12 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from . import catalog, connect, metrics, playlists, plans
+from . import catalog, connect, metrics, playlists, plans, recordings
 from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import InvalidArgument, PlanError, SpotikitError
 from .http import SpotifyClient
+from .recordings import RecordingStore
 
 OUTPUT_SCHEMA_VERSION = 1
 
@@ -50,10 +51,24 @@ def _client(settings: Settings) -> SpotifyClient:
     return connect(settings)
 
 
+def _read_text(path: str) -> str:
+    try:
+        return Path(path).read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise InvalidArgument("Cannot read file.", details={"path": path, "error": str(exc)}) from None
+
+
+def _read_json_file(path: str) -> Any:
+    try:
+        return json.loads(_read_text(path))
+    except json.JSONDecodeError as exc:
+        raise InvalidArgument("File is not valid JSON.", details={"path": path, "error": str(exc)}) from None
+
+
 def _read_item_refs(args: argparse.Namespace) -> list[str]:
     refs = list(args.items or [])
     if args.from_file:
-        text = Path(args.from_file).read_text(encoding="utf-8")
+        text = _read_text(args.from_file)
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
@@ -71,7 +86,7 @@ def _read_order(args: argparse.Namespace) -> list[int] | None:
         except ValueError:
             raise PlanError("--order must be comma-separated integers.", details={"order": args.order}) from None
     elif args.order_file:
-        raw = json.loads(Path(args.order_file).read_text(encoding="utf-8"))
+        raw = _read_json_file(args.order_file)
         if isinstance(raw, dict):
             raw = raw.get("new_order")
     else:
@@ -135,6 +150,12 @@ def _playlist_add(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _search_tracks(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    if args.from_file:
+        if args.query or any([args.track, args.artist, args.album, args.year]):
+            raise InvalidArgument("--from-file cannot be combined with a query or filters; put them in the file.")
+        return catalog.search_tracks_batch(
+            _client(s), _read_json_file(args.from_file), market=args.market or s.market, workers=args.workers
+        )
     return catalog.search_tracks(
         _client(s),
         args.query,
@@ -169,8 +190,17 @@ def _plan_reorder(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
         s.plans_dir,
         new_order=_read_order(args),
         move=_parse_move(args.move),
+        recordings=RecordingStore(s.recordings_path) if args.by_recording_date else None,
         reason=args.reason,
     )
+
+
+def _recordings_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    return recordings.playlist_recordings(_client(s), RecordingStore(s.recordings_path), args.playlist)
+
+
+def _recordings_set(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    return RecordingStore(s.recordings_path).upsert(_read_json_file(args.from_file))
 
 
 def _plan_show(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
@@ -241,6 +271,22 @@ def _build_parser() -> _Parser:
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--offset", type=int, default=0)
     p.add_argument("--market")
+    p.add_argument(
+        "--from-file",
+        help='Batch mode: JSON array of queries {"id","query","track","artist","album","year","limit","offset","market"}.',
+    )
+    p.add_argument("--workers", type=int, default=catalog.BATCH_MAX_WORKERS, help="Batch mode concurrency (1-4).")
+
+    # recordings
+    rc = groups.add_parser("recordings", help="Local recording-date store.").add_subparsers(dest="action", required=True)
+    p = command(rc, "show", _recordings_show, "Join a playlist's items with stored recording dates.")
+    p.add_argument("playlist", help="Playlist ID, URI, or URL.")
+    p = command(rc, "set", _recordings_set, "Add or update recording entries (all-or-nothing validation).")
+    p.add_argument(
+        "--from-file",
+        required=True,
+        help='JSON array of {"uri","recorded","confidence","source", optional "note","name","artists","isrc"}.',
+    )
 
     # track / album
     tr = groups.add_parser("track", help="Single track.").add_subparsers(dest="action", required=True)
@@ -264,6 +310,11 @@ def _build_parser() -> _Parser:
     order.add_argument("--order", help="Comma-separated permutation of current 0-based positions.")
     order.add_argument("--order-file", help='JSON array of positions, or {"new_order": [...]}.')
     order.add_argument("--move", help="FROM:TO, 0-based; moves a single item.")
+    order.add_argument(
+        "--by-recording-date",
+        action="store_true",
+        help="Order by the recording dates in the local store; ties keep their current order.",
+    )
     p.add_argument("--reason")
     p = command(pn, "show", _plan_show, "Show and validate a plan.")
     p.add_argument("plan", help="Plan file path or plan_id.")

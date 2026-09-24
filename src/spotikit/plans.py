@@ -21,6 +21,7 @@ from .errors import ApplyFailed, PlanError, SnapshotMismatch, SpotikitError, Ver
 from .http import SpotifyClient
 from .models import compact_item
 from .playlists import MAX_URIS_PER_REQUEST, chunks, get_playlist, require_editable
+from .recordings import RecordingStore, chronological_order
 
 PLAN_SCHEMA_VERSION = 1
 PLAN_KINDS = ("remove", "reorder")
@@ -324,16 +325,20 @@ def build_reorder_plan(
     plans_dir: Path,
     new_order: list[int] | None = None,
     move: tuple[int, int] | None = None,
+    recordings: RecordingStore | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
+    """Exactly one of `new_order`, `move`, or `recordings` (order by recording date) must be given."""
     state = get_playlist(client, playlist_ref)  # no market: plans need the stored URIs
     require_editable(state["playlist"])
     count = len(state["items"])
 
-    if (new_order is None) == (move is None):
-        raise PlanError("Provide exactly one of new_order or move.")
+    if sum(x is not None for x in (new_order, move, recordings)) != 1:
+        raise PlanError("Provide exactly one of new_order, move, or recordings.")
     if move is not None:
         new_order = order_from_move(count, *move)
+    if recordings is not None:
+        new_order = chronological_order(state["items"], recordings.load())
     assert new_order is not None
     if sorted(new_order) != list(range(count)):
         raise PlanError(
