@@ -204,10 +204,14 @@ def _build_parser() -> _Parser:
     p = command(pl, "show", _playlist_show, "Show playlist metadata and all items.")
     p.add_argument("playlist", help="Playlist ID, URI, or URL.")
     p.add_argument("--market")
-    p = command(pl, "create", _playlist_create, "Create a playlist (private by default).")
+    p = command(pl, "create", _playlist_create, "Create a playlist (requests private by default).")
     p.add_argument("--name", required=True)
     p.add_argument("--description", default="")
-    p.add_argument("--public", action="store_true", help="Create as public (default: private).")
+    p.add_argument(
+        "--public",
+        action="store_true",
+        help="Request a public playlist (default: request private; Spotify currently ignores that, see warnings).",
+    )
     p.add_argument("--allow-duplicate-name", action="store_true")
     p = command(pl, "add", _playlist_add, "Add items (executes directly).")
     p.add_argument("playlist", help="Playlist ID, URI, or URL.")

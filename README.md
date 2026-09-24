@@ -79,7 +79,7 @@ Warnings are objects `{"code", "message", ...}`. **Positions are 0-based everywh
 | `auth logout` | `{logged_out, token_path}` |
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` |
 | `playlist show <playlist> [--market CC]` | `{playlist: Playlist, items: [PlaylistItem]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
-| `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist}`. Private by default; fails with `DUPLICATE_NAME` if you already own one with that name. |
+| `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
 | `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position}], skipped: [{uri, reason}], item_count, snapshot_id}`. Skips URIs already present unless `--allow-duplicates`. |
 | `search tracks [query] [--track T] [--artist A] [--album B] [--year Y\|Y-Y] [--limit ≤10] [--offset N] [--market CC]` | `{query, market, limit, offset, total, next_offset, results: [Track]}` |
 | `track show <track> [--market CC]` | `{track: Track}` |
@@ -138,6 +138,15 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
    `operations_done`, the failed operation, and `backup_path`.
 5. Re-reads the playlist and compares with `after`. Mismatch: `VERIFICATION_FAILED` (changes were applied).
 6. Records `applied` in the plan file. The reported `snapshot_id` is the one returned by the last write.
+
+### Playlist visibility
+
+Spotify ignores `public: false` when creating a playlist through the API, while its response echoes
+the requested value (a long-standing issue, confirmed live on 2026-09-23). A later
+`PUT /playlists/{id}` with `public: false` was also accepted (200) without effect. spotikit therefore
+re-reads visibility after creating a playlist and warns with `VISIBILITY_NOT_APPLIED` (or
+`VISIBILITY_UNVERIFIED` if the read says private). Make a playlist private from the Spotify app.
+spotikit never changes the visibility of existing playlists.
 
 ### Snapshot read lag
 
