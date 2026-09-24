@@ -4,11 +4,34 @@ Deterministic toolkit for Spotify playlists: a Python library (`src/spotikit`) p
 Every CLI call prints exactly one JSON document to stdout. Judgment (what to add, what counts as
 a duplicate, how to rank) is intentionally **not** in this code.
 
+## What you can do
+
+Ask in plain language. Some examples:
+
+- **Create a playlist from a criterion.** "Create a playlist with the landmark recordings of early
+  bebop." Claude picks the tracks and the right edition of each (original studio master, not a live
+  version, cover, or karaoke), and says how confident it is about each choice.
+- **Complete an existing playlist.** "Add 10 tracks to X that fit what's already there", or "add 15
+  underrated Beatles songs: great tracks every fan loves but casual listeners don't know."
+- **Reorder by a criterion.** "Sort X by recording date", "by release date", "by historical
+  importance". You see the full before/after plan before anything moves.
+- **Find duplicates and repeated versions.** The same recording on two editions (same ISRC), the same
+  tune under another title, or an alternate/live take of a song already in the list.
+- **Clean up.** "Remove the live versions from X", "drop everything recorded after 1960". Removals are
+  shown as a plan; nothing is deleted until you approve it.
+- **Switch editions.** "Use the newest remixes instead of the old remasters": the new versions are
+  added, and removing the old ones goes through a plan.
+- **Analyze.** "Rank X by influence", "which tracks have uncertain recording dates?", "is X in
+  chronological order?", "which albums do these come from?"
+
+Research such as recording dates (with source and confidence) is kept locally, so later additions and
+reorders reuse it. Out of scope: playback, your library and liked songs, listening history, and changing
+a playlist's name, description, or visibility.
+
 ## Using it with Claude Code
 
 spotikit is meant to be driven by an AI agent. Open Claude Code in this repository and ask in natural
-language, for example "add 10 landmark bebop recordings to my playlist X", "check playlist Y for
-duplicate versions", or "reorder it by recording date". The project skill in
+language, as in the examples above. The project skill in
 `.claude/skills/spotikit/` teaches Claude the commands, the workflows, and the safety rules:
 removals and reorders are shown to you as plans and applied only after your OK. On first use, Claude
 walks you through setup. You only create the Spotify app, fill in `.env`, and approve the browser login.
