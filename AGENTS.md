@@ -106,6 +106,9 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
 - Create playlist: `POST /me/playlists`. **Visibility cannot be set to private through the API**: create
   ignores `public: false` while echoing it back, and `PUT /playlists/{id}` with `public: false` returns
   200 without effect (confirmed in the app too). `create_playlist` re-reads and reports real visibility.
+- `PUT /playlists/{id}` with `description` **is** applied, and visible on the first read-back (verified live
+  2026-09-24). A rename uses the same call. It is expected to behave the same way but has not been
+  verified live yet.
 - Batch fetch endpoints (`GET /tracks?ids=` etc.) were removed; only single-item fetches remain.
 - `GET /search`: max `limit` 10; paginate with `offset`. Batch search runs ≤4 requests concurrently.
 - `DELETE …/items` takes URIs only and removes **every** occurrence of a URI (verified live); plans
