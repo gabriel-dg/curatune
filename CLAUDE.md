@@ -81,6 +81,10 @@ usable on its own so it can later be wrapped as an MCP server without rewriting 
 - Verified live (2026-09-23, 41-track playlist): reading with and without a market returned identical
   URIs (no relinking), ISRC present on every item, `is_playable` populated only with a market.
 - Create playlist: `POST /me/playlists` (`/users/{id}/playlists` was removed).
+- **Visibility cannot be set to private through the API** (confirmed live 2026-09-23): create ignores
+  `public: false` while echoing it back, and `PUT /playlists/{id}` with `public: false` returns 200
+  without effect (also confirmed in the Spotify app, not just in API reads). After creating a playlist, tell the user it is (probably) public and that they can
+  make it private from the Spotify app. Never claim a playlist is private based on API responses.
 - Batch fetch endpoints (`GET /tracks?ids=`, `GET /albums?ids=`, ...) were removed; only single-item
   fetches remain.
 - `GET /search`: max `limit` 10 (default 5); paginate with `offset`.
@@ -125,7 +129,7 @@ Refs accept a bare ID, `spotify:` URI, or `open.spotify.com` URL. Positions are 
 | `auth login [--port N] [--no-browser]` / `auth status` / `auth logout` | Authorization (user-driven). |
 | `playlists list [--owned-only]` | List the user's playlists. |
 | `playlist show <playlist> [--market CC]` | Metadata + all items (position, name, artists, album, duration, ISRC, URI, added_at). |
-| `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** Private by default. |
+| `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** Requests private, but Spotify makes it public (see visibility note); relay the warning. |
 | `playlist add <playlist> [refs…] [--from-file F] [--position N] [--allow-duplicates]` | **Executes.** Skips URIs already present unless told otherwise. |
 | `search tracks [q] [--track --artist --album --year] [--limit ≤10] [--offset N] [--market CC]` | Candidates. `--year` is the edition's release year. |
 | `track show <track>` | One track, with ISRC. |

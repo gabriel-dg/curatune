@@ -135,7 +135,33 @@ def create_playlist(
     created = client.post("/me/playlists", body)
     if client.write_log is not None and created.get("snapshot_id"):
         client.write_log.record(created["id"], created["snapshot_id"], [])
-    return {"playlist": normalize_playlist(created, client.current_user_id())}
+    playlist = normalize_playlist(created, client.current_user_id())
+
+    # The create response echoes the requested visibility even when Spotify ignores it
+    # (public=false is not applied: known issue, confirmed live 2026-09-23). Report what a read
+    # says instead, and never claim the playlist is private.
+    reported_public = client.get(f"/playlists/{playlist['id']}", fields="public").get("public")
+    playlist["public"] = reported_public
+    warnings = []
+    if not public:
+        if reported_public is False:
+            code, message = (
+                "VISIBILITY_UNVERIFIED",
+                "Spotify reports the playlist as private, but it is known to ignore public=false on "
+                "creation; check it in the Spotify app.",
+            )
+        else:
+            code, message = (
+                "VISIBILITY_NOT_APPLIED",
+                "Spotify ignored public=false: the playlist is public. Make it private from the Spotify app "
+                "if needed (the API does not apply it either).",
+            )
+        warnings.append({"code": code, "message": message, "reported_public": reported_public})
+    return {
+        "playlist": playlist,
+        "visibility": {"requested_public": public, "reported_public": reported_public},
+        "warnings": warnings,
+    }
 
 
 def add_items(
