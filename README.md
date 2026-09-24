@@ -25,8 +25,10 @@ Ask in plain language. Some examples:
   chronological order?", "which albums do these come from?"
 
 Research such as recording dates (with source and confidence) is kept locally, so later additions and
-reorders reuse it. Out of scope: playback, your library and liked songs, listening history, and changing
-a playlist's name, description, or visibility.
+reorders reuse it. You can also **rename a playlist or change its description** ("rename X to Y", "give X
+a description"); the change is shown as a plan and applied after your OK. Out of scope: playback, your
+library and liked songs, listening history, and a playlist's visibility (Spotify doesn't apply it through
+the API).
 
 ## Using it with an AI agent
 
@@ -51,11 +53,11 @@ per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the 
 ## How changes stay safe
 
 - Creating a playlist and adding tracks run directly.
-- Removals and reorders are only ever built as **plans**: before, after, and the exact operations. The agent
-  shows you the plan and applies it only after your OK.
+- Removals, reorders, renames, and description changes are only ever built as **plans**: before, after,
+  and the exact operations. The agent shows you the plan and applies it only after your OK.
 - Applying a plan first checks that the playlist hasn't changed since the plan was made, backs it up to
   `data/backups/`, and verifies the result afterwards.
-- There is no command to rename a playlist or change its description or visibility.
+- There is no command to change a playlist's visibility.
 - Spotify currently makes every playlist created through the API **public**, whatever is requested.
   Make it private from the Spotify app if needed.
 
@@ -99,7 +101,7 @@ authorization; after that, run `spotikit auth login` again.
 | `search tracks` | Catalog search, single or batch. |
 | `track show` / `album tracks` | One track (with ISRC); an album's full listing. |
 | `recordings show` / `recordings set` | Read and store researched recording dates. |
-| `plan remove` / `plan reorder` | Build a plan (changes nothing on Spotify). |
+| `plan remove` / `plan reorder` / `plan details` | Build a plan to remove, reorder, or rename / change the description (changes nothing on Spotify). |
 | `plan show` / `plan apply` | Inspect a plan; apply it after approval. |
 
 Arguments, JSON output shapes, error and warning codes, the plan format, and the Spotify API quirks

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,11 +21,18 @@ from . import _writes
 from .errors import ApplyFailed, PlanError, SnapshotMismatch, SpotikitError, VerificationFailed
 from .http import SpotifyClient
 from .models import compact_item
-from .playlists import MAX_URIS_PER_REQUEST, chunks, get_playlist, require_editable
+from .playlists import (
+    MAX_URIS_PER_REQUEST,
+    chunks,
+    get_playlist,
+    get_playlist_meta,
+    list_playlists,
+    require_editable,
+)
 from .recordings import RecordingStore, chronological_order
 
 PLAN_SCHEMA_VERSION = 1
-PLAN_KINDS = ("remove", "reorder")
+PLAN_KINDS = ("remove", "reorder", "details")
 MAX_RANGE_LENGTH = 100
 
 
@@ -155,13 +163,14 @@ def simulate(items: list[Any], operations: list[dict[str, Any]]) -> list[Any]:
 
 
 def plan_checksum(plan: dict[str, Any]) -> str:
+    items_plan = plan["kind"] != "details"  # details plans hold field values, not item lists
     core = {
         "schema_version": plan["schema_version"],
         "kind": plan["kind"],
         "playlist_id": plan["playlist"]["id"],
         "snapshot_id": plan["playlist"]["snapshot_id"],
-        "before": [i["uri"] for i in plan["before"]],
-        "after": [i["uri"] for i in plan["after"]],
+        "before": [i["uri"] for i in plan["before"]] if items_plan else plan["before"],
+        "after": [i["uri"] for i in plan["after"]] if items_plan else plan["after"],
         "operations": plan["operations"],
     }
     canonical = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -182,6 +191,9 @@ def validate_plan(plan: dict[str, Any]) -> None:
             "Plan checksum mismatch: the plan was modified after it was generated. Regenerate it.",
             code="PLAN_CHECKSUM_MISMATCH",
         )
+    if plan["kind"] == "details":
+        _check_details(plan)
+        return
     before_uris = [i["uri"] for i in plan["before"]]
     if simulate(before_uris, plan["operations"]) != [i["uri"] for i in plan["after"]]:
         raise PlanError("Plan operations do not produce the declared resulting state.", code="PLAN_INCONSISTENT")
@@ -416,7 +428,9 @@ def build_reorder_plan(
 def show_plan(path: Path, client: SpotifyClient | None = None) -> dict[str, Any]:
     plan = load_plan(path)
     result: dict[str, Any] = {"plan_path": str(path), "valid": True, "applied": plan.get("applied"), "plan": plan}
-    if client is not None:
+    if client is not None and plan["kind"] == "details":
+        result["check"] = _check_details_plan(client, plan)
+    elif client is not None:
         state = get_playlist(client, plan["playlist"]["id"])
         same_snapshot = state["playlist"]["snapshot_id"] == plan["playlist"]["snapshot_id"]
         same_items = [i["uri"] for i in state["items"]] == [i["uri"] for i in plan["before"]]
@@ -446,6 +460,8 @@ def apply_plan(client: SpotifyClient, path: Path, backups_dir: Path) -> dict[str
     plan = load_plan(path)
     if plan.get("applied"):
         raise PlanError("This plan was already applied.", code="PLAN_ALREADY_APPLIED", details={"applied": plan["applied"]})
+    if plan["kind"] == "details":
+        return _apply_details(client, path, plan, backups_dir)
 
     playlist_id = plan["playlist"]["id"]
     state = get_playlist(client, playlist_id)
@@ -516,3 +532,184 @@ def apply_plan(client: SpotifyClient, path: Path, backups_dir: Path) -> dict[str
             details={**result, "expected_uris": expected_after, "actual_uris": final_uris},
         )
     return result
+
+
+# --- Playlist details: name and description -------------------------------------------------------
+
+DETAILS_OP = "set_details"
+DETAILS_VERIFY_ATTEMPTS = 3
+DETAILS_VERIFY_DELAY_SECONDS = 2.0
+
+
+def _check_details(plan: dict[str, Any]) -> None:
+    """A details plan changes only name and/or description, and its parts must agree with each other."""
+    before, after = plan["before"], plan["after"]
+
+    def inconsistent(reason: str) -> PlanError:
+        return PlanError(f"Plan description is inconsistent: {reason}.", code="PLAN_INCONSISTENT")
+
+    if not isinstance(before, dict) or not isinstance(after, dict) or not after:
+        raise inconsistent("before and after must be objects listing the changed fields")
+    if set(after) != set(before) or set(after) - set(_writes.DETAIL_FIELDS):
+        raise inconsistent(f"only {' and '.join(_writes.DETAIL_FIELDS)} can change, each with its previous value")
+    if any(before[k] == after[k] for k in after):
+        raise inconsistent("a field is listed as changed but keeps the same value")
+    if "name" in after and not str(after["name"]).strip():
+        raise inconsistent("the new name is empty")
+    if plan["operations"] != [{"op": DETAILS_OP, "fields": after}]:
+        raise inconsistent("the operations differ from the declared change")
+    if plan.get("changes") != {k: {"from": before[k], "to": after[k]} for k in after}:
+        raise inconsistent("the listed changes differ from before and after")
+
+
+def _current_details(playlist: dict[str, Any], fields: list[str]) -> dict[str, str]:
+    return {k: playlist.get(k) or "" for k in fields}
+
+
+def build_details_plan(
+    client: SpotifyClient,
+    playlist_ref: str,
+    plans_dir: Path,
+    name: str | None = None,
+    description: str | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """Plan a rename and/or a description change. Visibility is never part of it."""
+    playlist = get_playlist_meta(client, playlist_ref)
+    require_editable(playlist)
+
+    requested: dict[str, str] = {}
+    if name is not None:
+        if not name.strip():
+            raise PlanError("The new name cannot be empty.")
+        requested["name"] = name.strip()
+    if description is not None:
+        requested["description"] = description.strip()
+    if not requested:
+        raise PlanError("Provide a new name, a new description, or both.")
+
+    current = _current_details(playlist, list(requested))
+    after = {k: v for k, v in requested.items() if v != current[k]}
+    if not after:
+        raise PlanError("The playlist already has that name and description.", code="NO_CHANGES")
+    before = {k: current[k] for k in after}
+
+    warnings = []
+    if "name" in after:
+        others = [
+            p
+            for p in list_playlists(client, owned_only=True)["playlists"]
+            if p["id"] != playlist["id"] and (p["name"] or "").strip().casefold() == after["name"].casefold()
+        ]
+        if others:
+            warnings.append(
+                {
+                    "code": "DUPLICATE_NAME",
+                    "message": "You already own another playlist with this name.",
+                    "existing": [{"id": p["id"], "name": p["name"]} for p in others],
+                }
+            )
+
+    now = _utc_now()
+    plan_id = f"{now:%Y%m%dT%H%M%SZ}-details-{playlist['id'][:8]}-{secrets.token_hex(2)}"
+    plan: dict[str, Any] = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "plan_id": plan_id,
+        "kind": "details",
+        "created_at": _iso(now),
+        "reason": reason,
+        "playlist": {
+            "id": playlist["id"],
+            "uri": playlist["uri"],
+            "name": playlist["name"],
+            "snapshot_id": playlist["snapshot_id"],
+        },
+        "before": before,
+        "changes": {k: {"from": before[k], "to": after[k]} for k in after},
+        "after": after,
+        "operations": [{"op": DETAILS_OP, "fields": after}],
+        "warnings": warnings,
+    }
+    plan["checksum"] = plan_checksum(plan)
+    path = plans_dir / f"{plan_id}.json"
+    _write_json(path, plan)
+    return {
+        "plan_path": str(path),
+        "plan_id": plan_id,
+        "kind": "details",
+        "playlist": plan["playlist"],
+        "summary": {"fields": sorted(after)},
+        "changes": plan["changes"],
+        "warnings": warnings,
+    }
+
+
+def _check_details_plan(client: SpotifyClient, plan: dict[str, Any]) -> dict[str, Any]:
+    playlist = get_playlist_meta(client, plan["playlist"]["id"])
+    current = _current_details(playlist, list(plan["before"]))
+    same_values = current == plan["before"]
+    return {
+        "applicable": same_values and not plan.get("applied"),
+        "same_values": same_values,
+        "current": current,
+    }
+
+
+def _apply_details(client: SpotifyClient, path: Path, plan: dict[str, Any], backups_dir: Path) -> dict[str, Any]:
+    playlist_id = plan["playlist"]["id"]
+    playlist = get_playlist_meta(client, playlist_id)
+    require_editable(playlist)
+    current = _current_details(playlist, list(plan["before"]))
+    if current != plan["before"]:
+        # Only the fields being changed matter here; item changes don't affect a rename or description.
+        raise SnapshotMismatch(
+            "The playlist's name or description changed since the plan was generated. Nothing was "
+            "modified; regenerate the plan.",
+            details={"expected": plan["before"], "current": current},
+        )
+
+    now = _utc_now()
+    backup_path = backups_dir / f"{playlist_id}-{now:%Y%m%dT%H%M%SZ}-before-{plan['plan_id']}.json"
+    _write_json(backup_path, {"created_at": _iso(now), "plan_id": plan["plan_id"], "playlist": playlist})
+
+    try:
+        _writes.set_details(client, playlist_id, plan["after"])
+    except SpotikitError as exc:
+        raise ApplyFailed(
+            "Changing the playlist details failed; nothing was changed.",
+            details={"operations_done": 0, "error": exc.to_dict(), "backup_path": str(backup_path)},
+        ) from None
+
+    # Spotify answers 200 even for changes it ignores (it does so for visibility), so read back.
+    verified = False
+    fields = list(plan["after"])
+    for attempt in range(DETAILS_VERIFY_ATTEMPTS):
+        if attempt:
+            time.sleep(DETAILS_VERIFY_DELAY_SECONDS)
+        current = _current_details(get_playlist_meta(client, playlist_id), fields)
+        if current == plan["after"]:
+            verified = True
+            break
+
+    plan["applied"] = {"applied_at": _iso(_utc_now()), "verified": verified, "backup_path": str(backup_path)}
+    _write_json(path, plan)
+    warnings = []
+    if not verified:
+        warnings.append(
+            {
+                "code": "DETAILS_NOT_CONFIRMED",
+                "message": "Spotify accepted the change (HTTP 200), but reads still show other values. Reads "
+                "can lag for a few minutes; if it persists, Spotify ignored the change. Check it in the Spotify app.",
+                "current": current,
+            }
+        )
+    return {
+        "applied": True,
+        "plan_id": plan["plan_id"],
+        "playlist_id": playlist_id,
+        "operations_done": 1,
+        "verified": verified,
+        "current": current,
+        "backup_path": str(backup_path),
+        "warnings": warnings,
+    }

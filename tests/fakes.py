@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
 from spotikit.plans import simulate
@@ -22,6 +23,10 @@ class FakeSpotify:
         self.owner_id = owner_id
         self.lag = lag
         self.write_log = write_log
+        self.name = "Test"
+        self.description = ""
+        self.ignore_details = False  # Spotify answering 200 without applying (as it does for visibility)
+        self.other_playlists: list[dict[str, Any]] = []
         self.version = 1
         self.visible_version = 1
         self.mutations: list[tuple[str, Any]] = []
@@ -41,8 +46,8 @@ class FakeSpotify:
         return {
             "id": PLAYLIST_ID,
             "uri": f"spotify:playlist:{PLAYLIST_ID}",
-            "name": "Test",
-            "description": "",
+            "name": self.name,
+            "description": html.escape(self.description),  # Spotify returns descriptions HTML-escaped
             "owner": {"id": self.owner_id, "display_name": "Owner"},
             "collaborative": False,
             "public": False,
@@ -51,6 +56,10 @@ class FakeSpotify:
         }
 
     def paginate(self, path: str, **params: Any):
+        if path == "/me/playlists":
+            yield self.get(f"/playlists/{PLAYLIST_ID}")
+            yield from self.other_playlists
+            return
         assert path == f"/playlists/{PLAYLIST_ID}/items", path
         for uri in self.uris:
             yield {
@@ -87,6 +96,11 @@ class FakeSpotify:
 
     def put(self, path: str, body: Any) -> Any:
         self.mutations.append(("put", body))
+        if path == f"/playlists/{PLAYLIST_ID}":  # change details: 200 with an empty body
+            if not self.ignore_details:
+                self.name = body.get("name", self.name)
+                self.description = body.get("description", self.description)
+            return None
         op = {"op": "move", **{k: body[k] for k in ("range_start", "insert_before", "range_length")}}
         self.uris = simulate(self.uris, [op])
         return self._bump()

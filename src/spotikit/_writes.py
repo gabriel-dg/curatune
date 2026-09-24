@@ -23,6 +23,16 @@ def remove_uris(client: SpotifyClient, playlist_id: str, uris: list[str], snapsh
     return client.delete(f"/playlists/{playlist_id}/items", body)["snapshot_id"]
 
 
+DETAIL_FIELDS = ("name", "description")
+
+
+def set_details(client: SpotifyClient, playlist_id: str, fields: dict[str, str]) -> None:
+    # Only name and description, ever: visibility and collaboration are deliberately out of reach.
+    if not fields or set(fields) - set(DETAIL_FIELDS):
+        raise ValueError(f"set_details only accepts {DETAIL_FIELDS}, got {sorted(fields)}")
+    client.put(f"/playlists/{playlist_id}", dict(fields))  # 200 with an empty body; returns no snapshot_id
+
+
 def move_range(
     client: SpotifyClient,
     playlist_id: str,
