@@ -103,6 +103,29 @@ def normalize_playlist(playlist: dict[str, Any], current_user_id: str | None) ->
     }
 
 
+def brief_track(track: dict[str, Any]) -> dict[str, Any]:
+    """Flat, compact view of a normalized track or playlist item (CLI `--brief`).
+
+    Keys are always present: position (playlist items only), uri, name, artists (names), album (name),
+    released (edition release date), duration, isrc, playable.
+    """
+    album = track.get("album") or {}
+    brief: dict[str, Any] = {"position": track["position"]} if "position" in track else {}
+    brief.update(
+        {
+            "uri": track.get("uri"),
+            "name": track.get("name"),
+            "artists": [a.get("name") for a in track.get("artists") or []],
+            "album": album.get("name"),
+            "released": album.get("release_date"),
+            "duration": track.get("duration"),
+            "isrc": track.get("isrc"),
+            "playable": track.get("is_playable"),
+        }
+    )
+    return brief
+
+
 def compact_item(item: dict[str, Any]) -> dict[str, Any]:
     """Short form used inside plans: enough to identify an item at a glance."""
     album = item.get("album") or {}

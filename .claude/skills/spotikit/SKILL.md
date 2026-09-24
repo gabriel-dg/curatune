@@ -1,7 +1,7 @@
 ---
 name: spotikit
 description: Work with the user's own Spotify playlists through the spotikit CLI in this repository. List and read playlists, search the catalog, create playlists, add tracks, plan and apply removals or reorders, and keep recording-date metadata. Use for any request about the user's Spotify playlists, such as curating, completing, de-duplicating, ranking, analyzing, or reordering them.
-allowed-tools: PowerShell(.\.venv\Scripts\spotikit.exe auth status) PowerShell(.\.venv\Scripts\spotikit.exe playlists list *) PowerShell(.\.venv\Scripts\spotikit.exe playlist show *) PowerShell(.\.venv\Scripts\spotikit.exe search tracks *) PowerShell(.\.venv\Scripts\spotikit.exe track show *) PowerShell(.\.venv\Scripts\spotikit.exe album tracks *) PowerShell(.\.venv\Scripts\spotikit.exe recordings show *) PowerShell(.\.venv\Scripts\spotikit.exe plan show *) PowerShell(.\.venv\Scripts\spotikit.exe plan remove *) PowerShell(.\.venv\Scripts\spotikit.exe plan reorder *) Bash(.venv/bin/spotikit auth status) Bash(.venv/bin/spotikit playlists list *) Bash(.venv/bin/spotikit playlist show *) Bash(.venv/bin/spotikit search tracks *) Bash(.venv/bin/spotikit track show *) Bash(.venv/bin/spotikit album tracks *) Bash(.venv/bin/spotikit recordings show *) Bash(.venv/bin/spotikit plan show *) Bash(.venv/bin/spotikit plan remove *) Bash(.venv/bin/spotikit plan reorder *)
+allowed-tools: PowerShell(.\.venv\Scripts\spotikit.exe auth status) PowerShell(.\.venv\Scripts\spotikit.exe playlists list *) PowerShell(.\.venv\Scripts\spotikit.exe playlist show *) PowerShell(.\.venv\Scripts\spotikit.exe search tracks *) PowerShell(.\.venv\Scripts\spotikit.exe track show *) PowerShell(.\.venv\Scripts\spotikit.exe album tracks *) PowerShell(.\.venv\Scripts\spotikit.exe recordings show *) PowerShell(.\.venv\Scripts\spotikit.exe plan show *) PowerShell(.\.venv\Scripts\spotikit.exe plan remove *) PowerShell(.\.venv\Scripts\spotikit.exe plan reorder *) Bash(.venv/bin/spotikit auth status) Bash(.venv/bin/spotikit playlists list *) Bash(.venv/bin/spotikit playlist show *) Bash(.venv/bin/spotikit search tracks *) Bash(.venv/bin/spotikit track show *) Bash(.venv/bin/spotikit album tracks *) Bash(.venv/bin/spotikit recordings show *) Bash(.venv/bin/spotikit plan show *) Bash(.venv/bin/spotikit plan remove *) Bash(.venv/bin/spotikit plan reorder *) Bash(.venv/Scripts/spotikit.exe auth status) Bash(.venv/Scripts/spotikit.exe playlists list *) Bash(.venv/Scripts/spotikit.exe playlist show *) Bash(.venv/Scripts/spotikit.exe search tracks *) Bash(.venv/Scripts/spotikit.exe track show *) Bash(.venv/Scripts/spotikit.exe album tracks *) Bash(.venv/Scripts/spotikit.exe recordings show *) Bash(.venv/Scripts/spotikit.exe plan show *) Bash(.venv/Scripts/spotikit.exe plan remove *) Bash(.venv/Scripts/spotikit.exe plan reorder *)
 ---
 
 # spotikit: working with the user's Spotify playlists
@@ -19,14 +19,17 @@ them when present.
 
 ## Invoking the CLI
 
-Run from the repository root:
+The working directory is already the repository root. Use the prefix for your shell and OS:
 
-| Shell | Command prefix |
-|---|---|
-| PowerShell (Windows) | `.\.venv\Scripts\spotikit.exe` |
-| Bash (macOS, Linux, Git Bash) | `.venv/bin/spotikit` |
+| Shell | OS | Command prefix |
+|---|---|---|
+| PowerShell | Windows | `.\.venv\Scripts\spotikit.exe` |
+| Bash (Git Bash) | Windows | `.venv/Scripts/spotikit.exe` |
+| Bash | macOS, Linux | `.venv/bin/spotikit` |
 
-Use exactly these prefixes; the pre-approved read-only permissions match them.
+**One spotikit command per tool call, exactly as `<prefix> <command> <args>`.** Do not add `cd`, loops,
+pipes, `&&`, or inline scripts. The pre-approved read-only permissions only match that exact shape, and
+one command per call keeps failures isolated.
 
 Every call prints one JSON envelope:
 `{"schema_version":1,"ok":true|false,"command":…,"data"|"error":…,"warnings":[…],"meta":{…}}`.
@@ -36,7 +39,19 @@ Every call prints one JSON envelope:
 - `meta` holds timing: `elapsed_ms` plus `http.api` / `http.auth` call counts and milliseconds.
 - Positions in JSON are **0-based**. Use 1-based numbering when talking to the user.
 - Refs accept a bare ID, a `spotify:` URI, or an `open.spotify.com` URL.
-- JSON shapes and error codes: `README.md`.
+
+**Read with `--brief`.** `playlist show`, `search tracks`, `album tracks`, and `recordings show` accept it,
+and it is about a third of the size of the full output. Each track becomes a flat object:
+`{"position", "uri", "name", "artists": ["name", …], "album": "name", "released", "duration", "isrc", "playable"}`.
+
+- `position` appears only for playlist items.
+- `released` is the edition's date.
+- `recordings show --brief` items are `{"position", "uri", "name", "artists", "recorded", "confidence"}`.
+
+Read the JSON directly. **Do not write scripts to reformat or summarize it.** If you need a field that
+`--brief` omits (for example `added_at`, artist or album URIs, `disc_number`), run the command without
+`--brief`. Note that in the full output `artists` is a list of objects `{"name", "uri"}` and `album` is an
+object. Full shapes and error codes: `README.md`.
 
 Put input files for `--from-file` (queries, items, recordings) in a temporary or scratch directory, not in
 the repository.
@@ -113,13 +128,13 @@ Recording entries:
 
 ## Workflows
 
-**Read or analyze a playlist.** Run `playlist show`. Base every claim about a track (period, take,
+**Read or analyze a playlist.** Run `playlist show --brief`. Base every claim about a track (period, take,
 importance, relationships between tunes) on your knowledge or on sources, and say how sure you are.
 
 **Find the right recording.**
-1. Batch-search all candidates at once.
-2. When an edition matters (original label, "Master Takes" collections, remasters), run `album tracks` on
-   it and pick the exact take.
+1. Batch-search all candidates at once (`search tracks --from-file F --brief`).
+2. When an edition matters (original label, "Master Takes" collections, remasters), run
+   `album tracks --brief` on it and pick the exact take.
 3. Weigh the signals:
    - album and label names;
    - durations (for example, 78 RPM sides run about 2:30–3:20);
@@ -141,7 +156,7 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
 - Never claim it is private.
 
 **Reorder chronologically.**
-1. Run `recordings show`.
+1. Run `recordings show --brief`.
 2. Research dates for the `missing` items. Spotify's `release_date` is the **edition** date, never the
    recording date. Use discographies and state sources.
 3. Run `recordings set`.

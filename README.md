@@ -85,6 +85,11 @@ Spotify Web API requests (retries included), `http.auth` token exchanges/refresh
 
 **PlaylistItem** = `{"position": 0, ...Track, "added_at": "…"}`. Unavailable items have `uri: null`.
 
+**Brief track** (`--brief` on `playlist show`, `search tracks`, `album tracks`): a flat, compact view,
+about a third of the size, with every key always present:
+`{"position" (playlist items only), "uri", "name", "artists": ["name", …], "album": "name", "released", "duration", "isrc", "playable"}`.
+`recordings show --brief` items are `{"position", "uri", "name", "artists", "recorded", "confidence"}`.
+
 **Playlist**:
 `{"id", "uri", "name", "description", "owner_id", "owner_name", "owned", "collaborative", "public", "item_count", "snapshot_id", "url"}`
 
