@@ -1,7 +1,8 @@
 """Thin CLI over the spotikit library. Every invocation prints exactly one JSON envelope to stdout.
 
-Success: {"schema_version": 1, "ok": true, "command": "...", "data": {...}, "warnings": [...]}
-Failure: {"schema_version": 1, "ok": false, "command": "...", "error": {"code", "message", "details"}}
+Success: {"schema_version": 1, "ok": true, "command": "...", "data": {...}, "warnings": [...], "meta": {...}}
+Failure: {"schema_version": 1, "ok": false, "command": "...", "error": {"code", "message", "details"}, "meta": {...}}
+meta: {"elapsed_ms": <command time, excluding interpreter start-up>, "http": {"api"|"auth": {"calls", "ms"}}}
 Exit codes: 0 ok, 1 spotikit error, 2 usage error, 3 internal error, 130 interrupted.
 """
 
@@ -10,10 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable
 
-from . import catalog, connect, playlists, plans
+from . import catalog, connect, metrics, playlists, plans
 from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import InvalidArgument, PlanError, SpotikitError
@@ -31,7 +33,15 @@ class _Parser(argparse.ArgumentParser):
         raise _UsageError(message)
 
 
+_started: float | None = None
+
+
 def _emit(envelope: dict[str, Any]) -> None:
+    if _started is not None:
+        envelope["meta"] = {
+            "elapsed_ms": round((time.perf_counter() - _started) * 1000, 1),
+            "http": metrics.snapshot(),
+        }
     sys.stdout.write(json.dumps(envelope, indent=2, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
@@ -265,6 +275,9 @@ def _build_parser() -> _Parser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global _started
+    _started = time.perf_counter()
+    metrics.reset()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     argv = sys.argv[1:] if argv is None else argv

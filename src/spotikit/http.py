@@ -7,6 +7,7 @@ from typing import Any, Iterator, Protocol
 
 import requests
 
+from . import metrics
 from .errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
 from .writelog import WriteLog
 
@@ -55,9 +56,10 @@ class SpotifyClient:
             headers = {"Authorization": f"Bearer {self.tokens.access_token(force_refresh=force_refresh)}"}
             force_refresh = False
             try:
-                resp = self.session.request(
-                    method, url, params=params, json=json, headers=headers, timeout=self.timeout
-                )
+                with metrics.timed("api"):
+                    resp = self.session.request(
+                        method, url, params=params, json=json, headers=headers, timeout=self.timeout
+                    )
             except requests.RequestException as exc:
                 if attempt < self.max_retries:
                     attempt += 1

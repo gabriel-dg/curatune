@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
+from . import metrics
 from .config import REDIRECT_HOST, REDIRECT_PATH, SCOPES, Settings, redirect_uri_for
 from .errors import AuthError, AuthExpired, AuthRequired
 
@@ -330,12 +331,13 @@ class TokenManager:
 
     def _token_request(self, data: dict[str, str]) -> dict[str, Any]:
         try:
-            resp = self.session.post(
-                TOKEN_URL,
-                data=data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=30,
-            )
+            with metrics.timed("auth"):
+                resp = self.session.post(
+                    TOKEN_URL,
+                    data=data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    timeout=30,
+                )
         except requests.RequestException as exc:
             raise AuthError("Network error contacting the Spotify token endpoint.", details={"error": str(exc)}) from None
         if resp.status_code == 200:
@@ -355,7 +357,8 @@ class TokenManager:
 
     def _fetch_me(self, access_token: str) -> dict[str, Any]:
         try:
-            resp = self.session.get(ME_URL, headers={"Authorization": f"Bearer {access_token}"}, timeout=30)
+            with metrics.timed("auth"):
+                resp = self.session.get(ME_URL, headers={"Authorization": f"Bearer {access_token}"}, timeout=30)
         except requests.RequestException as exc:
             raise AuthError("Network error fetching the current user.", details={"error": str(exc)}) from None
         if resp.status_code != 200:
