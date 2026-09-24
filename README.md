@@ -9,7 +9,7 @@ judgment (what to add, what counts as a duplicate, how to rank) comes from the a
 Ask in plain language. Some examples:
 
 - **Create a playlist from a criterion.** "Create a playlist with the landmark recordings of early
-  bebop." Claude picks the tracks and the right edition of each (original studio master, not a live
+  bebop." The agent picks the tracks and the right edition of each (original studio master, not a live
   version, cover, or karaoke), and says how confident it is about each choice.
 - **Complete an existing playlist.** "Add 10 tracks to X that fit what's already there", or "add 15
   underrated Beatles songs: great tracks every fan loves but casual listeners don't know."
@@ -28,17 +28,26 @@ Research such as recording dates (with source and confidence) is kept locally, s
 reorders reuse it. Out of scope: playback, your library and liked songs, listening history, and changing
 a playlist's name, description, or visibility.
 
-## Using it with Claude Code
+## Using it with an AI agent
 
-Open Claude Code in this repository and ask, as in the examples above. The project skill in
-`.claude/skills/spotikit/` teaches Claude the commands, the workflows, and the safety rules. On first
-use, Claude walks you through setup: you only create the Spotify app, fill in `.env`, and approve the
-browser login.
+Open your agent in this repository and ask, as in the examples above. The agent learns the commands,
+workflows, and safety rules from the project skill; on first use it walks you through setup, and you only
+create the Spotify app, fill in `.env`, and approve the browser login.
+
+| Agent | Reads |
+|---|---|
+| Claude Code | `CLAUDE.md` (imports `AGENTS.md`) and `.claude/skills/spotikit/` (points to the shared skill) |
+| Codex CLI, Cursor, Gemini CLI, GitHub Copilot (VS Code), and other agents that support Agent Skills | `AGENTS.md` and `.agents/skills/spotikit/` |
+
+The skill uses the open [Agent Skills](https://agentskills.io) format. Agents that sandbox commands must
+allow spotikit network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
+outside the repository (see `SPOTIKIT_TOKEN_DIR` below). Personal preferences, such as your language or
+per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the repository root.
 
 ## How changes stay safe
 
 - Creating a playlist and adding tracks run directly.
-- Removals and reorders are only ever built as **plans**: before, after, and the exact operations. Claude
+- Removals and reorders are only ever built as **plans**: before, after, and the exact operations. The agent
   shows you the plan and applies it only after your OK.
 - Applying a plan first checks that the playlist hasn't changed since the plan was made, backs it up to
   `data/backups/`, and verifies the result afterwards.
@@ -107,7 +116,7 @@ src/spotikit/
   models.py      normalization to the documented JSON shapes (full and brief)
   metrics.py     per-command HTTP timing
   cli.py         thin argparse layer emitting the JSON envelope
-.claude/skills/spotikit/SKILL.md   how an AI agent uses spotikit
+.agents/skills/spotikit/SKILL.md   how an AI agent uses spotikit (shared skill)
 docs/reference.md                  CLI contract and API notes
 ```
 
