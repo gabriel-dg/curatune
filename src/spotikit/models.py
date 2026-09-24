@@ -1,4 +1,4 @@
-"""Normalization of Spotify API objects into the stable JSON shapes documented in README.md."""
+"""Normalization of Spotify API objects into the stable JSON shapes documented in docs/reference.md."""
 
 from __future__ import annotations
 

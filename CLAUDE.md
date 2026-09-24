@@ -18,13 +18,13 @@ versioned files.
 ## Division of responsibilities
 
 - **Execution layer (this code):** deterministic operations against the API. Input via arguments, output
-  as stable, documented JSON (see README). No judgment or curation logic in the code.
+  as stable, documented JSON (see `docs/reference.md`). No judgment or curation logic in the code.
 - **Judgment layer (Claude):** interprets requests, combines commands, applies domain knowledge (and web
   search), explains decisions and confidence.
 
 Architecture: library package `src/spotikit/` with all logic; thin CLI (`cli.py`) on top. Keep the library
 usable on its own so it can be wrapped as an MCP server later without rewriting anything. Any new CLI
-command must be documented in README.md and in the skill.
+command must be documented in `docs/reference.md` (and listed in README.md) and in the skill.
 
 ## Confirmation rules (enforced in code — keep them that way)
 

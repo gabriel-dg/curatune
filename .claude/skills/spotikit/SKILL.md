@@ -52,7 +52,7 @@ and it is about a third of the size of the full output. Each track becomes a fla
 Read the JSON directly. **Do not write scripts to reformat or summarize it.** If you need a field that
 `--brief` omits (for example `added_at`, artist or album URIs, `disc_number`), run the command without
 `--brief`. Note that in the full output `artists` is a list of objects `{"name", "uri"}` and `album` is an
-object. Full shapes and error codes: `README.md`.
+object. Full shapes and error codes: `docs/reference.md`.
 
 Put input files for `--from-file` (queries, items, recordings) in a temporary or scratch directory, not in
 the repository.
