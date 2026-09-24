@@ -155,6 +155,26 @@ def test_status_never_exposes_tokens(tmp_path):
     assert "old-access" not in dumped and "old-refresh" not in dumped
 
 
+def test_token_file_is_created_owner_only(tmp_path, monkeypatch):
+    created = []
+    real_open = auth.os.open
+
+    def spy_open(path, flags, mode=0o777):
+        created.append((str(path), flags, mode))
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(auth.os, "open", spy_open)
+    store = auth.TokenStore(tmp_path / "tokens" / "token.json")
+    (tmp_path / "tokens").mkdir()
+    (tmp_path / "tokens" / "token.tmp").write_text("stale")  # leftover from an interrupted save
+    store.save({"access_token": "a"})
+    assert len(created) == 1
+    path, flags, mode = created[0]
+    assert path.endswith("token.tmp") and mode == 0o600 and flags & auth.os.O_EXCL
+    assert json.loads(store.path.read_text()) == {"access_token": "a"}
+    assert not (tmp_path / "tokens" / "token.tmp").exists()
+
+
 def test_add_months_clamps_day():
     from datetime import datetime, timezone
 
