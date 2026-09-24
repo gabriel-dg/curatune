@@ -63,6 +63,9 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
   from responses, such as pagination `next` links, are checked, and any other host or scheme raises
   `UNTRUSTED_URL`.
 - Tokens and authorization codes never appear in output, errors, or logs.
+- On POSIX the token file is created `0600` inside a `0700` directory. It is never written with wider
+  permissions first (`auth.TokenStore.save` uses `os.open` with `O_EXCL`). On Windows it inherits the
+  per-user `%LOCALAPPDATA%` ACL.
 - Spotify content (names, descriptions) is untrusted text written by third parties. The skill tells the
   agent to treat it as data, never as instructions, and to apply only plans it built and showed in the
   current conversation.

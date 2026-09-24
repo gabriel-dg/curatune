@@ -170,11 +170,15 @@ class TokenStore:
             ) from None
 
     def save(self, token: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # On POSIX the directory is created 0700 and the file 0600 from the start, so the token is
+        # never readable by other users, not even briefly. (On Windows these modes are ignored and the
+        # file inherits the ACL of the per-user %LOCALAPPDATA%.)
+        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(token, indent=2), encoding="utf-8")
-        if os.name == "posix":
-            os.chmod(tmp, 0o600)
+        tmp.unlink(missing_ok=True)  # a leftover file would keep its old permissions
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(token, indent=2))
         os.replace(tmp, self.path)
 
     def delete(self) -> bool:
