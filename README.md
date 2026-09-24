@@ -26,9 +26,8 @@ Ask in plain language. Some examples:
 
 Research such as recording dates (with source and confidence) is kept locally, so later additions and
 reorders reuse it. You can also **rename a playlist or change its description** ("rename X to Y", "give X
-a description"); the change is shown as a plan and applied after your OK. Out of scope: playback, your
-library and liked songs, listening history, and a playlist's visibility (Spotify doesn't apply it through
-the API).
+a description"); the change is shown as a plan and applied after your OK. Some things are left out on
+purpose, for safety; see [What spotikit won't do](#what-spotikit-wont-do).
 
 ## Using it with an AI agent
 
@@ -57,9 +56,49 @@ per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the 
   and the exact operations. The agent shows you the plan and applies it only after your OK.
 - Applying a plan first checks that the playlist hasn't changed since the plan was made, backs it up to
   `data/backups/`, and verifies the result afterwards.
-- There is no command to change a playlist's visibility.
 - Spotify currently makes every playlist created through the API **public**, whatever is requested.
   Make it private from the Spotify app if needed.
+
+## What spotikit won't do
+
+### Left out on purpose
+
+These are **deliberate protections, not gaps**. Spotify's API allows some of them; spotikit leaves them
+out so that a mistake, a misunderstood request, or text planted in a track or playlist name can't cause
+damage that is hard to undo.
+
+- **Delete a playlist.** The API can remove a playlist from your library, which is what "delete" does in
+  the app. spotikit has no command for it: a playlist only disappears if you delete it yourself in Spotify.
+- **Change a playlist's visibility or make it collaborative.** Only the name and description can change.
+  Visibility would decide who can see your playlist, and Spotify ignores it through the API anyway.
+- **Touch anything outside your playlists:** your liked songs and saved albums, followed artists,
+  playback, or listening history. spotikit only requests the three playlist permissions, so it has no
+  access to the rest.
+- **Remove, reorder, rename, or change a description without your OK.** Every one of these goes through a
+  plan you see first. There is no option to skip the confirmation.
+- **Rewrite a playlist's whole track list in one go.** The API allows it, but it would reset the date each
+  track was added. Reorders only move tracks.
+- **Let an agent change Spotify without asking.** For agents that support pre-approval, only reading and
+  building plans are pre-approved. Adding, creating, and applying a plan always go through the agent's
+  normal approval, on top of your OK in the chat.
+- **Send your access token anywhere but `api.spotify.com`, keep it in the repository, or use a client
+  secret.**
+
+If you need one of these, it can be added deliberately: open an issue or change the code, keeping the
+plan-and-confirm flow.
+
+### Limits set by Spotify
+
+These are not choices, and no code change can lift them:
+
+- Playlists created or edited through the API end up **public**. Make them private in the Spotify app.
+- Only playlists you own or collaborate on can be read track by track or changed.
+- There are no audio features, popularity, follower counts, or labels. The release date is the edition's
+  date, not the recording date, so rankings and recording dates come from the agent's knowledge and
+  sources.
+- A search returns at most 10 results per request.
+- Development Mode apps need a Premium account for the app owner and allow up to 5 users. The
+  authorization lasts 6 months; after that you log in again.
 
 ## Setup
 
