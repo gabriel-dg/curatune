@@ -27,6 +27,8 @@ def test_auth_status_logged_out(capsys, monkeypatch, tmp_path):
     monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
     code, out = _run(capsys, ["auth", "status"])
     assert code == 0
+    meta = out.pop("meta")
+    assert meta["http"] == {} and meta["elapsed_ms"] >= 0
     assert out == {
         "schema_version": 1,
         "ok": True,

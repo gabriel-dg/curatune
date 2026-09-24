@@ -46,6 +46,15 @@ answers `invalid_grant`, the stored token is deleted and commands fail with `AUT
 
 Warnings are objects `{"code", "message", ...}`. **Positions are 0-based everywhere.**
 
+Every envelope (success or failure) also carries timing:
+
+```json
+"meta": {"elapsed_ms": 812.4, "http": {"api": {"calls": 4, "ms": 690.2}, "auth": {"calls": 1, "ms": 95.0}}}
+```
+
+`elapsed_ms` is the command's own time (interpreter start-up and imports excluded); `http.api` counts
+Spotify Web API requests (retries included), `http.auth` token exchanges/refreshes.
+
 ### Shared shapes
 
 **Track** (search, `track show`, `album tracks`); every key is always present, `null` when unknown:
