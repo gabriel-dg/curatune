@@ -15,6 +15,9 @@ walks you through setup. You only create the Spotify app, fill in `.env`, and ap
 
 ## Setup
 
+Requirements: Python 3.10 or newer, and a Spotify account with **Premium** for the app owner (a
+Development Mode requirement). Development Mode apps allow up to 5 authorized users.
+
 1. Create an app at <https://developer.spotify.com/dashboard> (Web API) and register the redirect URI
    `http://127.0.0.1:8888/callback` exactly. The dashboard rejects portless loopback URIs, so a new
    port also needs its own registered URI.
@@ -24,8 +27,11 @@ walks you through setup. You only create the Spotify app, fill in `.env`, and ap
    ```bash
    python -m venv .venv
    .venv/Scripts/python -m pip install -e ".[dev]"   # .venv/bin/python on macOS/Linux
-   .venv/Scripts/spotikit auth login
+   .venv/Scripts/spotikit auth login                  # .venv/bin/spotikit on macOS/Linux
    ```
+
+With Claude Code, the agent runs these steps for you (see the skill). You only create the app, fill in
+`.env`, and approve the browser login.
 
 ### Configuration (`.env`)
 
@@ -61,8 +67,11 @@ Every envelope (success or failure) also carries timing:
 "meta": {"elapsed_ms": 812.4, "http": {"api": {"calls": 4, "ms": 690.2}, "auth": {"calls": 1, "ms": 95.0}}}
 ```
 
-`elapsed_ms` is the command's own time (interpreter start-up and imports excluded); `http.api` counts
-Spotify Web API requests (retries included), `http.auth` token exchanges/refreshes.
+- `elapsed_ms` is the command's own wall-clock time, excluding interpreter start-up and imports.
+- `http.api` counts Spotify Web API requests, retries included.
+- `http.auth` counts token exchanges and refreshes.
+- In batch search, requests run concurrently, so `http.api.ms` is the sum of their durations and can
+  exceed `elapsed_ms`.
 
 ### Shared shapes
 
@@ -101,16 +110,16 @@ about a third of the size, with every key always present:
 | `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path}` |
 | `auth logout` | `{logged_out, token_path}` |
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` |
-| `playlist show <playlist> [--market CC]` | `{playlist: Playlist, items: [PlaylistItem]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
+| `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
 | `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position}], skipped: [{uri, reason}], item_count, snapshot_id}`. Skips URIs already present unless `--allow-duplicates`. |
-| `search tracks [query] [--track T] [--artist A] [--album B] [--year Y\|Y-Y] [--limit ≤10] [--offset N] [--market CC]` | `{query, market, limit, offset, total, next_offset, results: [Track]}` |
-| `search tracks --from-file F [--workers 1-4] [--market CC]` | Batch: `{count, failed, searches: [{id, ok, …single-search fields \| error}]}`, in input order. `F` is a JSON array (max 50) of `{"id", "query", "track", "artist", "album", "year", "limit", "offset", "market"}`; unknown keys are rejected. One failed search does not fail the batch. |
+| `search tracks [query] [--track T] [--artist A] [--album B] [--year Y\|Y-Y] [--limit ≤10] [--offset N] [--market CC] [--brief]` | `{query, market, limit, offset, total, next_offset, results: [Track \| Brief track]}` + warning `YEAR_IS_RELEASE_YEAR` when `--year` is used |
+| `search tracks --from-file F [--workers 1-4] [--market CC] [--brief]` | Batch: `{count, failed, searches: [{id, ok, …single-search fields \| error}]}`, in input order. `F` is a JSON array (max 50) of `{"id", "query", "track", "artist", "album", "year", "limit", "offset", "market"}`; unknown keys are rejected. One failed search does not fail the batch. |
 | `track show <track> [--market CC]` | `{track: Track}` |
-| `album tracks <album> [--market CC]` | `{album: {…, id, total_tracks, url}, tracks: [Track]}` |
+| `album tracks <album> [--market CC] [--brief]` | `{album: {…, id, total_tracks, url}, tracks: [Track \| Brief track]}` |
 | `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | plan summary (below) |
 | `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --by-recording-date) [--reason R]` | plan summary. `--by-recording-date` sorts by the local recording store (ties keep current order); fails with `RECORDING_DATES_MISSING` listing undated items. |
-| `recordings show <playlist>` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}` |
+| `recordings show <playlist> [--brief]` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}`; with `--brief`, items are `{position, uri, name, artists, recorded, confidence}` |
 | `recordings set --from-file F` | `{created, updated, total, path}`. Validates every entry before writing anything. |
 | `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?: {applicable, same_snapshot, same_items, current_snapshot_id}}` |
 | `plan apply <plan>` | `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}` |
@@ -217,10 +226,48 @@ never relaxes.
 `PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
 `VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
 
+Warning codes (in `warnings`; the command still succeeded):
+
+| Code | Meaning |
+|---|---|
+| `SNAPSHOT_READ_LAG` | The read returned a stale `snapshot_id`; the one from spotikit's last write is used. |
+| `LOCAL_FILES` | The playlist contains local files. |
+| `UNAVAILABLE_ITEMS` | Some items have no track object and no URI. |
+| `YEAR_IS_RELEASE_YEAR` | `--year` filters on the edition's release year, not the recording year. |
+| `VISIBILITY_NOT_APPLIED` | A private playlist was requested but Spotify made it public. |
+| `VISIBILITY_UNVERIFIED` | Spotify reports the playlist as private but is known to ignore it. |
+| `REINSERTED_DUPLICATES` | A removal plan re-inserts kept copies of a repeated URI, and their `added_at` resets. |
+| `LOCAL_FILE_REMOVAL` | A removal plan touches local files; removing them through the API is unverified. |
+
+## Project layout
+
+```
+src/spotikit/
+  auth.py        OAuth PKCE flow, token storage outside the repo, refresh/expiry handling
+  http.py        Web API client: retries (429/5xx/network), 401 refresh, error mapping, pagination
+  playlists.py   list, read (consistent snapshot), create, add
+  catalog.py     search (single and concurrent batch), track, album listing
+  plans.py       remove/reorder plans: build, validate, apply, verify
+  _writes.py     mutating primitives (private: only plans and add use them)
+  recordings.py  local recording-date store and chronological ordering
+  writelog.py    compensation for snapshot_id read lag
+  models.py      normalization to the documented JSON shapes (full and brief)
+  metrics.py     per-command HTTP timing
+  cli.py         thin argparse layer emitting the JSON envelope
+.claude/skills/spotikit/SKILL.md   how an AI agent uses spotikit
+```
+
 ## Tests
 
 ```bash
-.venv/Scripts/python -m pytest
+.venv/Scripts/python -m pytest   # .venv/bin/python on macOS/Linux
 ```
 
-Plan logic is tested against an in-memory fake of the playlist API (`tests/fakes.py`).
+What the tests cover:
+- Plan logic, against an in-memory fake of the playlist API that also simulates snapshot read lag
+  (`tests/fakes.py`).
+- The HTTP client, against a scripted session (`tests/test_http.py`).
+- Batch search concurrency, with a fake client.
+- The OAuth callback, against a real local server.
+
+No test calls Spotify.

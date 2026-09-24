@@ -36,7 +36,8 @@ Every call prints one JSON envelope:
 
 - Always check `ok`.
 - Read `warnings`.
-- `meta` holds timing: `elapsed_ms` plus `http.api` / `http.auth` call counts and milliseconds.
+- `meta` holds timing: `elapsed_ms` plus `http.api` / `http.auth` call counts and milliseconds. In batch
+  search, `http.api.ms` sums concurrent requests; report `elapsed_ms` as the wall-clock time.
 - Positions in JSON are **0-based**. Use 1-based numbering when talking to the user.
 - Refs accept a bare ID, a `spotify:` URI, or an `open.spotify.com` URL.
 
@@ -99,14 +100,14 @@ authorization. Do not try to work around it.
 |---|---|
 | `auth login` / `auth status` / `auth logout` | Authorization. The user completes the browser flow. |
 | `playlists list [--owned-only]` | The user's playlists. |
-| `playlist show <playlist> [--market CC]` | Metadata and all items (position, name, artists, album, duration, ISRC, URI, `added_at`, `is_playable` with a market). |
+| `playlist show <playlist> [--market CC] [--brief]` | Metadata and all items (position, name, artists, album, duration, ISRC, URI; the full output adds `added_at` and more). |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** See the visibility note below. |
 | `playlist add <playlist> [refs…] [--from-file F] [--position N] [--allow-duplicates]` | **Executes.** Appends by default. Skips URIs already present. |
-| `search tracks [q] [--track --artist --album --year] [--limit ≤10] [--offset N]` | One search, 10 results at most. |
-| `search tracks --from-file queries.json [--workers 1-4]` | **Batch**: many searches concurrently, results in input order. Prefer it whenever there is more than one search. |
+| `search tracks [q] [--track --artist --album --year] [--limit ≤10] [--offset N] [--brief]` | One search, 10 results at most. |
+| `search tracks --from-file queries.json [--workers 1-4] [--brief]` | **Batch**: many searches concurrently, results in input order. Prefer it whenever there is more than one search. |
 | `track show <track>` | One track, with ISRC. |
-| `album tracks <album>` | Full album listing. Use it to find the master take inside a specific edition. |
-| `recordings show <playlist>` | Join items with the local recording-date store. Reports `missing` and `chronological`. |
+| `album tracks <album> [--brief]` | Full album listing. Use it to find the master take inside a specific edition. |
+| `recordings show <playlist> [--brief]` | Join items with the local recording-date store. Reports `missing` and `chronological`. |
 | `recordings set --from-file F` | Add or update recording dates. Validated all-or-nothing. |
 | `plan remove <playlist> --positions "3,17,20-22"` | Plan only. |
 | `plan reorder <playlist> (--order … \| --order-file F \| --move FROM:TO \| --by-recording-date)` | Plan only. |
@@ -154,6 +155,10 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
 - Spotify currently ignores `public: false`, and spotikit reports `VISIBILITY_NOT_APPLIED`.
 - Tell the user the playlist is public and that they can make it private in the Spotify app.
 - Never claim it is private.
+- If the new playlist must be in an order (for example chronological), decide the order first and add
+  the tracks already in that order with one `playlist add`. Adding needs no plan, so no reorder plan or
+  approval is needed. Store the recording dates with `recordings set`, then confirm the result with
+  `recordings show --brief` (`chronological: true`).
 
 **Reorder chronologically.**
 1. Run `recordings show --brief`.
@@ -165,7 +170,7 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
 6. Apply only after the OK.
 
 **Duplicates and repeated versions.**
-- Detect them from `playlist show`: the same ISRC, the same composition under another title, or
+- Detect them from `playlist show --brief`: the same ISRC, the same composition under another title, or
   alternate, live, or re-recorded versions of a tune already present.
 - Explain each case. Removal goes through `plan remove`.
 
@@ -180,6 +185,7 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
 | Code | Action |
 |---|---|
 | `SNAPSHOT_READ_LAG` (warning) | Normal right after a write. Nothing to do. |
+| `YEAR_IS_RELEASE_YEAR` (warning) | `--year` matches the edition's release year. Don't use it to find period recordings on later compilations. |
 | `VISIBILITY_NOT_APPLIED` / `VISIBILITY_UNVERIFIED` | Tell the user the playlist is or may be public. |
 | `LOCAL_FILES`, `UNAVAILABLE_ITEMS` | Mention them. Items without a URI cannot be removed through the API. |
 | `REINSERTED_DUPLICATES` (plan) | Removing one copy of a repeated URI re-inserts the kept copies, and their `added_at` resets. Mention it when presenting the plan. |
