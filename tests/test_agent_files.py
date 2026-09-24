@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 SHARED_SKILL = ROOT / ".agents" / "skills" / "spotikit" / "SKILL.md"
 CLAUDE_SKILL = ROOT / ".claude" / "skills" / "spotikit" / "SKILL.md"
@@ -33,6 +35,7 @@ def test_claude_entry_point_defers_to_shared_skill():
     assert ".agents/skills/spotikit/SKILL.md" in CLAUDE_SKILL.read_text(encoding="utf-8")
 
 
-def test_claude_md_only_imports_agents_md():
-    lines = [l for l in (ROOT / "CLAUDE.md").read_text(encoding="utf-8").splitlines() if l.strip()]
+@pytest.mark.parametrize("name", ["CLAUDE.md", "GEMINI.md"])
+def test_agent_context_files_only_import_agents_md(name):
+    lines = [l for l in (ROOT / name).read_text(encoding="utf-8").splitlines() if l.strip()]
     assert lines == ["@AGENTS.md", "@AGENTS.local.md"]

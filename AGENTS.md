@@ -20,8 +20,9 @@ versioned files.
 The repository works with any agent that reads `AGENTS.md` and Agent Skills (`SKILL.md`), such as Codex,
 Cursor, Gemini CLI, and GitHub Copilot, as well as Claude Code. Keep a single source for each:
 
-- `AGENTS.md` (this file) holds the development instructions. `CLAUDE.md` only imports it and
-  `AGENTS.local.md`; put nothing else there.
+- `AGENTS.md` (this file) holds the development instructions. `CLAUDE.md` and `GEMINI.md` (Claude Code and
+  Gemini CLI do not read `AGENTS.md` on their own) only import it and `AGENTS.local.md`; put nothing else
+  there.
 - `.agents/skills/spotikit/SKILL.md` is the skill. Claude Code only discovers `.claude/skills/`, so
   `.claude/skills/spotikit/SKILL.md` is a thin entry point that points to it and pre-approves the read-only
   commands (`allowed-tools`). Its `name` and `description` must match the shared skill
