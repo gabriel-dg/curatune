@@ -18,7 +18,8 @@ backups/
 *.tmp
 *.log
 
-# --- Personal / local notes and Claude Code local settings ---
+# --- Personal / local notes and agent-local settings ---
+AGENTS.local.md
 CLAUDE.local.md
 .claude/settings.local.json
 scratch/
