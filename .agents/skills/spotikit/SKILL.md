@@ -95,6 +95,10 @@ authorization. Do not try to work around it.
   another task.
 - If `plan apply` returns `SNAPSHOT_MISMATCH`, nothing was changed. Regenerate the plan and ask again.
 - **Never change a playlist's visibility.** spotikit has no command for it, on purpose.
+- If the user asks for something spotikit leaves out on purpose (see "What spotikit won't do" in
+  `README.md`), explain that it is a deliberate protection, not a missing feature, and say how to do it in
+  the Spotify app. Examples: deleting a playlist, changing visibility, touching liked songs or playback.
+  Never work around it with other tools or scripts.
 - Only playlists the user owns or collaborates on can be read item-by-item or modified.
 
 ## Commands
