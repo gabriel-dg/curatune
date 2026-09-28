@@ -1,0 +1,240 @@
+// Chat view: the conversation with the model, the tool calls it makes, and their results. Everything the
+// model or Spotify wrote is rendered as text nodes (see ./dom.ts and renderText below).
+
+import { AgentError, type ChatMessage, type ChatModel } from "../agent/llm";
+import { runTurn, type AgentEvent } from "../agent/loop";
+import { SYSTEM_PROMPT } from "../agent/prompt";
+import { SpotikitError } from "../spotify/errors";
+import { READ_TOOLS, type ToolContext } from "../tools";
+import { h } from "./dom";
+
+const SUGGESTIONS = [
+  "Which playlists do I have?",
+  "Are there duplicates in my test playlist?",
+  "Find versions of Salt Peanuts by Dizzy Gillespie",
+];
+
+/** Plain text with two conveniences: **bold** and "# heading" lines (shown bold, without the hashes). */
+export function renderText(text: string): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  text.split("\n").forEach((line, index) => {
+    if (index > 0) fragment.append("\n");
+    const heading = /^#{1,6}\s+(.*)$/.exec(line);
+    if (heading) {
+      fragment.append(h("strong", { text: heading[1] }));
+      return;
+    }
+    line.split(/(\*\*[^*]+\*\*)/).forEach((part) => {
+      if (/^\*\*[^*]+\*\*$/.test(part)) fragment.append(h("strong", { text: part.slice(2, -2) }));
+      else if (part) fragment.append(part);
+    });
+  });
+  return fragment;
+}
+
+function compactArgs(raw: string): string {
+  try {
+    const args = JSON.parse(raw || "{}") as Record<string, unknown>;
+    return Object.entries(args)
+      .map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`)
+      .join(" ");
+  } catch {
+    return raw;
+  }
+}
+
+function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+export class ChatView {
+  readonly element: HTMLElement;
+  /** Called when a turn fails because the Spotify session is gone. */
+  onAuthError: (exc: SpotikitError) => void = () => {};
+
+  private readonly model: ChatModel | null;
+  private readonly unavailableReason: string | null;
+  private readonly ctx: ToolContext;
+  private history: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
+  private readonly transcript: HTMLElement;
+  private readonly input: HTMLTextAreaElement;
+  private readonly sendButton: HTMLButtonElement;
+  private readonly stopButton: HTMLButtonElement;
+  private readonly newButton: HTMLButtonElement;
+  private readonly status: HTMLElement;
+  private controller: AbortController | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(model: ChatModel | null, unavailableReason: string | null, modelName: string, ctx: ToolContext) {
+    this.model = model;
+    this.unavailableReason = unavailableReason;
+    this.ctx = ctx;
+    this.transcript = h("div", { class: "transcript", attrs: { "aria-live": "polite" } });
+    this.input = h("textarea", {
+      attrs: { rows: "3", placeholder: "Ask about your playlists… (Enter sends, Shift+Enter adds a line)", "aria-label": "Message" },
+      on: {
+        keydown: (event) => {
+          if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+            event.preventDefault();
+            void this.send();
+          }
+        },
+      },
+    });
+    this.sendButton = h("button", { text: "Send", on: { click: () => void this.send() } });
+    this.stopButton = h("button", { class: "secondary", text: "Stop", attrs: { hidden: "" }, on: { click: () => this.controller?.abort() } });
+    this.newButton = h("button", { class: "secondary", text: "New chat", on: { click: () => this.reset() } });
+    this.status = h("span", { class: "muted status", text: model ? `Model: ${modelName}` : "" });
+    this.element = h("section", { class: "chat" }, [
+      this.transcript,
+      h("div", { class: "composer" }, [
+        this.input,
+        h("div", { class: "composer-actions" }, [this.status, this.newButton, this.stopButton, this.sendButton]),
+      ]),
+    ]);
+    this.renderEmpty();
+  }
+
+  private renderEmpty(): void {
+    if (!this.model) {
+      this.transcript.replaceChildren(h("p", { class: "notice", text: this.unavailableReason ?? "The model is not configured." }));
+      this.input.disabled = true;
+      this.sendButton.disabled = true;
+      return;
+    }
+    this.transcript.replaceChildren(
+      h("div", { class: "empty" }, [
+        h("p", { class: "muted", text: "This version is read-only: it can list, show, and analyze your playlists and search the catalog. Ask in any language." }),
+        h(
+          "div",
+          { class: "suggestions" },
+          SUGGESTIONS.map((text) =>
+            h("button", {
+              class: "secondary",
+              text,
+              on: {
+                click: () => {
+                  this.input.value = text;
+                  void this.send();
+                },
+              },
+            }),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  private reset(): void {
+    if (this.controller) return;
+    this.history = [{ role: "system", content: SYSTEM_PROMPT }];
+    this.renderEmpty();
+    this.input.focus();
+  }
+
+  private append(node: HTMLElement): HTMLElement {
+    this.transcript.querySelector(".empty")?.remove();
+    this.transcript.append(node);
+    node.scrollIntoView({ block: "end" });
+    return node;
+  }
+
+  private setBusy(busy: boolean): void {
+    this.input.disabled = busy;
+    this.sendButton.disabled = busy;
+    this.newButton.disabled = busy;
+    this.stopButton.hidden = !busy;
+  }
+
+  private startTimer(label: string): void {
+    this.stopTimer();
+    const started = performance.now();
+    const tick = () => (this.status.textContent = `${label} ${Math.floor((performance.now() - started) / 1000)} s`);
+    tick();
+    this.timer = setInterval(tick, 1000);
+  }
+
+  private stopTimer(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  async send(): Promise<void> {
+    const text = this.input.value.trim();
+    if (!text || this.controller || !this.model) return;
+    this.input.value = "";
+    this.append(h("div", { class: "msg user" }, [text]));
+    this.setBusy(true);
+    this.controller = new AbortController();
+    const toolLines = new Map<string, HTMLElement>();
+    // Mutated from the event callback, so it lives in an object (TypeScript does not track closure writes).
+    const stats: { promptTokens: number | null } = { promptTokens: null };
+
+    const onEvent = (event: AgentEvent) => {
+      switch (event.type) {
+        case "model_start":
+          this.startTimer(event.step === 1 ? "Thinking…" : `Thinking (step ${event.step})…`);
+          break;
+        case "model_end":
+          this.stopTimer();
+          stats.promptTokens = event.promptTokens ?? stats.promptTokens;
+          break;
+        case "note":
+          this.append(h("div", { class: "msg assistant note" }, [renderText(event.content)]));
+          break;
+        case "tool_start": {
+          const line = h("details", { class: "tool pending" }, [
+            h("summary", {}, [h("code", { text: event.call.function.name }), ` ${compactArgs(event.call.function.arguments)}`]),
+          ]);
+          toolLines.set(event.call.id, this.append(line));
+          break;
+        }
+        case "tool_end": {
+          const line = toolLines.get(event.call.id);
+          if (!line) break;
+          const { execution } = event;
+          line.classList.remove("pending");
+          line.classList.add(execution.outcome.ok ? "ok" : "failed");
+          line.querySelector("summary")?.append(h("span", { class: "muted", text: ` → ${execution.summary} · ${seconds(execution.ms)}` }));
+          // The exact JSON the model received, for transparency.
+          line.append(h("pre", { text: JSON.stringify(execution.outcome, null, 2) }));
+          break;
+        }
+        case "answer":
+          this.append(h("div", { class: "msg assistant" }, [renderText(event.content)]));
+          break;
+      }
+    };
+
+    try {
+      const result = await runTurn(this.history, text, {
+        model: this.model,
+        tools: READ_TOOLS,
+        ctx: this.ctx,
+        signal: this.controller.signal,
+        onEvent,
+      });
+      this.history = result.messages;
+    } catch (exc) {
+      // A failed or stopped turn is not kept: the conversation stays as it was before this message.
+      if (exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) {
+        this.onAuthError(exc);
+      }
+      const message =
+        exc instanceof AgentError && exc.code === "CANCELLED"
+          ? "Stopped. This message was not kept in the conversation."
+          : exc instanceof AgentError || exc instanceof SpotikitError
+            ? `${exc.code}: ${exc.message} (this message was not kept in the conversation)`
+            : "Unexpected error. See the browser console for details.";
+      if (!(exc instanceof AgentError || exc instanceof SpotikitError)) console.error(exc);
+      this.append(h("div", { class: "msg error" }, [message]));
+    } finally {
+      this.stopTimer();
+      this.controller = null;
+      this.setBusy(false);
+      this.status.textContent =
+        stats.promptTokens !== null ? `Context: ${stats.promptTokens.toLocaleString("en-US")} tokens` : "";
+      this.input.focus();
+    }
+  }
+}

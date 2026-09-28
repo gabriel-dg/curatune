@@ -31,10 +31,16 @@ IP addresses, hostnames, local paths) in versioned files.
   the browser.
 - The LLM receives only the conversation and trimmed tool results (names, artists, durations, URIs), never
   tokens.
-- Layers: `src/spotify/` (auth, HTTP client, models, playlist reads), `src/ui/`; planned: `src/plans/`,
-  `src/tools/` (tool schemas and handlers), `src/agent/` (LLM loop). `spotify/` and `plans/` must not
-  depend on the UI, the DOM, or the LLM, so they stay testable in Node (`tests/invariants.test.ts` checks
-  this and other invariants statically).
+- Layers: `src/spotify/` (auth, HTTP client, models, playlist and catalog reads), `src/tools/` (tool
+  schemas, argument validation, handlers, trimming of results for the model), `src/agent/` (LLM client,
+  loop, system prompt), `src/ui/`; planned: `src/plans/`. Only `ui/` touches the DOM; `agent/` and
+  `tools/` never import the auth module (types only), so the token cannot reach the model. All of this is
+  testable in Node (`tests/invariants.test.ts` checks these rules statically).
+- Model evaluation: `npm run eval` runs `eval/scenarios.ts` against real models with the in-memory fake
+  Spotify from `tests/fake-spotify.ts` (no token needed); results go to `scratch/eval/`.
+- LM Studio silently truncates conversations that exceed the loaded context length (4096 by default when
+  it loads a model on demand). The loop detects it (prompt tokens shrinking within a turn) and fails with
+  `LLM_CONTEXT_EXCEEDED`. Load models with at least 32768 tokens of context.
 - The CSP is built in `config/csp.ts` (its `connect-src` includes the origin of `VITE_LLM_BASE_URL`) and
   injected as a `<meta>` tag; the dev and preview servers also send it as a header.
 
@@ -115,6 +121,9 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
 - Test against a dedicated test playlist, never against the user's curated playlists.
-- Positions in JSON are **0-based** (same as the API and spotikit).
+- Positions in JSON are **0-based** (same as the API and spotikit). Deliberate exception: what the model
+  sees and sends through tools uses `number`, **1-based** as in the Spotify app (a 9B model confused
+  0-based positions with track numbers in the phase 2 evaluation). Convert only at the tool boundary
+  (`src/tools/`); `spotify/`, plans, and stored data stay 0-based.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
   IDs, IP addresses, and hostnames). The repo is intended to be published.

@@ -1,7 +1,9 @@
+import { AgentError, LlmClient } from "./agent/llm";
 import { loadConfig } from "./config";
 import { SpotifyAuth, takeCallbackParams } from "./spotify/auth";
 import { SpotifyClient } from "./spotify/http";
 import { App } from "./ui/app";
+import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
 
 async function start(root: HTMLElement): Promise<void> {
@@ -23,7 +25,17 @@ async function start(root: HTMLElement): Promise<void> {
     return;
   }
   const client = new SpotifyClient(auth, { fetch: (input, init) => window.fetch(input, init) });
-  const app = new App(root, auth, client);
+
+  // The LLM client gets its own fetch and never sees `auth`: the Spotify token cannot reach the model.
+  let model: LlmClient | null = null;
+  let modelProblem: string | null = null;
+  try {
+    model = new LlmClient({ baseUrl: config.llmBaseUrl, model: config.llmModel, fetch: (input, init) => window.fetch(input, init) });
+  } catch (exc) {
+    modelProblem = exc instanceof AgentError ? exc.message : "The LLM is not configured.";
+  }
+  const chat = new ChatView(model, modelProblem, config.llmModel, { client });
+  const app = new App(root, auth, client, chat);
 
   if (callback) {
     try {

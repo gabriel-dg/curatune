@@ -46,6 +46,18 @@ describe("source invariants", () => {
     expect(offenders(/\bdocument\.|\bwindow\./, spotify)).toEqual([]);
   });
 
+  it("keeps tools/ and agent/ free of the DOM and the UI", () => {
+    const layers = Object.fromEntries(Object.entries(sources).filter(([path]) => /\/(tools|agent)\//.test(path)));
+    expect(Object.keys(layers).length).toBeGreaterThan(3);
+    expect(offenders(/from "\.\.\/ui\//, layers)).toEqual([]);
+    expect(offenders(/\bdocument\.|\bwindow\.|console\./, layers)).toEqual([]);
+  });
+
+  it("never gives the agent access to the auth module (types only)", () => {
+    const agent = Object.fromEntries(Object.entries(sources).filter(([path]) => /\/(tools|agent)\//.test(path)));
+    expect(offenders(/^import (?!type )[^;]*from "\.\.\/spotify\/auth"/m, agent)).toEqual([]);
+  });
+
   it("loads no third-party scripts or styles", () => {
     expect(offenders(/<script[^>]+src="https?:|<link[^>]+href="https?:/)).toEqual([]);
   });

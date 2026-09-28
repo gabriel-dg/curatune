@@ -1,5 +1,5 @@
-// Phase 1 UI: log in, list playlists, show one playlist with all its items. Routes live in the hash
-// (#/ and #/playlist/<id>) so reloads and the back button keep the view.
+// App shell: login, header, and routes. Routes live in the hash so reloads and the back button keep the
+// view: #/ (chat), #/playlists, #/playlist/<id>.
 
 import type { SpotifyAuth } from "../spotify/auth";
 import { SpotikitError } from "../spotify/errors";
@@ -7,13 +7,15 @@ import type { SpotifyClient } from "../spotify/http";
 import { formatDuration, type Playlist, type PlaylistItem } from "../spotify/models";
 import { getPlaylist, listPlaylists, type Warning } from "../spotify/playlists";
 import { parseId } from "../spotify/refs";
+import type { ChatView } from "./chat";
 import { h } from "./dom";
 
-type Route = { view: "playlists" } | { view: "playlist"; id: string };
+type Route = { view: "chat" } | { view: "playlists" } | { view: "playlist"; id: string };
 
 function parseRoute(hash: string): Route {
   const match = /^#\/playlist\/([A-Za-z0-9]{22})$/.exec(hash);
-  return match ? { view: "playlist", id: match[1]! } : { view: "playlists" };
+  if (match) return { view: "playlist", id: match[1]! };
+  return hash === "#/playlists" ? { view: "playlists" } : { view: "chat" };
 }
 
 /** Only links to open.spotify.com are rendered; anything else from a response is shown as plain text. */
@@ -33,15 +35,21 @@ export class App {
   private readonly root: HTMLElement;
   private readonly auth: SpotifyAuth;
   private readonly client: SpotifyClient;
+  private readonly chat: ChatView;
   private readonly header: HTMLElement;
   private readonly notice: HTMLElement;
   private readonly main: HTMLElement;
   private renderId = 0;
 
-  constructor(root: HTMLElement, auth: SpotifyAuth, client: SpotifyClient) {
+  constructor(root: HTMLElement, auth: SpotifyAuth, client: SpotifyClient, chat: ChatView) {
     this.root = root;
     this.auth = auth;
     this.client = client;
+    this.chat = chat;
+    this.chat.onAuthError = () => {
+      this.auth.logout();
+      void this.render();
+    };
     this.header = h("header", { class: "top" });
     this.notice = h("div", { class: "notice", attrs: { role: "alert", hidden: "" } });
     this.main = h("main");
@@ -69,14 +77,15 @@ export class App {
       this.renderLoggedOut();
       return;
     }
-    this.renderHeader(null);
     const route = parseRoute(location.hash);
+    this.renderHeader(null, route);
     this.main.replaceChildren(h("p", { class: "muted", text: "Loading…" }));
     try {
       const user = await this.client.currentUser();
       if (id !== this.renderId) return;
-      this.renderHeader(user.display_name ?? user.id);
-      if (route.view === "playlist") await this.renderPlaylist(route.id, id);
+      this.renderHeader(user.display_name ?? user.id, route);
+      if (route.view === "chat") this.main.replaceChildren(this.chat.element);
+      else if (route.view === "playlist") await this.renderPlaylist(route.id, id);
       else await this.renderPlaylists(id);
     } catch (exc) {
       if (id !== this.renderId) return;
@@ -116,11 +125,17 @@ export class App {
     );
   }
 
-  private renderHeader(userLabel: string | null): void {
+  private renderHeader(userLabel: string | null, route: Route): void {
     const status = this.auth.status();
     const missing = status?.missingScopes.length ? `Missing scopes: ${status.missingScopes.join(", ")}` : null;
+    const navLink = (text: string, href: string, active: boolean) =>
+      h("a", { text, class: active ? "active" : undefined, attrs: { href, ...(active ? { "aria-current": "page" } : {}) } });
     this.header.replaceChildren(
       h("h1", {}, [h("a", { text: "spotikit-web", attrs: { href: "#/" } })]),
+      h("nav", {}, [
+        navLink("Chat", "#/", route.view === "chat"),
+        navLink("Playlists", "#/playlists", route.view !== "chat"),
+      ]),
       h("div", { class: "user" }, [
         missing && h("span", { class: "warning", text: missing }),
         userLabel && h("span", { text: userLabel }),
@@ -191,7 +206,7 @@ export class App {
       visibilityLabel(playlist),
     ];
     this.main.replaceChildren(
-      h("p", {}, [h("a", { text: "← Playlists", attrs: { href: "#/" } })]),
+      h("p", {}, [h("a", { text: "← Playlists", attrs: { href: "#/playlists" } })]),
       h("h2", {}, [spotifyLink(playlist.url, playlist.name || "(untitled)")]),
       ...(playlist.description ? [h("p", { class: "description", text: playlist.description })] : []),
       h("p", { class: "muted", text: facts.join(" · ") }),
