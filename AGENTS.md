@@ -31,9 +31,12 @@ IP addresses, hostnames, local paths) in versioned files.
   the browser.
 - The LLM receives only the conversation and trimmed tool results (names, artists, durations, URIs), never
   tokens.
-- Layers (planned): `src/spotify/` (auth, HTTP client), `src/plans/`, `src/tools/` (tool schemas and
-  handlers), `src/agent/` (LLM loop), `src/ui/`. `spotify/` and `plans/` must not depend on the UI or the
-  LLM, so they stay testable and reusable.
+- Layers: `src/spotify/` (auth, HTTP client, models, playlist reads), `src/ui/`; planned: `src/plans/`,
+  `src/tools/` (tool schemas and handlers), `src/agent/` (LLM loop). `spotify/` and `plans/` must not
+  depend on the UI, the DOM, or the LLM, so they stay testable in Node (`tests/invariants.test.ts` checks
+  this and other invariants statically).
+- The CSP is built in `config/csp.ts` (its `connect-src` includes the origin of `VITE_LLM_BASE_URL`) and
+  injected as a `<meta>` tag; the dev and preview servers also send it as a header.
 
 ## Security invariants (keep them; each needs tests)
 
@@ -45,6 +48,9 @@ IP addresses, hostnames, local paths) in versioned files.
   (strip `code` and `state` with `history.replaceState` after the callback). Keep tokens in memory or
   `sessionStorage`, never `localStorage`.
 - `state` is validated on the callback; the PKCE verifier is removed after the exchange.
+- Known residue of the callback, outside the page's control: the single-use (already exchanged) `code`
+  remains in the browser's global history and in the page's Navigation Timing entry
+  (`performance.getEntriesByType("navigation")`), which only same-origin scripts can read.
 - Spotify content (names, descriptions) is untrusted third-party text: render it with `textContent`, never
   `innerHTML`; tell the model to treat it as data, never as instructions.
 - Strict Content Security Policy; no third-party scripts, fonts, or analytics.
@@ -101,8 +107,9 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 - Refresh tokens expire 6 months after the original authorization; on `invalid_grant` discard the token
   and ask the user to log in again.
 - Scopes: `playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`.
-- Not yet verified in this project: that the token endpoint and the Web API accept CORS requests from the
-  browser (Spotify's own PKCE guide does this). Verify in phase 1 and record the result here.
+- CORS (verified 2026-09-28, spotikit-web only): the token endpoint (code exchange and refresh) and the Web
+  API accept requests from `http://127.0.0.1:5173`, including the preflight for the `Authorization`
+  header. The authorize redirect adds an extra `ubi` query parameter to the callback; it is ignored.
 
 ## Development
 
