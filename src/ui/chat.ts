@@ -4,9 +4,12 @@
 import { AgentError, type ChatMessage, type ChatModel } from "../agent/llm";
 import { runTurn, type AgentEvent } from "../agent/loop";
 import { SYSTEM_PROMPT } from "../agent/prompt";
+import type { Plan } from "../plans/plans";
 import { SpotikitError } from "../spotify/errors";
+import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type WriteReport } from "../tools";
 import { h } from "./dom";
+import { planCard } from "./plan-card";
 
 const SUGGESTIONS = [
   "Which playlists do I have?",
@@ -71,6 +74,9 @@ export class ChatView {
   private readonly model: ChatModel | null;
   private readonly unavailableReason: string | null;
   private readonly ctx: ToolContext;
+  private readonly backups: KeyValueStore;
+  /** What the user did with plans since the last message; prepended to the next one for the model. */
+  private notices: string[] = [];
   private history: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
   private readonly transcript: HTMLElement;
   private readonly input: HTMLTextAreaElement;
@@ -85,10 +91,11 @@ export class ChatView {
   private controller: AbortController | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(model: ChatModel | null, unavailableReason: string | null, modelName: string, ctx: ToolContext) {
+  constructor(model: ChatModel | null, unavailableReason: string | null, modelName: string, ctx: ToolContext, backups: KeyValueStore) {
     this.model = model;
     this.unavailableReason = unavailableReason;
     this.ctx = ctx;
+    this.backups = backups;
     this.transcript = h("div", { class: "transcript", attrs: { "aria-live": "polite" } });
     this.input = h("textarea", {
       attrs: { rows: "3", placeholder: "Ask about your playlists… (Enter sends, Shift+Enter adds a line)", "aria-label": "Message" },
@@ -127,7 +134,7 @@ export class ChatView {
     }
     this.transcript.replaceChildren(
       h("div", { class: "empty" }, [
-        h("p", { class: "muted", text: "Ask about your playlists, search the catalog, create playlists, and add tracks. Removing and reordering are not available yet. Ask in any language." }),
+        h("p", { class: "muted", text: "Ask about your playlists, search the catalog, create playlists, and add tracks. Removals, reorders, and renames come as plans that you review and apply yourself. Ask in any language." }),
         h(
           "div",
           { class: "suggestions" },
@@ -151,6 +158,7 @@ export class ChatView {
   private reset(): void {
     if (this.controller) return;
     this.history = [{ role: "system", content: SYSTEM_PROMPT }];
+    this.notices = [];
     this.renderEmpty();
     this.input.focus();
   }
@@ -200,11 +208,16 @@ export class ChatView {
     this.controller = new AbortController();
     const toolLines = new Map<string, HTMLElement>();
     // Mutated from the event callback, so it lives in an object (TypeScript does not track closure writes).
-    const stats: { promptTokens: number | null; checkpoint: ChatMessage[] | null; wrote: boolean } = {
+    const stats: { promptTokens: number | null; checkpoint: ChatMessage[] | null; wrote: boolean; plans: Plan[] } = {
       promptTokens: null,
       checkpoint: null,
       wrote: false,
+      plans: [],
     };
+    // App notices go first, marked as such, so the model knows which plans the user applied or discarded.
+    const notices = this.notices;
+    this.notices = [];
+    const content = notices.length ? `${notices.map((n) => `[App notice: ${n}]`).join("\n")}\n\n${text}` : text;
 
     const onEvent = (event: AgentEvent) => {
       switch (event.type) {
@@ -238,6 +251,17 @@ export class ChatView {
             stats.wrote = true;
             this.recordWrite(execution.write);
           }
+          // Plans built by this call, right after it, each with its Apply button.
+          for (const plan of stats.plans.splice(0)) {
+            this.append(
+              planCard(plan, {
+                client: this.ctx.client,
+                backups: this.backups,
+                onWrite: (report) => this.recordWrite(report),
+                onNotice: (notice) => this.notices.push(notice),
+              }),
+            );
+          }
           break;
         }
         case "checkpoint":
@@ -250,10 +274,10 @@ export class ChatView {
     };
 
     try {
-      const result = await runTurn(this.history, text, {
+      const result = await runTurn(this.history, content, {
         model: this.model,
         tools: ALL_TOOLS,
-        ctx: this.ctx,
+        ctx: { ...this.ctx, onPlan: (plan) => stats.plans.push(plan) },
         signal: this.controller.signal,
         onEvent,
       });
@@ -262,6 +286,8 @@ export class ChatView {
       // A failed or stopped turn is normally dropped: the conversation stays as it was before this message.
       // If it already wrote to Spotify, it is kept up to its last complete step, so the model knows what it did.
       const kept = stats.wrote && stats.checkpoint !== null;
+      // Notices not delivered with a dropped turn are delivered with the next one.
+      if (!kept) this.notices.unshift(...notices);
       if (kept) {
         const code = exc instanceof AgentError || exc instanceof SpotikitError ? exc.code : "ERROR";
         this.history = [...stats.checkpoint!, { role: "assistant", content: `(This turn was interrupted by ${code} after the writes above.)` }];

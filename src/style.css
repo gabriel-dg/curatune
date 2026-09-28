@@ -351,3 +351,89 @@ textarea {
   gap: 8px;
   margin: 8px 0;
 }
+
+.plan-card {
+  align-self: stretch;
+  border: 1px solid var(--warn-fg);
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.plan-reason {
+  font-style: italic;
+}
+
+.plan-list {
+  margin: 4px 0;
+  padding-left: 2.2em;
+}
+
+.plan-list li.changed {
+  font-weight: 600;
+}
+
+.plan-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  font-size: 0.93em;
+}
+
+.plan-details dt {
+  font-weight: 600;
+}
+
+.plan-details dd {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.plan-details .old {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.plan-status {
+  margin-right: auto;
+}
+
+.plan-status.ok {
+  color: var(--accent);
+}
+
+.plan-status.failed {
+  color: var(--error-fg);
+}
+
+@media (max-width: 600px) {
+  .plan-columns {
+    grid-template-columns: 1fr;
+  }
+}

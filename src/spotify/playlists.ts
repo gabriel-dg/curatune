@@ -1,6 +1,6 @@
-// Playlist reads: list the user's playlists, read one playlist with all its items.
-// Follows spotikit commit b3531aa, src/spotikit/playlists.py (list_playlists, get_playlist). Not yet ported:
-// the write log that compensates snapshot_id read lag (phase 4), market-dependent reads, and writes.
+// Playlist reads: list the user's playlists, read one playlist with all its items, read metadata only.
+// Follows spotikit commit b3531aa, src/spotikit/playlists.py (list_playlists, get_playlist,
+// get_playlist_meta). Not ported: market-dependent reads (plans always read without a market).
 
 import { SpotikitError } from "./errors";
 import type { SpotifyClient } from "./http";
@@ -91,6 +91,21 @@ export async function getPlaylist(client: SpotifyClient, ref: string): Promise<P
   playlist.item_count = items.length;
 
   const warnings: Warning[] = [];
+  // Compensate snapshot_id read lag after our own writes. Reads here never use a market, so their URIs
+  // are exactly the stored ones and can be compared with what the write log expects.
+  if (client.writeLog && playlist.snapshot_id) {
+    const readSnapshot = playlist.snapshot_id;
+    const [effective, lagging] = await client.writeLog.resolve(playlistId, readSnapshot, items.map((i) => i.uri));
+    if (lagging) {
+      playlist.snapshot_id = effective;
+      warnings.push({
+        code: "SNAPSHOT_READ_LAG",
+        message: "Spotify returned a stale snapshot_id; using the one returned by this app's last write to this playlist (items match exactly).",
+        read_snapshot_id: readSnapshot,
+        effective_snapshot_id: effective,
+      });
+    }
+  }
   const local = items.filter((i) => i.is_local).map((i) => i.position);
   if (local.length) warnings.push({ code: "LOCAL_FILES", message: "Playlist contains local files.", positions: local });
   const unavailable = items.filter((i) => i.uri === null).map((i) => i.position);
@@ -98,4 +113,11 @@ export async function getPlaylist(client: SpotifyClient, ref: string): Promise<P
     warnings.push({ code: "UNAVAILABLE_ITEMS", message: "Some items have no track object.", positions: unavailable });
   }
   return { playlist, items, warnings };
+}
+
+/** Playlist metadata only (no items): one request. */
+export async function getPlaylistMeta(client: SpotifyClient, ref: string): Promise<Playlist> {
+  const playlistId = parseId(ref, "playlist");
+  const meta = await client.get<Json>(`/playlists/${playlistId}`, { fields: `${PLAYLIST_META_FIELDS},items(total)` });
+  return normalizePlaylist(meta, await client.currentUserId());
 }

@@ -147,14 +147,32 @@ writing keeps those writes in the conversation; the playlist view numbers tracks
 
 ## Phase 4 — Plans confirmed in the UI
 
-- [ ] Port of spotikit's `plans.py`: build remove, reorder, and details plans.
-- [ ] Port of `validate_plan`, including `PLAN_INCONSISTENT`.
-- [ ] Port of plan application with pre- and post-verification.
-- [ ] Write log for the snapshot read lag, in IndexedDB.
-- [ ] Port of the in-memory fake playlist API (`tests/fakes.py`) and the plan tests, to Vitest.
-- [ ] The model only proposes plans; the UI renders before, changes, and after, and its "Apply" button is
+- [x] Port of spotikit's `plans.py`: build remove, reorder, and details plans.
+- [x] Port of `validate_plan`, including `PLAN_INCONSISTENT`.
+- [x] Port of plan application with pre- and post-verification.
+- [x] Write log for the snapshot read lag, in IndexedDB.
+- [x] Port of the in-memory fake playlist API (`tests/fakes.py`) and the plan tests, to Vitest.
+- [x] The model only proposes plans; the UI renders before, changes, and after, and its "Apply" button is
       the only way to run one.
 - **Done when:** de-duplicating and reordering the test playlist works, and a tampered plan is rejected.
+
+Result (2026-09-28): done. In the browser, on the test playlist, Ornith proposed removing track 7 (the
+exact duplicate of track 2), kept track 11 (same ISRC, another edition) and said why, and asked to review
+and apply; Apply removed it and verified. Right after, "sort it by title" became a `plan_reorder` with
+`sort_by: title`, applied and verified. An independent read confirmed both. The playlist was then restored
+through the app (add with duplicates allowed, then a reorder with the exact original order), also verified.
+Tampered plans (checksum, descriptions that differ from the operations, a forged visibility change with a
+recomputed checksum) are rejected in `tests/plans.test.ts`; mutation checks confirmed those tests fail
+when the validation is disabled.
+
+Evaluation: 20 scenarios (5 new: remove track 3, de-duplicate, move a track, alphabetical order, rename,
+plus a visibility request). The first run failed the alphabetical order: the model computed the order
+itself and got it wrong. `plan_reorder` now takes `sort_by` (title, artist, album, edition date, duration)
+and the app sorts; the model uses it (2/2 reruns). Full rerun: 20/20, about 20 minutes.
+
+Deliberate differences from spotikit: plans live in memory and backups in IndexedDB (no files); no order
+by recording date (out of v1 scope), but deterministic sorts by other keys; the model refers to tracks by
+1-based numbers.
 
 ## Phase 5 — Remote access (optional)
 
