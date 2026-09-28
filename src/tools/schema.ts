@@ -6,7 +6,8 @@ import { SpotikitError } from "../spotify/errors";
 export type ParamSchema =
   | { type: "string"; description: string; minLength?: number }
   | { type: "integer"; description: string; minimum?: number; maximum?: number }
-  | { type: "boolean"; description: string };
+  | { type: "boolean"; description: string }
+  | { type: "array"; description: string; items: { type: "string" }; minItems?: number; maxItems?: number };
 
 export interface ObjectSchema {
   type: "object";
@@ -15,7 +16,7 @@ export interface ObjectSchema {
   additionalProperties: false;
 }
 
-export type Args = Record<string, string | number | boolean>;
+export type Args = Record<string, string | number | boolean | string[]>;
 
 export function validateArgs(schema: ObjectSchema, value: unknown): Args {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -51,6 +52,14 @@ export function validateArgs(schema: ObjectSchema, value: unknown): Args {
         throw new SpotikitError("INVALID_ARGUMENT", `${key} must be between ${param.minimum ?? "-∞"} and ${param.maximum ?? "∞"}.`);
       }
       args[key] = num;
+    } else if (param.type === "array") {
+      if (!Array.isArray(raw) || raw.some((item) => typeof item !== "string")) {
+        throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array of strings.`);
+      }
+      if ((param.minItems !== undefined && raw.length < param.minItems) || (param.maxItems !== undefined && raw.length > param.maxItems)) {
+        throw new SpotikitError("INVALID_ARGUMENT", `${key} must have between ${param.minItems ?? 0} and ${param.maxItems ?? "∞"} items.`);
+      }
+      args[key] = raw as string[];
     } else {
       const bool = raw === "true" ? true : raw === "false" ? false : raw;
       if (typeof bool !== "boolean") throw new SpotikitError("INVALID_ARGUMENT", `${key} must be a boolean.`);

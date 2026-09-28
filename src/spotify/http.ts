@@ -162,6 +162,10 @@ export class SpotifyClient {
     return this.request<T>("GET", path, { params });
   }
 
+  post<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.request<T>("POST", path, { json: body });
+  }
+
   /** Yield every element of a paging object, following `next` links (checked by `resolveUrl`). */
   async *paginate<T>(path: string, params?: Params): AsyncGenerator<T> {
     let page: Page<T> | null = await this.get<Page<T>>(path, params);

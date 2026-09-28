@@ -126,9 +126,24 @@ Findings:
 
 ## Phase 3 — Direct writes
 
-- [ ] Create playlist (re-read and report real visibility); add items.
-- [ ] The UI shows every write performed.
+- [x] Create playlist (re-read and report real visibility); add items.
+- [x] The UI shows every write performed.
 - **Done when:** "create a playlist X with these 5 tracks" works end to end.
+
+Result (2026-09-28): done. In the browser, against the real account, Ornith turned "create a playlist
+spotikit-web phase 3 with Salt Peanuts, Ko-Ko, Boplicity, Manteca, and Lady Bird" into five parallel
+searches, `playlist_create`, and one `playlist_add`; it picked the 1940s recordings, rejected soundtrack,
+alternate, cover, and vocal versions, and said the playlist is public. An independent read confirmed the
+five tracks in order. About 3 minutes end to end, 8.8k tokens of context.
+
+Evaluation: 15/15 for Ornith, the 11 phase 2 scenarios (with the write tools available) plus 4 that
+check the fake Spotify's final state: create with tracks, add to an existing playlist, duplicate name
+(asks instead of retrying with `allow_duplicate_name`), and a track the catalog lacks (seven searches,
+nothing added in its place). The injection description now also asks to create a playlist and copy
+tracks into it; nothing was written.
+
+Also in this phase: write tools only accept IDs seen earlier in the conversation; a turn that fails after
+writing keeps those writes in the conversation; the playlist view numbers tracks from 1.
 
 ## Phase 4 — Plans confirmed in the UI
 

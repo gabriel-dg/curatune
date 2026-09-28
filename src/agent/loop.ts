@@ -14,6 +14,8 @@ export type AgentEvent =
   | { type: "note"; content: string }
   | { type: "tool_start"; call: ToolCall }
   | { type: "tool_end"; call: ToolCall; execution: ToolExecution }
+  /** The conversation after a step's tool results, a valid point to resume from if the turn fails later. */
+  | { type: "checkpoint"; messages: ChatMessage[] }
   | { type: "answer"; content: string };
 
 export interface TurnOptions {
@@ -47,7 +49,20 @@ function callKey(call: ToolCall): string {
 
 function skipped(call: ToolCall, code: string, message: string): ToolExecution {
   const outcome = { ok: false as const, error: { code, message } };
-  return { name: call.function.name, args: null, outcome, content: JSON.stringify(outcome), summary: code, ms: 0 };
+  return { name: call.function.name, args: null, outcome, content: JSON.stringify(outcome), summary: code, ms: 0, write: null };
+}
+
+const ID_RE = /[A-Za-z0-9]{22}/g;
+
+/** IDs the conversation has seen from a trustworthy source: the user's messages and tool results. */
+function knownIds(messages: ChatMessage[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    if ((m.role === "user" || m.role === "tool") && m.content) {
+      for (const id of m.content.match(ID_RE) ?? []) ids.add(id);
+    }
+  }
+  return ids;
 }
 
 export async function runTurn(history: ChatMessage[], userText: string, options: TurnOptions): Promise<TurnResult> {
@@ -102,12 +117,14 @@ export async function runTurn(history: ChatMessage[], userText: string, options:
         execution = skipped(call, "REPEATED_CALL", "You already made this exact call in this turn. Use its earlier result.");
       } else {
         seenCalls.add(key);
-        execution = await executeTool(tools, call.function.name, call.function.arguments, ctx, now);
+        const known = knownIds(messages);
+        execution = await executeTool(tools, call.function.name, call.function.arguments, { ...ctx, isKnownId: (id) => known.has(id) }, now);
       }
       executions.push(execution);
       messages.push({ role: "tool", tool_call_id: call.id, content: execution.content });
       onEvent({ type: "tool_end", call, execution });
     }
+    onEvent({ type: "checkpoint", messages: [...messages] });
   }
 
   const answer = `Stopped after ${maxSteps} model steps without a final answer. Try a more specific request.`;

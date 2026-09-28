@@ -16,6 +16,7 @@ export type ErrorCode =
   | "NETWORK_ERROR"
   | "UNTRUSTED_URL"
   | "CONCURRENT_MODIFICATION"
+  | "DUPLICATE_NAME"
   | "API_ERROR";
 
 export type Details = Record<string, unknown>;

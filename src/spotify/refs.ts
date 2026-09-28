@@ -42,3 +42,15 @@ export function parseId(ref: string, kind: Kind): string {
 export function toUri(kind: Kind, spotifyId: string): string {
   return `spotify:${kind}:${spotifyId}`;
 }
+
+/** Normalize a track or episode reference (a bare ID defaults to track) to its URI. */
+export function normalizeItemUri(ref: string): string {
+  const value = (ref ?? "").trim();
+  if (value.startsWith("spotify:local:")) {
+    throw new SpotikitError("INVALID_REFERENCE", "Local files cannot be added through the API.", { ref });
+  }
+  for (const kind of ["track", "episode"] as const) {
+    if (value.startsWith(`spotify:${kind}:`) || value.includes(`/${kind}/`)) return toUri(kind, parseId(value, kind));
+  }
+  return toUri("track", parseId(value, "track"));
+}
