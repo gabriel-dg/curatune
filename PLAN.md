@@ -70,15 +70,20 @@ Expected: a `tool_calls` entry for `playlists_list` (the model needs the ID befo
 
 ## Phase 1 — Spotify from the browser (no LLM)
 
-- [ ] Vite + TypeScript scaffold; dev server on `127.0.0.1:5173`, strict port; CSP in place.
-- [ ] `.env.example` with `VITE_SPOTIFY_CLIENT_ID`, `VITE_LLM_BASE_URL`, `VITE_LLM_MODEL`.
-- [ ] PKCE flow: verifier and `state` generation, `state` validation, token exchange from the browser,
+- [x] Vite + TypeScript scaffold; dev server on `127.0.0.1:5173`, strict port; CSP in place.
+- [x] `.env.example` with `VITE_SPOTIFY_CLIENT_ID`, `VITE_LLM_BASE_URL`, `VITE_LLM_MODEL`.
+- [x] PKCE flow: verifier and `state` generation, `state` validation, token exchange from the browser,
       refresh, URL cleanup after the callback.
-- [ ] HTTP client with the host allowlist (`UNTRUSTED_URL`) and pagination.
-- [ ] List playlists; show one playlist with all its items.
-- [ ] Record the CORS verification result in `AGENTS.md`.
+- [x] HTTP client with the host allowlist (`UNTRUSTED_URL`) and pagination.
+- [x] List playlists; show one playlist with all its items.
+- [x] Record the CORS verification result in `AGENTS.md`.
 - **Done when:** your playlists appear, and the token is absent from the console, the URL, and the
   history.
+
+Result (2026-09-28): done. Login from the browser, 28 playlists listed, the test playlist matches its
+recorded state, a 271-item playlist reads fully (6 pages of 50), and a playlist owned by someone else
+fails with a clear `FORBIDDEN`. Tokens appear in no console output, URL, DOM, or request URL; only
+`accounts.spotify.com` and `api.spotify.com` were contacted besides the page's own origin. 110 unit tests.
 
 ## Phase 2 — Local LLM with read-only tools
 
