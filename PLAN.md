@@ -25,16 +25,29 @@ Setup: development and browser on a Windows PC; LM Studio on a Mac on the same L
 
 ## Phase 0 — Preparation
 
-- [ ] Mac, LM Studio: download 2–3 models with good tool calling.
-- [ ] Mac, LM Studio server: enable "Serve on Local Network" and CORS; note the port (default 1234).
-- [ ] Mac: allow LM Studio's incoming connections in the macOS firewall; give the Mac a stable address
-      (DHCP reservation in the router, or its `<name>.local` hostname).
-- [ ] PC: `curl http://<mac>:1234/v1/models` lists the models.
-- [ ] PC: each model returns a valid `tool_calls` entry for a simple request (snippet below). If no model
+- [x] Mac, LM Studio: download 2–3 models with good tool calling.
+- [x] Mac, LM Studio server: enable "Serve on Local Network" and CORS; note the port (default 1234).
+- [ ] (Deferred) Mac: check that the macOS firewall allows LM Studio's incoming connections.
+- [ ] (Deferred) Mac: give it a stable address (DHCP reservation in the router, or its `<name>.local`
+      hostname). Until then, if its address changes, update `VITE_LLM_BASE_URL`.
+- [x] PC: `curl http://<mac>:1234/v1/models` lists the models.
+- [x] PC: each model returns a valid `tool_calls` entry for a simple request (snippet below). If no model
       does this reliably, stop and rethink before writing code.
-- [ ] Spotify dashboard: add the redirect URI `http://127.0.0.1:5173/callback` to the existing app.
-- [ ] Create a test playlist (about 10 tracks, including one duplicate) and record its ID in
-      `AGENTS.local.md`.
+- [ ] Fix or replace the Gemma 4 prompt template, then re-run the evaluation on it.
+
+Results (2026-09-28, 8 scenarios: ID lookup before use, using IDs from tool results, search, no invented
+URIs, prompt injection in a playlist description, duplicate-removal plan, no-tool question, Spanish):
+
+- `qwen3.8-27b-mlx`: 32/32 across 4 runs. 5–20 s per step (about 15 tokens/s, 20–120 reasoning
+  tokens); the first request after loading takes about 25 s. It flagged the injected instruction as
+  untrusted and ignored it.
+- `gemma-4-26b-a4b-qat`: passes single-turn scenarios, but any request whose history contains tool calls
+  fails with HTTP 400 (LM Studio's Jinja engine does not support the template's `sequence` test). Unusable
+  for the agent loop until the template is fixed.
+- [x] Spotify dashboard: add the redirect URI `http://127.0.0.1:5173/callback` to the existing app.
+- [x] Create a test playlist and record its ID and initial state in `AGENTS.local.md`: 12 items in
+      shuffled recording order, one URI twice, the same recording on another edition (same ISRC), and
+      the same composition in two recordings.
 
 Tool-call check (Git Bash; replace `<mac>` and `<model>`):
 
