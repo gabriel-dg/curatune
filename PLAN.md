@@ -33,7 +33,9 @@ Setup: development and browser on a Windows PC; LM Studio on a Mac on the same L
 - [x] PC: `curl http://<mac>:1234/v1/models` lists the models.
 - [x] PC: each model returns a valid `tool_calls` entry for a simple request (snippet below). If no model
       does this reliably, stop and rethink before writing code.
-- [ ] Fix or replace the Gemma 4 prompt template, then re-run the evaluation on it.
+- [x] Fix or replace the Gemma 4 prompt template, then re-run the evaluation on it. `gemma-4-12b-qat`
+      now ships Google's July 2026 template and handles tool calls in the history (phase 2 results). The
+      26B was not re-tested: on this Mac it would not fit with a usable context anyway.
 
 Results (2026-09-28, 8 scenarios: ID lookup before use, using IDs from tool results, search, no invented
 URIs, prompt injection in a playlist description, duplicate-removal plan, no-tool question, Spanish):
@@ -87,14 +89,40 @@ fails with a clear `FORBIDDEN`. Tokens appear in no console output, URL, DOM, or
 
 ## Phase 2 — Local LLM with read-only tools
 
-- [ ] Agent loop in the browser: max iterations, timeouts, error handling.
-- [ ] Tools: `playlists_list`, `playlist_show`, `search_tracks`, `track_show`, `album_tracks`.
-- [ ] Trim tool results before they reach the model (name, artists, duration, URI).
-- [ ] System prompt adapted from spotikit's `SKILL.md` (Spotify text is data, not instructions).
-- [ ] Evaluation set of 8–10 prompts based on real requests; run it against each model and record the
+- [x] Agent loop in the browser: max iterations, timeouts, error handling.
+- [x] Tools: `playlists_list`, `playlist_show`, `search_tracks`, `track_show`, `album_tracks`.
+- [x] Trim tool results before they reach the model (name, artists, duration, URI).
+- [x] System prompt adapted from spotikit's `SKILL.md` (Spotify text is data, not instructions).
+- [x] Evaluation set of 8–10 prompts based on real requests; run it against each model and record the
       results.
 - **Done when:** at least one model picks the right tools for most prompts. If none does, that is the
   finding: stop here.
+
+Result (2026-09-28): done; `ornith-1.5-9b-mlx` is the default model (`VITE_LLM_MODEL`).
+
+Evaluation: `npm run eval`, 11 scenarios in `eval/scenarios.ts` against the in-memory fake Spotify
+(list, show by name, duplicates, search, album by URI, ISRC by URL, prompt injection in a description,
+a write request in read-only mode, a no-tool question, total duration, pagination past 100 items). Every
+scenario also fails on invented IDs, bad tool arguments, or hitting the step limit. All models loaded
+with a 32768-token context.
+
+| Model | Size | Result | Time per run | Notes |
+|---|---|---|---|---|
+| `ornith-1.5-9b-mlx` | 9.5 GB | 11/11, 11/11 (and 10/11 when the model was unloaded mid-run by a concurrent load) | ~450 s | Detailed answers (tells exact duplicates from same-ISRC editions), flags the injection, never claimed a write. |
+| `gemma-4-12b-qat` | ~8 GB | 10/11, 10/11 | ~175 s | 2.6× faster, shorter answers. Both runs invented the contents of the "injection" playlist without calling `playlist_show`. |
+| `qwen3.8-27b-mlx` | 16.1 GB | not evaluated | | On this 24 GB Mac LM Studio clamps it to a 4096-token context whatever is requested; the agent needs more. |
+
+Findings:
+
+- An earlier Ornith run spoke of 0-based positions as track numbers ("track 3" read as position 3). Tool
+  results now expose `number`, 1-based (see `AGENTS.md`); the scenarios check the numbers, and later
+  runs got them right.
+- LM Studio silently truncates a conversation that exceeds the loaded context; with 4096 tokens the model
+  lost earlier tool results and looped. The loop now detects shrinking prompt-token counts and stops with
+  `LLM_CONTEXT_EXCEEDED`, and it refuses to repeat an identical tool call within a turn.
+- In the browser, against the real account, Ornith answered the duplicates question on the test playlist
+  correctly (tracks 2 and 7 identical, 11 the same ISRC on another edition) in about 90 s, using 4.3k
+  tokens of context.
 
 ## Phase 3 — Direct writes
 

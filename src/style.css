@@ -172,3 +172,147 @@ tr.unavailable td {
   color: var(--muted);
   font-style: italic;
 }
+
+nav {
+  display: flex;
+  gap: 16px;
+  margin-right: auto;
+  margin-left: 24px;
+}
+
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+nav a.active {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 40vh;
+}
+
+.msg {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 10px 14px;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+}
+
+.msg.note {
+  color: var(--muted);
+  font-size: 0.93em;
+}
+
+.msg.error {
+  align-self: stretch;
+  max-width: none;
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.tool {
+  align-self: flex-start;
+  max-width: 100%;
+  font-size: 0.88em;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+  padding: 2px 10px;
+}
+
+.tool.ok {
+  border-left-color: var(--accent);
+}
+
+.tool.failed {
+  border-left-color: var(--error-fg);
+}
+
+.tool.pending summary::after {
+  content: " …";
+}
+
+.tool summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.tool pre {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--border);
+}
+
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  resize: vertical;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.composer-actions .status {
+  margin-right: auto;
+  font-size: 0.9em;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  nav {
+    margin-left: 8px;
+  }
+
+  .msg {
+    max-width: 100%;
+  }
+}

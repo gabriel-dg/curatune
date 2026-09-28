@@ -5,6 +5,8 @@ import { CALLBACK_PATH } from "./spotify/auth";
 export interface AppConfig {
   spotifyClientId: string;
   redirectUri: string;
+  llmBaseUrl: string;
+  llmModel: string;
 }
 
 export function loadConfig(env: ImportMetaEnv, origin: string): AppConfig {
@@ -12,5 +14,7 @@ export function loadConfig(env: ImportMetaEnv, origin: string): AppConfig {
     spotifyClientId: (env.VITE_SPOTIFY_CLIENT_ID ?? "").trim(),
     // Must be registered in the Spotify dashboard; in development http://127.0.0.1:5173/callback.
     redirectUri: `${origin}${CALLBACK_PATH}`,
+    llmBaseUrl: (env.VITE_LLM_BASE_URL ?? "").trim(),
+    llmModel: (env.VITE_LLM_MODEL ?? "").trim(),
   };
 }
