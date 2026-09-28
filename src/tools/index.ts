@@ -4,10 +4,15 @@
 
 import { SpotikitError } from "../spotify/errors";
 import { validateArgs, type Args } from "./schema";
-import type { Tool, ToolContext, ToolDefinition } from "./types";
+import { READ_TOOLS } from "./read";
+import type { Tool, ToolContext, ToolDefinition, WriteReport } from "./types";
+import { WRITE_TOOLS } from "./write";
 
-export type { Tool, ToolContext, ToolDefinition } from "./types";
-export { READ_TOOLS } from "./read";
+export type { Tool, ToolContext, ToolDefinition, WriteReport } from "./types";
+export { READ_TOOLS, WRITE_TOOLS };
+
+/** Every tool the model gets. There is deliberately no tool that removes, reorders, renames, or applies. */
+export const ALL_TOOLS: Tool[] = [...READ_TOOLS, ...WRITE_TOOLS];
 
 /** Tool results longer than this are replaced by an error, so one call cannot flood the model's context. */
 export const MAX_RESULT_CHARS = 40_000;
@@ -24,6 +29,8 @@ export interface ToolExecution {
   content: string;
   summary: string;
   ms: number;
+  /** Set when the tool wrote to Spotify, for the UI. */
+  write: WriteReport | null;
 }
 
 export function toolDefinitions(tools: Tool[]): ToolDefinition[] {
@@ -79,5 +86,6 @@ export async function executeTool(
   const summary = outcome.ok
     ? (tool?.summarize?.(outcome.result) ?? "ok")
     : `${outcome.error.code}: ${outcome.error.message}`;
-  return { name, args, outcome, content, summary, ms: now() - started };
+  const write = outcome.ok && tool?.describeWrite ? tool.describeWrite(outcome.result) : null;
+  return { name, args, outcome, content, summary, ms: now() - started, write };
 }

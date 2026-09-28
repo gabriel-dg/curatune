@@ -31,7 +31,8 @@ IP addresses, hostnames, local paths) in versioned files.
   the browser.
 - The LLM receives only the conversation and trimmed tool results (names, artists, durations, URIs), never
   tokens.
-- Layers: `src/spotify/` (auth, HTTP client, models, playlist and catalog reads), `src/tools/` (tool
+- Layers: `src/spotify/` (auth, HTTP client, models, playlist and catalog reads, `writes.ts` for create
+  and add), `src/tools/` (tool
   schemas, argument validation, handlers, trimming of results for the model), `src/agent/` (LLM client,
   loop, system prompt), `src/ui/`; planned: `src/plans/`. Only `ui/` touches the DOM; `agent/` and
   `tools/` never import the auth module (types only), so the token cannot reach the model. All of this is
@@ -67,7 +68,10 @@ IP addresses, hostnames, local paths) in versioned files.
 
 ## Confirmation rules (same as spotikit)
 
-- Create playlist / add items: executed directly, and shown in the UI.
+- Create playlist / add items: executed directly, and shown in the UI (a card in the chat plus a
+  session log that "New chat" does not clear). Write tools only accept IDs that appeared earlier in the
+  conversation (user messages or tool results), create always requests a private playlist (the model
+  never chooses visibility), and add re-reads the playlist to verify.
 - Remove / reorder / rename / change description: only through **plans**. A plan records the current
   state, the change, the resulting state, and the exact operations; applying verifies snapshot and item
   list first and the result after. Validation also checks that the human-readable parts match the

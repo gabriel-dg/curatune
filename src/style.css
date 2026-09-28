@@ -316,3 +316,38 @@ textarea {
     max-width: 100%;
   }
 }
+
+.write-card {
+  align-self: stretch;
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.write-lines {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.93em;
+}
+
+.writes-log {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+.writes-log summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.writes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}

@@ -72,8 +72,8 @@ describe("runTurn", () => {
     const toolMessages = result.messages.filter((m) => m.role === "tool") as { tool_call_id: string }[];
     expect(toolMessages.map((m) => m.tool_call_id)).toEqual(["c0", "c0", "c1"]);
     expect(events.map((e) => e.type)).toEqual([
-      "model_start", "model_end", "tool_start", "tool_end",
-      "model_start", "model_end", "note", "tool_start", "tool_end", "tool_start", "tool_end",
+      "model_start", "model_end", "tool_start", "tool_end", "checkpoint",
+      "model_start", "model_end", "note", "tool_start", "tool_end", "tool_start", "tool_end", "checkpoint",
       "model_start", "model_end", "answer",
     ]);
   });

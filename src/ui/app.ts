@@ -237,14 +237,15 @@ function formatLongDuration(ms: number): string {
 }
 
 function renderWarning(w: Warning): HTMLElement {
-  const positions = Array.isArray(w.positions) ? ` Positions: ${w.positions.join(", ")}.` : "";
+  // Track numbers are shown 1-based, as in the Spotify app and in what the model says.
+  const positions = Array.isArray(w.positions) ? ` Tracks: ${w.positions.map((p: number) => p + 1).join(", ")}.` : "";
   return h("p", { class: "warning", text: `${w.code}: ${w.message}${positions}` });
 }
 
 function renderItem(item: PlaylistItem): HTMLTableRowElement {
   const unavailable = item.uri === null;
   return h("tr", { class: unavailable ? "unavailable" : undefined }, [
-    h("td", { class: "num", text: String(item.position) }),
+    h("td", { class: "num", text: String(item.position + 1) }),
     h("td", {}, [item.name ?? (unavailable ? "(unavailable)" : ""), item.is_local ? " (local)" : ""]),
     h("td", { text: item.artists.map((a) => a.name ?? "").join(", ") }),
     h("td", { text: item.album?.name ?? "" }),
