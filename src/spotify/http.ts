@@ -2,10 +2,12 @@
 // Follows spotikit commit b3531aa, src/spotikit/http.py. Differences, all deliberate:
 // - fetch is called with `redirect: "error"`, so a redirect can never carry the bearer token elsewhere.
 // - Errors carry only the status, method, path, and Spotify's message; never headers or tokens.
-// - No write log yet (phase 4).
+// - The write log (for snapshot_id read lag) is optional and set by the app; reads use it through
+//   getPlaylist, writes record to it.
 
 import { SpotikitError } from "./errors";
 import type { FetchLike } from "./auth";
+import type { WriteLog } from "./writelog";
 
 export const API_HOST = "api.spotify.com";
 export const API_BASE = `https://${API_HOST}/v1`;
@@ -22,6 +24,7 @@ export interface ClientOptions {
   sleep?: (ms: number) => Promise<void>;
   maxRetries?: number;
   timeoutMs?: number;
+  writeLog?: WriteLog | null;
 }
 
 export interface CurrentUser {
@@ -63,7 +66,8 @@ export function resolveUrl(path: string): URL {
 export class SpotifyClient {
   private readonly tokens: TokenProvider;
   private readonly fetch: FetchLike;
-  private readonly sleep: (ms: number) => Promise<void>;
+  readonly sleep: (ms: number) => Promise<void>;
+  readonly writeLog: WriteLog | null;
   private readonly maxRetries: number;
   private readonly timeoutMs: number;
   private user: Promise<CurrentUser> | null = null;
@@ -74,6 +78,7 @@ export class SpotifyClient {
     this.sleep = options.sleep ?? defaultSleep;
     this.maxRetries = options.maxRetries ?? 3;
     this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.writeLog = options.writeLog ?? null;
   }
 
   // --- Core request --------------------------------------------------------------------------------
@@ -164,6 +169,14 @@ export class SpotifyClient {
 
   post<T = unknown>(path: string, body: unknown): Promise<T> {
     return this.request<T>("POST", path, { json: body });
+  }
+
+  put<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.request<T>("PUT", path, { json: body });
+  }
+
+  delete<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.request<T>("DELETE", path, { json: body });
   }
 
   /** Yield every element of a paging object, following `next` links (checked by `resolveUrl`). */

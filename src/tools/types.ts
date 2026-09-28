@@ -1,3 +1,4 @@
+import type { Plan } from "../plans/plans";
 import type { SpotifyClient } from "../spotify/http";
 import type { Args, ObjectSchema } from "./schema";
 
@@ -8,6 +9,8 @@ export interface ToolContext {
    * result). Write tools refuse IDs the model did not get from somewhere: they would be invented.
    */
   isKnownId?: (id: string) => boolean;
+  /** Receives every plan a tool builds, so the UI can show it with its Apply button. */
+  onPlan?: (plan: Plan) => void;
 }
 
 /** How the UI shows a write that was performed. */

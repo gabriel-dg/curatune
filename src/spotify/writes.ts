@@ -3,7 +3,7 @@
 // src/spotikit/_writes.py (insert_uris). Differences, all deliberate:
 // - create always requests a private playlist: the caller (the model) never chooses visibility.
 // - add re-reads the playlist after writing and reports whether the new items are where expected.
-// - No write log yet (phase 4); adds are not compensated for snapshot_id read lag.
+// - Both record to the write log (when the client has one), so plans built right after still apply.
 // There is deliberately no function to remove, reorder, rename, or change visibility here.
 
 import { SpotikitError } from "./errors";
@@ -69,6 +69,7 @@ export async function createPlaylist(
   if (description.trim()) body.description = description.trim();
   const created = await client.post<Record<string, unknown>>("/me/playlists", body);
   const playlist = normalizePlaylist(created, await client.currentUserId());
+  if (client.writeLog && playlist.id && playlist.snapshot_id) await client.writeLog.record(playlist.id, playlist.snapshot_id, []);
 
   // The create response echoes the requested visibility even when Spotify ignores it (public=false is
   // not applied: known issue, confirmed live by spotikit 2026-09-23). Report what a read says instead,
@@ -126,15 +127,21 @@ export async function addItems(
   }
 
   let insertAt = position;
+  let snapshotId = playlist.snapshot_id;
   for (const chunk of chunks(toAdd, MAX_URIS_PER_REQUEST)) {
     const body: Record<string, unknown> = { uris: chunk };
     if (insertAt !== null) body.position = insertAt;
-    await client.post(`/playlists/${playlist.id}/items`, body);
+    snapshotId = (await client.post<{ snapshot_id?: string }>(`/playlists/${playlist.id}/items`, body))?.snapshot_id ?? snapshotId;
     if (insertAt !== null) insertAt += chunk.length;
   }
 
   const start = position ?? count;
   const added = toAdd.map((uri, i) => ({ position: start + i, uri }));
+  if (toAdd.length && client.writeLog && snapshotId) {
+    const expected: (string | null)[] = state.items.map((i) => i.uri);
+    expected.splice(start, 0, ...toAdd);
+    await client.writeLog.record(playlist.id!, snapshotId, expected);
+  }
   let itemsAfter: PlaylistItem[] | null = null;
   let verified = true;
   if (toAdd.length) {

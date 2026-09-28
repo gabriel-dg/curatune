@@ -32,11 +32,12 @@ IP addresses, hostnames, local paths) in versioned files.
 - The LLM receives only the conversation and trimmed tool results (names, artists, durations, URIs), never
   tokens.
 - Layers: `src/spotify/` (auth, HTTP client, models, playlist and catalog reads, `writes.ts` for create
-  and add), `src/tools/` (tool
+  and add, `writelog.ts`), `src/plans/` (plan building, validation, and application; `ops.ts` holds the
+  low-level remove/move/rename calls), `src/storage/` (IndexedDB, memory fallback), `src/tools/` (tool
   schemas, argument validation, handlers, trimming of results for the model), `src/agent/` (LLM client,
-  loop, system prompt), `src/ui/`; planned: `src/plans/`. Only `ui/` touches the DOM; `agent/` and
-  `tools/` never import the auth module (types only), so the token cannot reach the model. All of this is
-  testable in Node (`tests/invariants.test.ts` checks these rules statically).
+  loop, system prompt), `src/ui/`. Only `ui/` touches the DOM; `agent/` and `tools/` never import the auth
+  module (types only), so the token cannot reach the model. All of this is testable in Node
+  (`tests/invariants.test.ts` checks these rules statically).
 - Model evaluation: `npm run eval` runs `eval/scenarios.ts` against real models with the in-memory fake
   Spotify from `tests/fake-spotify.ts` (no token needed); results go to `scratch/eval/`.
 - LM Studio silently truncates conversations that exceed the loaded context length (4096 by default when
@@ -53,7 +54,8 @@ IP addresses, hostnames, local paths) in versioned files.
   (pagination `next`) are checked; any other host or scheme is an error (`UNTRUSTED_URL`).
 - Tokens and authorization codes never appear in the console, logs, errors, the LLM context, or the URL
   (strip `code` and `state` with `history.replaceState` after the callback). Keep tokens in memory or
-  `sessionStorage`, never `localStorage`.
+  `sessionStorage`, never `localStorage`. IndexedDB (only in `src/storage/`) holds the write log and plan
+  backups, never tokens.
 - `state` is validated on the callback; the PKCE verifier is removed after the exchange.
 - Known residue of the callback, outside the page's control: the single-use (already exchanged) `code`
   remains in the browser's global history and in the page's Navigation Timing entry
@@ -62,7 +64,9 @@ IP addresses, hostnames, local paths) in versioned files.
   `innerHTML`; tell the model to treat it as data, never as instructions.
 - Strict Content Security Policy; no third-party scripts, fonts, or analytics.
 - **The model never applies a plan.** There is no "apply" tool; a plan is applied only through a UI button
-  after the plan has been rendered to the user.
+  after the plan has been rendered to the user. Only `src/plans/` imports `plans/ops.ts`, and only `src/ui/`
+  calls `applyPlan` (both checked in `tests/invariants.test.ts`). The model learns what the user did with a
+  plan from an `[App notice: …]` prepended to the user's next message.
 - The LLM server is never exposed to the internet directly. Remote access (a later phase) goes through an
   outbound tunnel, authentication, and a proxy that allows only chat completions.
 
@@ -108,8 +112,8 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 - `DELETE …/items` takes URIs only and removes **every** occurrence of a URI; plans re-insert kept
   occurrences.
 - **snapshot_id read lag**: after a write, reads return the previous `snapshot_id` for a few minutes while
-  items are already current. spotikit handles it with a write log; port that logic (store it in
-  IndexedDB). The web app and the spotikit CLI keep separate write logs, so do not write the same playlist
+  items are already current. spotikit handles it with a write log; ported in `src/spotify/writelog.ts`
+  (stored in IndexedDB). The web app and the spotikit CLI keep separate write logs, so do not write the same playlist
   from both within minutes.
 - `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; plan application checks
   itself.

@@ -20,7 +20,7 @@ function page<T>(items: T[], args: Args, max: number) {
 const str = (args: Args, key: string) => args[key] as string | undefined;
 
 /** Warnings list 0-based positions; the model sees 1-based track numbers, like the items. */
-function numberedWarnings(warnings: Warning[]) {
+export function numberedWarnings(warnings: Warning[]) {
   return warnings.map(({ positions, ...rest }) =>
     Array.isArray(positions) ? { ...rest, numbers: positions.map((p: number) => p + 1) } : rest,
   );

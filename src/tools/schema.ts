@@ -7,7 +7,7 @@ export type ParamSchema =
   | { type: "string"; description: string; minLength?: number }
   | { type: "integer"; description: string; minimum?: number; maximum?: number }
   | { type: "boolean"; description: string }
-  | { type: "array"; description: string; items: { type: "string" }; minItems?: number; maxItems?: number };
+  | { type: "array"; description: string; items: { type: "string" | "integer" }; minItems?: number; maxItems?: number };
 
 export interface ObjectSchema {
   type: "object";
@@ -16,7 +16,7 @@ export interface ObjectSchema {
   additionalProperties: false;
 }
 
-export type Args = Record<string, string | number | boolean | string[]>;
+export type Args = Record<string, string | number | boolean | string[] | number[]>;
 
 export function validateArgs(schema: ObjectSchema, value: unknown): Args {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -53,13 +53,21 @@ export function validateArgs(schema: ObjectSchema, value: unknown): Args {
       }
       args[key] = num;
     } else if (param.type === "array") {
-      if (!Array.isArray(raw) || raw.some((item) => typeof item !== "string")) {
-        throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array of strings.`);
+      if (!Array.isArray(raw)) throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array.`);
+      let items: string[] | number[];
+      if (param.items.type === "string") {
+        if (raw.some((item) => typeof item !== "string")) throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array of strings.`);
+        items = raw as string[];
+      } else {
+        items = raw.map((item) => (typeof item === "string" && /^\d+$/.test(item.trim()) ? Number(item) : item)) as number[];
+        if (items.some((item) => typeof item !== "number" || !Number.isInteger(item))) {
+          throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array of integers.`);
+        }
       }
-      if ((param.minItems !== undefined && raw.length < param.minItems) || (param.maxItems !== undefined && raw.length > param.maxItems)) {
+      if ((param.minItems !== undefined && items.length < param.minItems) || (param.maxItems !== undefined && items.length > param.maxItems)) {
         throw new SpotikitError("INVALID_ARGUMENT", `${key} must have between ${param.minItems ?? 0} and ${param.maxItems ?? "∞"} items.`);
       }
-      args[key] = raw as string[];
+      args[key] = items;
     } else {
       const bool = raw === "true" ? true : raw === "false" ? false : raw;
       if (typeof bool !== "boolean") throw new SpotikitError("INVALID_ARGUMENT", `${key} must be a boolean.`);

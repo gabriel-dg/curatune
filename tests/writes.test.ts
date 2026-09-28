@@ -140,11 +140,12 @@ describe("addItems", () => {
 });
 
 describe("write tools", () => {
-  it("exist next to the read tools; nothing removes, reorders, renames, applies, or sets visibility", () => {
+  it("exist next to the read tools; removals, reorders, and renames only as plans; nothing applies or sets visibility", () => {
     expect(WRITE_TOOLS.map((t) => t.name)).toEqual(["playlist_create", "playlist_add"]);
-    const names = ALL_TOOLS.map((t) => t.name).join(" ");
-    expect(names).not.toMatch(/apply|remove|delete|rename|reorder|move|update|visib|detail/);
-    for (const tool of ALL_TOOLS) expect(Object.keys(tool.parameters.properties)).not.toContain("public");
+    const names = ALL_TOOLS.map((t) => t.name);
+    expect(names.join(" ")).not.toMatch(/apply|delete|update|visib|private|public/);
+    for (const name of names.filter((n) => !n.startsWith("plan_"))) expect(name).not.toMatch(/remove|rename|reorder|move|detail/);
+    for (const tool of ALL_TOOLS) expect(Object.keys(tool.parameters.properties).join(" ")).not.toMatch(/public|private|visib|collaborative/);
   });
 
   it("playlist_add converts at_number to a position and reports numbers and names", async () => {

@@ -17,6 +17,15 @@ export type ErrorCode =
   | "UNTRUSTED_URL"
   | "CONCURRENT_MODIFICATION"
   | "DUPLICATE_NAME"
+  | "PLAN_INVALID"
+  | "PLAN_INCONSISTENT"
+  | "PLAN_CHECKSUM_MISMATCH"
+  | "PLAN_ALREADY_APPLIED"
+  | "PLAN_NOT_FOUND"
+  | "NO_CHANGES"
+  | "SNAPSHOT_MISMATCH"
+  | "APPLY_FAILED"
+  | "VERIFICATION_FAILED"
   | "API_ERROR";
 
 export type Details = Record<string, unknown>;
