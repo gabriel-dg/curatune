@@ -465,9 +465,64 @@ textarea::placeholder {
 }
 
 .workspace {
+  position: relative;
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
   min-height: 0;
+}
+
+/* Column edges you can drag (src/ui/layout.ts). An 8 px grip over the border, off the scrollbars; the
+   line lights up on hover, focus, and while dragging. */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 15;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resizer-sidebar {
+  left: calc(var(--sidebar) - 2px);
+}
+
+.resizer-sidebar::after {
+  left: 1px;
+}
+
+.resizer-panel {
+  right: calc(var(--panel) - 7px);
+}
+
+.resizer-panel::after {
+  left: 0;
+}
+
+.shell:not(.panel-open) .resizer-panel {
+  display: none;
+}
+
+.resizer:hover::after,
+.resizer:focus-visible::after,
+.resizer.active::after {
+  background: var(--accent);
+}
+
+.shell.resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .shell.panel-open .workspace {
@@ -1672,6 +1727,13 @@ tr.unavailable td {
     z-index: 20;
     box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
   }
+
+  .resizer-panel {
+    position: fixed;
+    top: var(--topbar);
+    right: calc(min(var(--panel), 100vw) - 7px);
+    z-index: 21;
+  }
 }
 
 /* Small screens: the sidebar becomes a drawer. */
@@ -1687,6 +1749,10 @@ tr.unavailable td {
 
   .only-narrow {
     display: inline-flex;
+  }
+
+  .resizer {
+    display: none;
   }
 
   .panel {

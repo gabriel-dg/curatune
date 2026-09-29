@@ -239,6 +239,9 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   cache: 28 requests, about 325 KB (uploaded covers about 28 KB each; mosaics offered in 60/300/640 px, the
   60 px one about 2.3 KB), all shown about 1.1 s after the list; with a warm cache, 0-0.35 s after. On a
   2x display the browser picks the 300 px mosaics (about 25 KB each).
+- Resizable columns (2026-09-29): drag the edge of the playlists column or of the panel (the chat takes the
+  rest, never under 420 px beside the panel), double-click to reset, arrow keys on a focused edge.
+  Widths are remembered in localStorage (two numbers; the only use of it, checked by the invariants).
 
 ## Phase 5 — Remote access (optional)
 
