@@ -171,6 +171,8 @@ describe("write tools", () => {
       lines: ["3. Zanzibar Sunset - The Last Band"],
       playlistId: ids.bebop,
       warnings: [],
+      // What the playlist holds after the add: the sidebar shows it while Spotify's list lags.
+      itemCount: 13,
     });
   });
 
@@ -199,7 +201,7 @@ describe("write tools", () => {
     const { client } = setup();
     const execution = await executeTool(ALL_TOOLS, "playlist_create", JSON.stringify({ name: "Bebop esencial" }), { client });
     expect(execution.outcome).toMatchObject({ ok: true, result: { playlist: { name: "Bebop esencial", public: true, items: 0 } } });
-    expect(execution.write).toMatchObject({ title: 'Created playlist "Bebop esencial"', lines: ["Public (Spotify ignores private on creation)."] });
+    expect(execution.write).toMatchObject({ title: 'Created playlist "Bebop esencial"', lines: ["Public (Spotify ignores private on creation)."], itemCount: 0 });
   });
 });
 

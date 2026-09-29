@@ -18,6 +18,8 @@ export interface PanelActions {
   askAbout: (playlist: { id: string; name: string }) => void;
   /** Send a prepared request to the chat (with this playlist as context). */
   ask: (playlist: { id: string; name: string }, text: string) => void;
+  /** The playlist was read: its real track count (the sidebar's list can lag behind after a write). */
+  loaded?: (playlistId: string, itemCount: number) => void;
 }
 
 function formatLongDuration(ms: number): string {
@@ -38,6 +40,7 @@ export async function renderPlaylistPanel(
   actions: PanelActions,
 ): Promise<HTMLElement> {
   const [{ playlist, items, warnings }, recordings] = await Promise.all([getPlaylist(client, playlistId), recordingsStore.load()]);
+  actions.loaded?.(playlistId, items.length);
   const name = playlist.name || "(untitled)";
   const ref = { id: playlist.id!, name };
   const recordedOf = (i: PlaylistItem) => lookup(recordings, i.uri, i.isrc)[0];

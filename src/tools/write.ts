@@ -57,6 +57,7 @@ const playlistCreate: Tool = {
       lines: [r.playlist.public === false ? "Reported as private." : "Public (Spotify ignores private on creation)."],
       playlistId: r.playlist.id,
       warnings: [],
+      itemCount: 0,
     };
   },
 };
@@ -127,6 +128,7 @@ const playlistAdd: Tool = {
       ],
       playlistId: r.playlist.id,
       warnings: r.verified ? [] : ["The re-read did not show the added tracks where expected; check the playlist."],
+      itemCount: r.item_count,
     };
   },
 };

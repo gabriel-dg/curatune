@@ -130,6 +130,10 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   items are already current. spotikit handles it with a write log; ported in `src/spotify/writelog.ts`
   (stored in IndexedDB). The web app and the spotikit CLI keep separate write logs, so do not write the same playlist
   from both within minutes.
+- The playlist list lags too (observed 2026-09-29, spotikit-web): right after creating a playlist and
+  adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
+  all 20. The web app shows the count known from its own write (or from reading the playlist) until the
+  list agrees.
 - `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; plan application checks
   itself.
 - `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; only moves are used.

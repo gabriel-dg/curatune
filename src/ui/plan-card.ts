@@ -183,7 +183,13 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
         : plan.kind === "reorder"
           ? [`New order of ${plan.after.length} tracks.`]
           : Object.entries(plan.changes).map(([k, c]) => `${k}: "${c.from}" → "${c.to}"`);
-    options.onWrite({ title: `Applied plan: ${planTitle(plan)}`, lines, playlistId: plan.playlist.id, warnings: userWarnings(result.warnings) });
+    options.onWrite({
+      title: `Applied plan: ${planTitle(plan)}`,
+      lines,
+      playlistId: plan.playlist.id,
+      warnings: userWarnings(result.warnings),
+      ...(plan.kind === "details" ? {} : { itemCount: plan.after.length }),
+    });
     options.onNotice(`The user applied plan ${plan.plan_id} (${planTitle(plan)}). ${verified}.`);
   });
 

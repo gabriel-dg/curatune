@@ -22,6 +22,8 @@ export interface WriteReport {
   lines: string[];
   playlistId: string | null;
   warnings: string[];
+  /** Tracks in the playlist after the write, when known. Spotify's playlist list lags behind it for a while. */
+  itemCount?: number;
 }
 
 export interface Tool {
