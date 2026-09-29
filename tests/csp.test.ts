@@ -22,9 +22,15 @@ describe("buildCsp", () => {
     expect(csp["frame-ancestors"]).toBeUndefined();
   });
 
-  it("never allows inline or eval", () => {
+  it("never allows inline or eval, nor wildcards outside the cover image CDNs", () => {
     const policy = buildCsp({ llmBaseUrl: "http://llm.test:1234/v1", header: true });
-    expect(policy).not.toMatch(/unsafe-|\*|data:|blob:/);
+    expect(policy).not.toMatch(/unsafe-|data:|blob:/);
+    const { "img-src": _images, ...rest } = directives(policy);
+    expect(Object.values(rest).flat().join(" ")).not.toMatch(/\*/);
+  });
+
+  it("allows images only from the page and Spotify's image CDNs", () => {
+    expect(directives(buildCsp())["img-src"]).toEqual(["'self'", "https://*.scdn.co", "https://*.spotifycdn.com"]);
   });
 
   it("adds the LLM origin to connect-src only", () => {

@@ -148,6 +148,10 @@ describe("normalizePlaylist", () => {
     items: { total: 12 },
     snapshot_id: "snap",
     external_urls: { spotify: "https://open.spotify.com/playlist/7xExamplePlaylistId001" },
+    images: [
+      { url: "https://mosaic.scdn.co/640/abc", width: 640, height: 640 },
+      { url: "https://mosaic.scdn.co/60/abc", width: 60, height: 60 },
+    ],
   };
 
   it("normalizes and unescapes the description", () => {
@@ -164,7 +168,14 @@ describe("normalizePlaylist", () => {
       item_count: 12,
       snapshot_id: "snap",
       url: raw.external_urls.spotify,
+      images: raw.images,
     });
+  });
+
+  it("keeps usable images only, with null for unknown sizes", () => {
+    const images = [{ url: "https://i.scdn.co/image/x", width: null, height: null }, { url: "" }, null, { width: 60 }];
+    expect(normalizePlaylist({ ...raw, images }, "me").images).toEqual([{ url: "https://i.scdn.co/image/x", width: null, height: null }]);
+    expect(normalizePlaylist({ ...raw, images: null }, "me").images).toEqual([]);
   });
 
   it("computes ownership", () => {

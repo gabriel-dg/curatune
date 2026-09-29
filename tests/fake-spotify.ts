@@ -417,6 +417,8 @@ export class FakeSpotify {
       snapshot_id: p.visibleSnapshotId ?? p.snapshotId,
       items: { total: p.items.length },
       external_urls: { spotify: `https://open.spotify.com/playlist/${p.id}` },
+      // Mosaic-style cover; the host is Spotify's, the path does not exist (the UI falls back to the initial).
+      images: [640, 300, 60].map((size) => ({ url: `https://mosaic.scdn.co/${size}/fake-${p.id}`, width: size, height: size })),
     };
   }
 

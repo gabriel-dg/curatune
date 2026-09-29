@@ -42,6 +42,13 @@ export interface PlaylistItem extends Track {
   added_at: string | null;
 }
 
+/** A cover image. Spotify's image URLs are temporary (they expire within a day): use them, never store them. */
+export interface Image {
+  url: string;
+  width: number | null;
+  height: number | null;
+}
+
 export interface Playlist {
   id: string | null;
   uri: string | null;
@@ -55,6 +62,8 @@ export interface Playlist {
   item_count: number | null;
   snapshot_id: string | null;
   url: string | null;
+  /** Cover in Spotify's sizes (for mosaics 640, 300, 60; an uploaded cover comes once, unsized). UI only. */
+  images: Image[];
 }
 
 export function formatDuration(ms: number | null | undefined): string | null {
@@ -149,6 +158,12 @@ export function normalizePlaylistItem(entry: Json, position: number): PlaylistIt
   return { position, ...track, added_at: orNull(entry.added_at) };
 }
 
+export function normalizeImages(images: unknown): Image[] {
+  if (!Array.isArray(images)) return [];
+  const size = (v: unknown) => (typeof v === "number" && v > 0 ? v : null);
+  return images.filter((i): i is Json => typeof i?.url === "string" && i.url !== "").map((i) => ({ url: i.url, width: size(i.width), height: size(i.height) }));
+}
+
 export function normalizePlaylist(playlist: Json, currentUserId: string | null): Playlist {
   const owner = playlist.owner ?? {};
   const itemsRef = playlist.items ?? playlist.tracks ?? {};
@@ -167,5 +182,6 @@ export function normalizePlaylist(playlist: Json, currentUserId: string | null):
     item_count: orNull(itemsRef.total),
     snapshot_id: orNull(playlist.snapshot_id),
     url: orNull(playlist.external_urls?.spotify),
+    images: normalizeImages(playlist.images),
   };
 }

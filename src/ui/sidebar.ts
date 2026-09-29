@@ -3,6 +3,7 @@
 import type { SpotifyClient } from "../spotify/http";
 import type { Playlist } from "../spotify/models";
 import { listPlaylists } from "../spotify/playlists";
+import { cover } from "./covers";
 import { h } from "./dom";
 import { icon } from "./icons";
 
@@ -15,6 +16,9 @@ export class Sidebar {
   private readonly footerLinks: Record<"recordings" | "activity", HTMLAnchorElement>;
   private readonly filterButtons: Record<"all" | "mine", HTMLButtonElement>;
   private playlists: Playlist[] = [];
+  /** One row per playlist, built once per load: filtering and marking reuse them, so covers are not refetched. */
+  private rows: { playlist: Playlist; link: HTMLAnchorElement; glyph: HTMLElement }[] = [];
+  private readonly busy = h("span", { class: "glyph-busy", attrs: { role: "status", "aria-label": "Loading" } }, [h("span", { class: "spinner" })]);
   private filter: "all" | "mine" = "all";
   private activeId: string | null = null;
   /** The playlist whose panel is loading: its row shows a spinner. */
@@ -55,7 +59,19 @@ export class Sidebar {
       if (!this.loaded) this.list.replaceChildren(h("div", { class: "side-empty muted small", text: "Could not load playlists." }));
       return;
     }
+    this.rows = this.playlists.map((playlist) => {
+      const glyph = cover(playlist.images, playlist.name, 36, "playlist-glyph");
+      const link = h("a", { class: "playlist-link", attrs: { href: `#/playlist/${playlist.id}`, title: playlist.name ?? "" } }, [
+        glyph,
+        h("span", { class: "playlist-text" }, [
+          h("span", { class: "playlist-name", text: playlist.name || "(untitled)" }),
+          h("span", { class: "playlist-meta", text: `${playlist.item_count ?? 0} tracks${playlist.owned ? "" : ` · ${playlist.owner_name ?? playlist.owner_id ?? ""}`}` }),
+        ]),
+      ]);
+      return { playlist, link, glyph };
+    });
     this.renderList();
+    this.mark();
   }
 
   /** Mark the playlist or page on screen. */
@@ -63,13 +79,12 @@ export class Sidebar {
     this.activeId = route.view === "playlist" ? (route.id ?? null) : null;
     this.footerLinks.recordings.classList.toggle("active", route.view === "recordings");
     this.footerLinks.activity.classList.toggle("active", route.view === "activity");
-    this.renderList();
+    this.mark();
   }
 
   setLoading(id: string | null): void {
-    if (id === this.loadingId) return;
     this.loadingId = id;
-    this.renderList();
+    this.mark();
   }
 
   setActivityCount(count: number): void {
@@ -77,8 +92,8 @@ export class Sidebar {
     this.activityBadge.textContent = String(count);
   }
 
-  nameOf(id: string): string | null {
-    return this.playlists.find((p) => p.id === id)?.name ?? null;
+  playlistOf(id: string): Playlist | null {
+    return this.playlists.find((p) => p.id === id) ?? null;
   }
 
   private setFilter(filter: "all" | "mine"): void {
@@ -91,23 +106,24 @@ export class Sidebar {
   private renderList(): void {
     if (!this.loaded) return;
     const query = this.search.value.trim().toLocaleLowerCase();
-    const shown = this.playlists.filter((p) => (this.filter === "all" || p.owned) && (!query || (p.name ?? "").toLocaleLowerCase().includes(query)));
+    const shown = this.rows.filter(({ playlist: p }) => (this.filter === "all" || p.owned) && (!query || (p.name ?? "").toLocaleLowerCase().includes(query)));
     if (!shown.length) {
       this.list.replaceChildren(h("div", { class: "side-empty muted small", text: query ? "No playlist matches." : "No playlists." }));
       return;
     }
-    this.list.replaceChildren(
-      ...shown.map((p) => {
-        const loading = p.id === this.loadingId;
-        const glyph = loading ? [h("span", { class: "spinner", attrs: { role: "status", "aria-label": "Loading" } })] : [(p.name ?? "?").trim().charAt(0).toUpperCase() || "?"];
-        return h("a", { class: `playlist-link${p.id === this.activeId ? " active" : ""}${loading ? " loading" : ""}`, attrs: { href: `#/playlist/${p.id}`, title: p.name ?? "" } }, [
-          h("span", { class: "playlist-glyph" }, glyph),
-          h("span", { class: "playlist-text" }, [
-            h("span", { class: "playlist-name", text: p.name || "(untitled)" }),
-            h("span", { class: "playlist-meta", text: `${p.item_count ?? 0} tracks${p.owned ? "" : ` · ${p.owner_name ?? p.owner_id ?? ""}`}` }),
-          ]),
-        ]);
-      }),
-    );
+    this.list.replaceChildren(...shown.map((row) => row.link));
+  }
+
+  /** Highlight the playlist on screen and put the spinner on the one loading. */
+  private mark(): void {
+    let busyGlyph: HTMLElement | null = null;
+    for (const { playlist, link, glyph } of this.rows) {
+      const loading = playlist.id !== null && playlist.id === this.loadingId;
+      link.classList.toggle("active", playlist.id !== null && playlist.id === this.activeId);
+      link.classList.toggle("loading", loading);
+      if (loading) busyGlyph = glyph;
+    }
+    if (!busyGlyph) this.busy.remove();
+    else if (this.busy.parentElement !== busyGlyph) busyGlyph.append(this.busy);
   }
 }

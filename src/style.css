@@ -564,9 +564,33 @@ textarea::placeholder {
   border-color: transparent;
 }
 
-.playlist-link.loading .spinner {
-  border-color: rgba(28, 18, 6, 0.28);
-  border-top-color: var(--accent-fg);
+/* Covers: the image sits over the initial, which shows while it loads or if it fails. */
+.playlist-glyph,
+.panel-cover {
+  position: relative;
+  overflow: hidden;
+}
+
+.playlist-glyph img,
+.panel-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlist-link.active .playlist-glyph.has-cover {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.glyph-busy {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  background: rgba(18, 16, 20, 0.62);
 }
 
 .playlist-text {
@@ -1252,6 +1276,40 @@ button.free-hint:hover {
 
 .panel-content {
   padding: 20px 20px 32px;
+}
+
+.panel-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-right: 36px;
+}
+
+.panel-hero-text {
+  min-width: 0;
+}
+
+.panel-hero + .panel-description {
+  margin-top: 12px;
+}
+
+.panel-hero .panel-title {
+  margin-right: 0;
+}
+
+.panel-cover {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 2.2em;
+  font-weight: 700;
+  color: var(--muted);
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .panel-kicker {
