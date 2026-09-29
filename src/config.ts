@@ -7,6 +7,8 @@ export interface AppConfig {
   redirectUri: string;
   llmBaseUrl: string;
   llmModel: string;
+  /** Optional hosted LLM (e.g. Gemini). Its API key is not configuration: the user pastes it in the app. */
+  hostedLlm: { baseUrl: string; model: string; name: string } | null;
 }
 
 export function loadConfig(env: ImportMetaEnv, origin: string): AppConfig {
@@ -16,5 +18,13 @@ export function loadConfig(env: ImportMetaEnv, origin: string): AppConfig {
     redirectUri: `${origin}${CALLBACK_PATH}`,
     llmBaseUrl: (env.VITE_LLM_BASE_URL ?? "").trim(),
     llmModel: (env.VITE_LLM_MODEL ?? "").trim(),
+    hostedLlm:
+      env.VITE_HOSTED_LLM_BASE_URL?.trim() && env.VITE_HOSTED_LLM_MODEL?.trim()
+        ? {
+            baseUrl: env.VITE_HOSTED_LLM_BASE_URL.trim(),
+            model: env.VITE_HOSTED_LLM_MODEL.trim(),
+            name: env.VITE_HOSTED_LLM_NAME?.trim() || "Hosted",
+          }
+        : null,
   };
 }

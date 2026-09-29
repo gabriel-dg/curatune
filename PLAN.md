@@ -207,6 +207,13 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   `gemini-3.8-flash` works (tool calls in the history included). Its free tier allows 20 requests per
   day per model, not enough for a run (70-80 requests); results above are from a Tier 1 (billed) project.
 
+- Gemini as an optional provider in the chat (2026-09-29): a model selector next to Send (local by default),
+  the API key pasted in the app and kept in the tab's sessionStorage, the provider's origin in the CSP
+  (Google's endpoint allows CORS from the app's origin). The operator's original request, repeated with
+  `gemini-3.8-flash`: one `search_many` with 20 searches (3.6 s), `playlist_create`, one `playlist_add` with
+  20 tracks, about 10 s from creating to adding; 20 distinct, genuinely lesser-known artists, in
+  chronological order by year, with plausible years.
+
 ## Phase 5 — Remote access (optional)
 
 - [ ] Serve the static site from the Mac behind the same tunnel as the LLM (same origin: one access

@@ -9,6 +9,7 @@ import { SpotikitError } from "../spotify/errors";
 import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type WriteReport } from "../tools";
 import { h } from "./dom";
+import type { LlmSettings, ProviderOption } from "./llm-providers";
 import { planCard } from "./plan-card";
 
 const SUGGESTIONS = [
@@ -71,8 +72,11 @@ export class ChatView {
   /** Called when a turn fails because the Spotify session is gone. */
   onAuthError: (exc: SpotikitError) => void = () => {};
 
-  private readonly model: ChatModel | null;
-  private readonly unavailableReason: string | null;
+  private readonly providers: ProviderOption[];
+  private readonly settings: LlmSettings;
+  private provider: ProviderOption;
+  private readonly providerSelect: HTMLSelectElement;
+  private readonly forgetKeyButton: HTMLButtonElement;
   private readonly ctx: ToolContext;
   private readonly backups: KeyValueStore;
   /** What the user did with plans since the last message; prepended to the next one for the model. */
@@ -91,11 +95,30 @@ export class ChatView {
   private controller: AbortController | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(model: ChatModel | null, unavailableReason: string | null, modelName: string, ctx: ToolContext, backups: KeyValueStore) {
-    this.model = model;
-    this.unavailableReason = unavailableReason;
-    this.ctx = ctx;
-    this.backups = backups;
+  constructor(options: { providers: ProviderOption[]; settings: LlmSettings; ctx: ToolContext; backups: KeyValueStore }) {
+    this.providers = options.providers;
+    this.settings = options.settings;
+    this.provider = this.providers.find((p) => p.id === this.settings.selected()) ?? this.providers[0]!;
+    this.ctx = options.ctx;
+    this.backups = options.backups;
+    this.providerSelect = h(
+      "select",
+      { attrs: { "aria-label": "Model" }, on: { change: () => this.switchProvider(this.providerSelect.value) } },
+      this.providers.map((p) => h("option", { text: p.label, attrs: { value: p.id } })),
+    );
+    this.providerSelect.value = this.provider.id;
+    this.providerSelect.hidden = this.providers.length < 2;
+    this.forgetKeyButton = h("button", {
+      class: "secondary",
+      text: "Forget key",
+      attrs: { title: "Remove the API key from this tab" },
+      on: {
+        click: () => {
+          this.settings.forgetApiKey(this.provider);
+          this.reset();
+        },
+      },
+    });
     this.transcript = h("div", { class: "transcript", attrs: { "aria-live": "polite" } });
     this.input = h("textarea", {
       attrs: { rows: "3", placeholder: "Ask about your playlists… (Enter sends, Shift+Enter adds a line)", "aria-label": "Message" },
@@ -111,7 +134,7 @@ export class ChatView {
     this.sendButton = h("button", { text: "Send", on: { click: () => void this.send() } });
     this.stopButton = h("button", { class: "secondary", text: "Stop", attrs: { hidden: "" }, on: { click: () => this.controller?.abort() } });
     this.newButton = h("button", { class: "secondary", text: "New chat", on: { click: () => this.reset() } });
-    this.status = h("span", { class: "muted status", text: model ? `Model: ${modelName}` : "" });
+    this.status = h("span", { class: "muted status" });
     this.writesList = h("div", { class: "writes-list" });
     this.writesLog = h("details", { class: "writes-log", attrs: { hidden: "" } }, [h("summary", { text: "Writes this session" }), this.writesList]);
     this.element = h("section", { class: "chat" }, [
@@ -119,17 +142,76 @@ export class ChatView {
       this.transcript,
       h("div", { class: "composer" }, [
         this.input,
-        h("div", { class: "composer-actions" }, [this.status, this.newButton, this.stopButton, this.sendButton]),
+        h("div", { class: "composer-actions" }, [this.status, this.providerSelect, this.forgetKeyButton, this.newButton, this.stopButton, this.sendButton]),
       ]),
     ]);
     this.renderEmpty();
   }
 
+  /** The model for the selected provider, or why there is none (missing key, not configured). */
+  private currentModel(): { model: ChatModel } | { problem: string; needsKey: boolean } {
+    const key = this.provider.requiresKey ? this.settings.apiKey(this.provider) : null;
+    if (this.provider.requiresKey && !key) return { problem: "API key needed", needsKey: true };
+    try {
+      return { model: this.provider.create(key) };
+    } catch (exc) {
+      return { problem: exc instanceof AgentError ? exc.message : "The model is not configured.", needsKey: false };
+    }
+  }
+
+  private updateControls(): void {
+    const hasKey = this.provider.requiresKey && Boolean(this.settings.apiKey(this.provider));
+    this.forgetKeyButton.hidden = !hasKey;
+    this.status.textContent = `Model: ${this.provider.model || "not configured"}`;
+  }
+
+  private switchProvider(id: string): void {
+    const next = this.providers.find((p) => p.id === id);
+    if (!next || next === this.provider) return;
+    if (this.controller) {
+      this.providerSelect.value = this.provider.id; // not while a turn runs
+      return;
+    }
+    this.provider = next;
+    this.settings.select(next);
+    // A new chat: one provider's history (tool calls, provider data) may not be valid for another.
+    this.reset();
+  }
+
+  private keyForm(): HTMLElement {
+    const input = h("input", { attrs: { type: "password", autocomplete: "off", spellcheck: "false", placeholder: "API key", "aria-label": "API key" } });
+    const save = () => {
+      if (!input.value.trim()) return;
+      this.settings.setApiKey(this.provider, input.value);
+      input.value = "";
+      this.reset();
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        save();
+      }
+    });
+    return h("div", { class: "key-form" }, [
+      h("p", {}, [h("strong", { text: `${this.provider.label} needs an API key.` })]),
+      h("p", {
+        class: "muted",
+        text:
+          `It stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}. ` +
+          `Using this model sends the conversation and your playlist data (names, tracks, artists) to that provider; ` +
+          `your Spotify token is never sent.`,
+      }),
+      h("div", { class: "open" }, [input, h("button", { text: "Use this key", on: { click: save } })]),
+    ]);
+  }
+
   private renderEmpty(): void {
-    if (!this.model) {
-      this.transcript.replaceChildren(h("p", { class: "notice", text: this.unavailableReason ?? "The model is not configured." }));
-      this.input.disabled = true;
-      this.sendButton.disabled = true;
+    this.updateControls();
+    const current = this.currentModel();
+    this.input.disabled = "problem" in current;
+    this.sendButton.disabled = "problem" in current;
+    if ("problem" in current) {
+      this.transcript.replaceChildren(current.needsKey ? this.keyForm() : h("p", { class: "notice", text: current.problem }));
       return;
     }
     this.transcript.replaceChildren(
@@ -184,6 +266,8 @@ export class ChatView {
     this.sendButton.disabled = busy;
     this.newButton.disabled = busy;
     this.stopButton.hidden = !busy;
+    this.providerSelect.disabled = busy;
+    this.forgetKeyButton.disabled = busy;
   }
 
   private startTimer(label: string): void {
@@ -201,7 +285,13 @@ export class ChatView {
 
   async send(): Promise<void> {
     const text = this.input.value.trim();
-    if (!text || this.controller || !this.model) return;
+    if (!text || this.controller) return;
+    const current = this.currentModel();
+    if ("problem" in current) {
+      this.renderEmpty();
+      return;
+    }
+    const model = current.model;
     this.input.value = "";
     this.append(h("div", { class: "msg user" }, [text]));
     this.setBusy(true);
@@ -275,7 +365,7 @@ export class ChatView {
 
     try {
       const result = await runTurn(this.history, content, {
-        model: this.model,
+        model,
         tools: ALL_TOOLS,
         ctx: { ...this.ctx, onPlan: (plan) => stats.plans.push(plan) },
         signal: this.controller.signal,

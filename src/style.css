@@ -437,3 +437,44 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+select {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  max-width: 16rem;
+}
+
+.key-form {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.key-form p {
+  margin: 0 0 8px;
+}
+
+input[type="password"] {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  min-width: 0;
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .composer-actions {
+    flex-wrap: wrap;
+  }
+
+  select {
+    max-width: 100%;
+  }
+}
