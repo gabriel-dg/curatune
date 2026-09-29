@@ -26,8 +26,12 @@ describe("source invariants", () => {
     expect(Object.keys(sources).length).toBeGreaterThan(5);
   });
 
-  it("never uses localStorage; IndexedDB only in storage/, which knows nothing about auth", () => {
-    expect(offenders(/localStorage/)).toEqual([]);
+  it("uses localStorage only for the column widths; IndexedDB only in storage/, which knows nothing about auth", () => {
+    // ui/layout.ts stores two numbers there (the column widths) and touches nothing else.
+    expect(offenders(/localStorage/).filter((path) => path !== "../src/ui/layout.ts")).toEqual([]);
+    const layout = layer(/\/ui\/layout\.ts$/);
+    expect(Object.keys(layout)).toHaveLength(1);
+    expect(offenders(/from "\.\.\/(spotify|agent|tools|storage|plans|recordings)\/|token|sessionStorage|indexedDB|fetch\(/i, layout)).toEqual([]);
     expect(offenders(/indexedDB/).filter((path) => !path.includes("/storage/"))).toEqual([]);
     expect(offenders(/from "\.\.\/spotify\/auth"|accessToken|refreshToken|sessionStorage/, layer(/\/storage\//))).toEqual([]);
   });

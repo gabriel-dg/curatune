@@ -11,6 +11,7 @@ import type { ChatView } from "./chat";
 import { cover } from "./covers";
 import { h } from "./dom";
 import { icon } from "./icons";
+import { ResizableLayout } from "./layout";
 import { renderPlaylistPanel } from "./playlist-panel";
 import { renderActivityPanel, renderRecordingsPanel } from "./side-panels";
 import { Sidebar } from "./sidebar";
@@ -40,6 +41,7 @@ export class App {
   private readonly recordings: RecordingStore;
   private readonly activity: ActivityLog;
   private shell: HTMLElement | null = null;
+  private layout: ResizableLayout | null = null;
   private sidebar: Sidebar | null = null;
   private panel: HTMLElement | null = null;
   private notice: HTMLElement | null = null;
@@ -117,6 +119,8 @@ export class App {
   // --- Login ------------------------------------------------------------------------------------
 
   private renderLogin(): void {
+    this.layout?.dispose();
+    this.layout = null;
     this.shell = null;
     this.sidebar = null;
     this.notice = null;
@@ -172,15 +176,14 @@ export class App {
       this.userLabel,
       h("button", { class: "ghost small", attrs: { title: "Log out" }, on: { click: () => this.logout() } }, [icon("logout", 15), h("span", { class: "hide-narrow", text: "Log out" })]),
     ]);
-    this.shell = h("div", { class: "shell" }, [
-      topbar,
-      h("div", { class: "workspace" }, [
-        this.sidebar.element,
-        h("div", { class: "scrim", on: { click: () => this.shell!.classList.remove("sidebar-open") } }),
-        h("main", { class: "center" }, [this.notice, this.chat.element]),
-        this.panel,
-      ]),
+    const workspace = h("div", { class: "workspace" }, [
+      this.sidebar.element,
+      h("div", { class: "scrim", on: { click: () => this.shell!.classList.remove("sidebar-open") } }),
+      h("main", { class: "center" }, [this.notice, this.chat.element]),
+      this.panel,
     ]);
+    this.shell = h("div", { class: "shell" }, [topbar, workspace]);
+    this.layout = new ResizableLayout(this.shell, workspace);
     const warning = this.warning
       ? h("div", { class: "notice warn-notice", attrs: { role: "status" } }, [
           h("span", { text: this.warning }),
@@ -251,11 +254,13 @@ export class App {
     if (route.view === "home") {
       panel.hidden = true;
       this.shell!.classList.remove("panel-open");
+      this.layout?.update();
       this.setPanelLoading(false);
       return;
     }
     panel.hidden = false;
     this.shell!.classList.add("panel-open");
+    this.layout?.update();
     // Something new: a skeleton right away, so the click visibly does something. The same view again (a
     // refresh after a write): keep it on screen, with only the loading bar on top.
     const key = route.view === "playlist" ? `playlist:${route.id}` : route.view;

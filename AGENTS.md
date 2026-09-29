@@ -57,8 +57,9 @@ IP addresses, hostnames, local paths) in versioned files.
   (pagination `next`) are checked; any other host or scheme is an error (`UNTRUSTED_URL`).
 - Tokens and authorization codes never appear in the console, logs, errors, the LLM context, or the URL
   (strip `code` and `state` with `history.replaceState` after the callback). Keep tokens in memory or
-  `sessionStorage`, never `localStorage`. IndexedDB (only in `src/storage/`) holds the write log, plan
-  backups, and recording dates, never tokens.
+  `sessionStorage`, never `localStorage`, which holds only the column widths (`src/ui/layout.ts`, the one
+  module allowed to use it). IndexedDB (only in `src/storage/`) holds the write log, plan backups, and
+  recording dates, never tokens.
 - `state` is validated on the callback; the PKCE verifier is removed after the exchange.
 - Known residue of the callback, outside the page's control: the single-use (already exchanged) `code`
   remains in the browser's global history and in the page's Navigation Timing entry
