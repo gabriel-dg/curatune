@@ -51,7 +51,15 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       for (const name of STORES) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name);
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Another tab opening a newer version must not wait for this one: close and reopen on next use.
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => {
       dbPromise = null;
       reject(req.error);
@@ -84,13 +92,37 @@ export class IndexedDbStore implements KeyValueStore {
   }
 }
 
+/**
+ * How long to wait for the database. Opening can block indefinitely when another tab still runs an older
+ * version of the app with the database open (a version upgrade waits for it to close).
+ */
+const OPEN_TIMEOUT_MS = 3000;
+
 /** IndexedDB when available, memory otherwise (the app still works, but nothing survives a reload). */
 export async function openStore(name: StoreName): Promise<KeyValueStore> {
   try {
     if (typeof indexedDB === "undefined") return new MemoryStore();
-    await openDb();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("IndexedDB open timed out")), OPEN_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([openDb(), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
     return new IndexedDbStore(name);
   } catch {
     return new MemoryStore();
   }
+}
+
+/** Whether this browser offers IndexedDB at all (private modes of some browsers do not). */
+export function indexedDbSupported(): boolean {
+  return typeof indexedDB !== "undefined";
+}
+
+/** False for the in-memory fallback: data kept there is lost on reload. */
+export function isPersistent(store: KeyValueStore): boolean {
+  return !(store instanceof MemoryStore);
 }

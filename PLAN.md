@@ -219,7 +219,16 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   lookup by URI or ISRC, `recordings_show` and `recordings_set` tools, `plan_reorder` with `sort_by:
   "recorded"`, and a Recorded column in the playlist view. Gemini passed the three new scenarios twice
   (check chronology, reorder from stored dates, fill the missing dates from its knowledge without
-  touching stored ones): 48/48 overall.
+  touching stored ones): 48/48 overall. Ornith passed checking chronology and reordering from stored dates, but not
+  filling the missing dates (misspelled URIs, stopped by the known-ID guard; 16 minutes).
+- UI redesign (2026-09-29): a warm dark theme with an amber accent; sidebar with the playlists (filter, All
+  and Mine), the chat in the centre, and a side panel for a playlist (facts, quick actions that ask the
+  chat, filter, sortable columns), the recording dates, or the session's activity. The playlist on screen
+  becomes the chat's context. Answers render a safe Markdown subset (links only to open.spotify.com); tool
+  calls show as compact steps; plans show as diffs (removed tracks struck through; for reorders, only the
+  tracks the operations carry count as moved). Found while testing: a database version upgrade could
+  block forever when another tab ran the old version (blank page); now tabs yield on versionchange and
+  the app falls back to memory with a warning after 3 s.
 
 ## Phase 5 — Remote access (optional)
 
