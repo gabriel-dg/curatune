@@ -1,4 +1,3 @@
-import { AgentError, LlmClient } from "./agent/llm";
 import { loadConfig } from "./config";
 import { SpotifyAuth, takeCallbackParams } from "./spotify/auth";
 import { SpotifyClient } from "./spotify/http";
@@ -7,6 +6,7 @@ import { openStore } from "./storage/kv";
 import { App } from "./ui/app";
 import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
+import { buildProviders, LlmSettings } from "./ui/llm-providers";
 
 async function start(root: HTMLElement): Promise<void> {
   // Strip `code` and `state` from the address bar and the session history before anything else runs.
@@ -31,15 +31,11 @@ async function start(root: HTMLElement): Promise<void> {
   const backups = await openStore("plan-backups");
   const client = new SpotifyClient(auth, { fetch: (input, init) => window.fetch(input, init), writeLog });
 
-  // The LLM client gets its own fetch and never sees `auth`: the Spotify token cannot reach the model.
-  let model: LlmClient | null = null;
-  let modelProblem: string | null = null;
-  try {
-    model = new LlmClient({ baseUrl: config.llmBaseUrl, model: config.llmModel, fetch: (input, init) => window.fetch(input, init) });
-  } catch (exc) {
-    modelProblem = exc instanceof AgentError ? exc.message : "The LLM is not configured.";
-  }
-  const chat = new ChatView(model, modelProblem, config.llmModel, { client }, backups);
+  // LLM clients get their own fetch and never see `auth`: the Spotify token cannot reach a model. A hosted
+  // provider's API key lives in sessionStorage (per tab), pasted by the user; never in the build.
+  const providers = buildProviders(config, (input, init) => window.fetch(input, init));
+  const settings = new LlmSettings(window.sessionStorage);
+  const chat = new ChatView({ providers, settings, ctx: { client }, backups });
   const app = new App(root, auth, client, chat);
 
   if (callback) {
