@@ -265,6 +265,24 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
 - Model selector (2026-09-29): `VITE_HOSTED_LLM_MODEL` takes a comma-separated list, each model in the
   chat's selector with one shared API key, so the operator picks per task: Flash Lite for mechanical
   work, 3.8 Flash for anything that depends on knowledge, the local model to keep everything on the LAN.
+- Selection by criteria (2026-09-29): the operator's "20 underrated 60s songs, one per artist" request,
+  asked without tools, twice per model. Both kept the mechanical rules (20 distinct artists, all from the
+  60s). `gemini-3.8-flash` picked genuinely lesser-known recordings across genres (psych, folk, soul,
+  Brazilian, baroque pop), with one or two doubtful years; `gemini-3.5-flash-lite` picked mostly well-known
+  hits ("Waterloo Sunset", "Nights in White Satin", "Bus Stop") from garage and British or US pop rock:
+  the shape of the request, not its intent. About 11 s against 2 s per answer.
+- Which model for what (usage guide):
+
+  | Task | Model |
+  |---|---|
+  | Read, search, find duplicates, reorder by title, rename | `gemini-3.5-flash-lite` (twice as fast, cheaper) |
+  | Create or add when the selection is given or objective ("these 15 tracks", "the whole album", "versions of Salt Peanuts", "Monk's Blue Note recordings") | `gemini-3.5-flash-lite` |
+  | Create when the selection needs taste and knowledge ("underrated", deep cuts, a subgenre, "not the obvious ones") | `gemini-3.8-flash` |
+  | Recording dates and chronological order (sorting, filling missing dates) | `gemini-3.8-flash` |
+  | Anything that should stay on the LAN | the local model (mechanical tasks only) |
+
+  With Flash Lite, check the result card: in the evaluation it once misspelled a playlist name and once
+  ended without an answer.
 
 ## Phase 5 — Remote access (optional)
 
