@@ -10,6 +10,7 @@ import type { KeyValueStore } from "../storage/kv";
 import type { WriteReport } from "../tools";
 import { h } from "./dom";
 import { icon } from "./icons";
+import { userWarnings } from "./warnings";
 
 export interface PlanCardOptions {
   client: SpotifyClient;
@@ -140,7 +141,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
     plan.reason ? h("div", { class: "plan-reason", text: plan.reason }) : null,
     plan.kind === "details" ? detailsDiff(plan) : plan.kind === "remove" ? removeDiff(plan) : reorderDiff(plan),
     summary,
-    ...plan.warnings.map((w) => h("div", { class: "warning", text: `${w.code}: ${w.message}` })),
+    ...userWarnings(plan.warnings).map((text) => h("div", { class: "warning", text })),
     h("div", { class: "plan-actions" }, [status, discardButton, applyButton]),
   ]);
 
@@ -182,7 +183,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
         : plan.kind === "reorder"
           ? [`New order of ${plan.after.length} tracks.`]
           : Object.entries(plan.changes).map(([k, c]) => `${k}: "${c.from}" → "${c.to}"`);
-    options.onWrite({ title: `Applied plan: ${planTitle(plan)}`, lines, playlistId: plan.playlist.id, warnings: result.warnings.map((w) => w.message) });
+    options.onWrite({ title: `Applied plan: ${planTitle(plan)}`, lines, playlistId: plan.playlist.id, warnings: userWarnings(result.warnings) });
     options.onNotice(`The user applied plan ${plan.plan_id} (${planTitle(plan)}). ${verified}.`);
   });
 

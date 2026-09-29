@@ -4,10 +4,11 @@
 import { lookup, type RecordingMap, type RecordingStore } from "../recordings/recordings";
 import type { SpotifyClient } from "../spotify/http";
 import { formatDuration, type Playlist, type PlaylistItem } from "../spotify/models";
-import { getPlaylist, type Warning } from "../spotify/playlists";
+import { getPlaylist } from "../spotify/playlists";
 import { spotifyPlaylistLink } from "./cards";
 import { h } from "./dom";
 import { icon } from "./icons";
+import { userWarnings } from "./warnings";
 
 type SortKey = "number" | "title" | "artist" | "album" | "released" | "recorded" | "duration";
 
@@ -73,6 +74,7 @@ export async function renderPlaylistPanel(
       h("button", { class: "primary", on: { click: () => actions.askAbout(ref) } }, [icon("chat", 16), "Ask about this playlist"]),
       spotifyPlaylistLink(playlist.id),
     ]),
+    h("div", { class: "quick-label" }, [icon("sparkle", 13), h("span", { text: "Quick ideas, or ask anything in the chat:" })]),
     h("div", { class: "quick-actions" }, quick.map(([label, text]) => h("button", { class: "chip", text: label, on: { click: () => actions.ask(ref, text!) } }))),
   ]);
 
@@ -131,16 +133,10 @@ export async function renderPlaylistPanel(
 
   return h("div", { class: "panel-content" }, [
     header,
-    ...warnings.map(renderWarning),
+    ...userWarnings(warnings).map((text) => h("div", { class: "warning", text })),
     h("div", { class: "table-tools" }, [h("div", { class: "side-search" }, [icon("search", 15), filter])]),
     h("div", { class: "table-wrap" }, [table]),
   ]);
-}
-
-function renderWarning(w: Warning): HTMLElement {
-  // Track numbers are shown 1-based, as in the Spotify app and in what the model says.
-  const positions = Array.isArray(w.positions) ? ` Tracks: ${w.positions.map((p: number) => p + 1).join(", ")}.` : "";
-  return h("div", { class: "warning", text: `${w.code}: ${w.message}${positions}` });
 }
 
 function trackRow(item: PlaylistItem, recordings: RecordingMap): HTMLTableRowElement {
