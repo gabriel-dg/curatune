@@ -64,6 +64,7 @@ export class App {
     this.chat.onAuthError = () => this.sessionEnded();
     this.chat.onOpenPlaylist = (id) => (location.hash = `#/playlist/${id}`);
     this.chat.onWrite = (report) => {
+      if (report.playlistId && report.itemCount !== undefined) this.sidebar?.setCount(report.playlistId, report.itemCount);
       void this.sidebar?.load();
       // The panel shows data that just changed: refresh it.
       if ((this.route.view === "playlist" && report.playlistId === this.route.id) || this.route.view === "recordings") void this.renderPanel();
@@ -282,6 +283,7 @@ export class App {
             this.chat.setContext(p);
             this.chat.ask(text);
           },
+          loaded: (playlistId, itemCount) => this.sidebar?.setCount(playlistId, itemCount),
         });
       } else if (route.view === "recordings") {
         content = await renderRecordingsPanel(this.recordings, (exc) => this.showError(exc), () => void this.renderPanel());
