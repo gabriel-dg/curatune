@@ -174,6 +174,28 @@ Deliberate differences from spotikit: plans live in memory and backups in Indexe
 by recording date (out of v1 scope), but deterministic sorts by other keys; the model refers to tracks by
 1-based numbers.
 
+## After phase 4 — first use by the operator (2026-09-28)
+
+- A real request ("create a playlist with 20 underrated 60s songs in chronological order, one per artist")
+  hit the step limit: one search per call, a cap of 8 calls per step, and the model trying to confirm
+  recording years through `released` (edition dates) and re-searching.
+- Fixes: `search_many` (up to 25 searches per call, 4 concurrent, like spotikit's batch search, which had
+  not been ported); the prompt says to search each song once and to order by the original year from the
+  model's knowledge, never by `released`; the step limit is 12, and reaching it asks the model (without
+  tools) for a summary of what it did instead of discarding the turn.
+- Evaluation with `search_many` (Ornith, 2 runs): search, create with tracks, and add all 2/2; a new
+  "create in chronological order" scenario 0/2. The mechanics work (one `search_many`, one create, one
+  add), but the 9B model gets recording years wrong with confidence (e.g. "Swing to Bop, 1931") and took
+  10-15 minutes on that request.
+- Conclusion: the deterministic layer matches spotikit; the gap is the model's knowledge. spotikit relies on
+  Claude (and web search) for recording dates and stores them (`recordings set`), then sorts in code.
+  Candidates: a stronger hosted model for knowledge-heavy requests, and porting the recording-date store.
+- Hosted model comparison: `npm run eval` can target an OpenAI-compatible hosted API (`EVAL_HOSTED=1`,
+  `EVAL_LLM_BASE_URL`, `EVAL_LLM_API_KEY` in `.env.local`, read only by the evaluation, never bundled).
+  `gemini-3.8-flash` works (tool calls in the history included), but its free tier allows 20 requests
+  per day, and a full run needs 70-80: not comparable yet. On the scenarios it completed it took about
+  half to two thirds of Ornith's time.
+
 ## Phase 5 — Remote access (optional)
 
 - [ ] Serve the static site from the Mac behind the same tunnel as the LLM (same origin: one access

@@ -201,6 +201,11 @@ export function buildFixture(): FakeData & { ids: Record<string, string> } {
       hotHouse,
       boplicity: t.boplicity,
       woodyNYou: t.woodyNYou,
+      unPocoLoco: t.unPocoLoco,
+      swingToBop: t.swingToBop,
+      manteca: t.manteca,
+      roundMonk: t.roundMonk,
+      ladyBird: t.ladyBird,
     },
   };
 }

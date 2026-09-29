@@ -4,7 +4,7 @@ import { SpotifyClient } from "../src/spotify/http";
 import { AgentError, chatCompletionsUrl, LlmClient, stripReasoning, type ChatMessage, type ChatModel, type Completion } from "../src/agent/llm";
 import { runTurn, type AgentEvent } from "../src/agent/loop";
 import { SYSTEM_PROMPT } from "../src/agent/prompt";
-import { READ_TOOLS } from "../src/tools";
+import { READ_TOOLS, toolDefinitions } from "../src/tools";
 import { buildFixture, FakeSpotify } from "./fake-spotify";
 import { fakeFetch, json, MemoryStorage, noSleep, rejection } from "./helpers";
 
@@ -100,6 +100,37 @@ describe("runTurn", () => {
     expect(result.executions).toHaveLength(3);
   });
 
+  it("at the step limit, asks the model for a summary without tools", async () => {
+    const { client } = spotifyClient();
+    const toolCounts: number[] = [];
+    const model: ChatModel = {
+      async complete(messages, tools) {
+        toolCounts.push(tools.length);
+        if (tools.length === 0) {
+          expect((messages.at(-1) as { content: string }).content).toMatch(/step limit/);
+          return completion("I searched three times and found nothing yet.");
+        }
+        return completion("", [["search_tracks", { query: `q${toolCounts.length}` }]]);
+      },
+    };
+    const result = await runTurn(system, "loop", { model, tools: READ_TOOLS, ctx: { client }, maxSteps: 3 });
+    expect(result.stoppedAtLimit).toBe(true);
+    expect(toolCounts).toEqual([READ_TOOLS.length, READ_TOOLS.length, READ_TOOLS.length, 0]);
+    expect(result.answer).toBe("I searched three times and found nothing yet.");
+  });
+
+  it("falls back to a fixed message if the summary call fails", async () => {
+    const { client } = spotifyClient();
+    const model: ChatModel = {
+      async complete(_messages, tools) {
+        if (tools.length === 0) throw new AgentError("LLM_ERROR", "boom");
+        return completion("", [["search_tracks", { query: String(Math.random()) }]]);
+      },
+    };
+    const result = await runTurn(system, "loop", { model, tools: READ_TOOLS, ctx: { client }, maxSteps: 2 });
+    expect(result.answer).toMatch(/Stopped after 2 model steps/);
+  });
+
   it("does not repeat an identical call within a turn", async () => {
     const { client } = spotifyClient();
     const model = new ScriptedModel([
@@ -159,13 +190,49 @@ describe("LlmClient", () => {
     expect(req.headers).toEqual({ "Content-Type": "application/json" });
     expect(req.init.credentials).toBe("omit");
     expect(req.init.redirect).toBe("error");
-    expect(JSON.parse(req.init.body as string)).toEqual({
-      model: "m1",
-      messages: [{ role: "user", content: "hello" }],
-      tools: [],
-      tool_choice: "auto",
-      stream: false,
-    });
+    // Without tools, neither tools nor tool_choice is sent (some providers reject an empty list).
+    expect(JSON.parse(req.init.body as string)).toEqual({ model: "m1", messages: [{ role: "user", content: "hello" }], stream: false });
+    await llm.complete([{ role: "user", content: "hello" }], toolDefinitions(READ_TOOLS));
+    const withTools = JSON.parse(requests[1]!.init.body as string);
+    expect(withTools.tool_choice).toBe("auto");
+    expect(withTools.tools.map((t: { function: { name: string } }) => t.function.name)).toContain("playlist_show");
+  });
+
+  it("sends the provider's API key only when one is configured", async () => {
+    const { fetch, requests } = fakeFetch(() => json({ choices: [{ message: { content: "ok" } }] }));
+    await new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch, apiKey: "LLM-PROVIDER-KEY" }).complete([], []);
+    expect(requests[0]!.headers.Authorization).toBe("Bearer LLM-PROVIDER-KEY");
+  });
+
+  it("retries rate limits and overloads, honouring Retry-After", async () => {
+    let calls = 0;
+    const sleeps: number[] = [];
+    const { fetch } = fakeFetch(() =>
+      ++calls === 1 ? json({ error: { message: "quota" } }, 429, { "Retry-After": "3" }) : calls === 2 ? json({ error: "busy" }, 503) : json({ choices: [{ message: { content: "ok" } }] }),
+    );
+    const llm = new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch, sleep: async (ms) => void sleeps.push(ms) });
+    expect((await llm.complete([], [])).content).toBe("ok");
+    expect(sleeps).toEqual([3000, 4000]);
+    const always429 = new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch: fakeFetch(() => json({}, 429)).fetch, sleep: async () => {} });
+    expect((await rejection(always429.complete([], []), AgentError)).details.status).toBe(429);
+  });
+
+  it("fails fast on a daily quota, reading Gemini's array-wrapped error body", async () => {
+    let calls = 0;
+    const body = [{ error: { code: 429, message: "You exceeded your current quota.", details: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier" }] } }];
+    const llm = new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch: fakeFetch(() => (calls++, json(body, 429))).fetch, sleep: async () => {} });
+    const err = await rejection(llm.complete([], []), AgentError);
+    expect(err.code).toBe("LLM_QUOTA_EXCEEDED");
+    expect(calls).toBe(1);
+  });
+
+  it("keeps provider data on tool calls so it goes back in the history", async () => {
+    const extra = { google: { thought_signature: "sig-123" } };
+    const { fetch } = fakeFetch(() =>
+      json({ choices: [{ message: { content: null, tool_calls: [{ id: "a", type: "function", function: { name: "playlists_list", arguments: "{}" }, extra_content: extra }] } }] }),
+    );
+    const result = await new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch }).complete([], []);
+    expect(result.toolCalls[0]!.extra_content).toEqual(extra);
   });
 
   it("normalizes tool calls, filling in missing ids and object arguments", async () => {

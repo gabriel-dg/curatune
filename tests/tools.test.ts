@@ -53,7 +53,7 @@ describe("validateArgs", () => {
 describe("tool definitions", () => {
   it("exposes only the read tools, with strict schemas", () => {
     const defs = toolDefinitions(READ_TOOLS);
-    expect(defs.map((d) => d.function.name)).toEqual(["playlists_list", "playlist_show", "search_tracks", "track_show", "album_tracks"]);
+    expect(defs.map((d) => d.function.name)).toEqual(["playlists_list", "playlist_show", "search_tracks", "search_many", "track_show", "album_tracks"]);
     for (const d of defs) {
       expect(d.type).toBe("function");
       expect(d.function.parameters.additionalProperties).toBe(false);
@@ -153,6 +153,42 @@ describe("read tools", () => {
     expect(result.warnings.map((w: any) => w.code)).toEqual(["YEAR_IS_RELEASE_YEAR"]);
     expect((await run("search_tracks", {})).outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
     expect((await run("search_tracks", { query: "x", limit: 11 })).outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+  });
+
+  it("search_many runs several searches in one call, in order, and isolates failures", async () => {
+    const { run, spotify, ids } = setup();
+    const before = spotify.requests.length;
+    const { result, execution } = await run("search_many", {
+      searches: [
+        { track: "Salt Peanuts", artist: "Dizzy Gillespie" },
+        { track: "Take Five", artist: "Dave Brubeck" },
+        { track: "Hot House" },
+        { album: "Birth Of The Cool", track: "Boplicity" },
+      ],
+      limit_each: 1,
+    });
+    expect(result.count).toBe(4);
+    expect(result.searches.map((s: any) => s.results?.[0]?.uri ?? null)).toEqual([
+      `spotify:track:${ids.saltPeanuts}`,
+      null,
+      `spotify:track:${ids.hotHouse}`,
+      `spotify:track:${ids.boplicity}`,
+    ]);
+    expect(result.searches[1].total).toBe(0);
+    expect(spotify.requests.length - before).toBe(4);
+    expect(execution.summary).toBe("4 searches, 1 without results");
+    const failed = await run("search_many", { searches: [{ track: "Manteca" }, {}] });
+    expect(failed.result.failed).toBe(1);
+    expect(failed.result.searches[1].error.code).toBe("INVALID_ARGUMENT");
+    expect(failed.result.searches[0].results.length).toBeGreaterThan(0);
+  });
+
+  it("search_many validates its arguments", async () => {
+    const { run } = setup();
+    const tooMany = Array.from({ length: 26 }, () => ({ track: "x" }));
+    expect((await run("search_many", { searches: tooMany })).outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+    expect((await run("search_many", { searches: [{ title: "x" }] })).outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+    expect((await run("search_many", { searches: ["Salt Peanuts"] })).outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
   });
 
   it("track_show returns one brief track", async () => {
