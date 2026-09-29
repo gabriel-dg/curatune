@@ -6,17 +6,18 @@ import { SpotikitError } from "../spotify/errors";
 import { validateArgs, type Args } from "./schema";
 import { PLAN_TOOLS } from "./plan";
 import { READ_TOOLS } from "./read";
+import { RECORDING_TOOLS } from "./recordings";
 import type { Tool, ToolContext, ToolDefinition, WriteReport } from "./types";
 import { WRITE_TOOLS } from "./write";
 
 export type { Tool, ToolContext, ToolDefinition, WriteReport } from "./types";
-export { PLAN_TOOLS, READ_TOOLS, WRITE_TOOLS };
+export { PLAN_TOOLS, READ_TOOLS, RECORDING_TOOLS, WRITE_TOOLS };
 
 /**
  * Every tool the model gets. Removals, reorders, and renames exist only as plans; there is deliberately no
  * tool that applies a plan or changes visibility.
  */
-export const ALL_TOOLS: Tool[] = [...READ_TOOLS, ...WRITE_TOOLS, ...PLAN_TOOLS];
+export const ALL_TOOLS: Tool[] = [...READ_TOOLS, ...WRITE_TOOLS, ...PLAN_TOOLS, ...RECORDING_TOOLS];
 
 /** Tool results longer than this are replaced by an error, so one call cannot flood the model's context. */
 export const MAX_RESULT_CHARS = 40_000;

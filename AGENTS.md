@@ -34,7 +34,8 @@ IP addresses, hostnames, local paths) in versioned files.
   tokens.
 - Layers: `src/spotify/` (auth, HTTP client, models, playlist and catalog reads, `writes.ts` for create
   and add, `writelog.ts`), `src/plans/` (plan building, validation, and application; `ops.ts` holds the
-  low-level remove/move/rename calls), `src/storage/` (IndexedDB, memory fallback), `src/tools/` (tool
+  low-level remove/move/rename calls), `src/recordings/` (recording-date store, spotikit's format),
+  `src/storage/` (IndexedDB, memory fallback), `src/tools/` (tool
   schemas, argument validation, handlers, trimming of results for the model), `src/agent/` (LLM client,
   loop, system prompt), `src/ui/`. Only `ui/` touches the DOM; `agent/` and `tools/` never import the auth
   module (types only), so the token cannot reach the model. All of this is testable in Node
@@ -55,8 +56,8 @@ IP addresses, hostnames, local paths) in versioned files.
   (pagination `next`) are checked; any other host or scheme is an error (`UNTRUSTED_URL`).
 - Tokens and authorization codes never appear in the console, logs, errors, the LLM context, or the URL
   (strip `code` and `state` with `history.replaceState` after the callback). Keep tokens in memory or
-  `sessionStorage`, never `localStorage`. IndexedDB (only in `src/storage/`) holds the write log and plan
-  backups, never tokens.
+  `sessionStorage`, never `localStorage`. IndexedDB (only in `src/storage/`) holds the write log, plan
+  backups, and recording dates, never tokens.
 - `state` is validated on the callback; the PKCE verifier is removed after the exchange.
 - Known residue of the callback, outside the page's control: the single-use (already exchanged) `code`
   remains in the browser's global history and in the page's Navigation Timing entry

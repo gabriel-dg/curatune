@@ -478,3 +478,22 @@ input[type="password"] {
     max-width: 100%;
   }
 }
+
+td.recorded.medium {
+  color: var(--warn-fg);
+}
+
+td.recorded.low {
+  color: var(--error-fg);
+}
+
+button.small {
+  padding: 2px 8px;
+  font-size: 0.85em;
+}
+
+.file-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

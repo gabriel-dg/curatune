@@ -70,7 +70,8 @@ const planReorder: Tool = {
   name: "plan_reorder",
   description:
     "Propose a new order for a playlist the user owns. Give exactly one of: `sort_by` (the app sorts by title, " +
-    "artist, album, released, or duration; use it for any sort by those), `order` (every current track number, " +
+    "artist, album, released, duration, or recorded; use it for any sort by those; \"recorded\" uses the stored " +
+    "recording dates, see recordings_show), `order` (every current track number, " +
     "1-based, listed in the new order), or `move_from` and `move_to` (move one track so it ends up with that " +
     "number). Builds a plan for the user to review and apply; it does not change anything by itself.",
   parameters: {
@@ -88,7 +89,7 @@ const planReorder: Tool = {
       move_to: { type: "integer", description: "Number the moved track will have (1 = first).", minimum: 1 },
       sort_by: {
         type: "string",
-        description: `Sort key: ${SORT_KEYS.join(", ")}. "released" is the edition's date, not the recording date. Ties keep their current order.`,
+        description: `Sort key: ${[...SORT_KEYS, "recorded"].join(", ")}. "released" is the edition's date; "recorded" is the stored recording date (every track needs one). Ties keep their current order.`,
       },
       descending: { type: "boolean", description: "With sort_by: Z to A, newest first, or longest first. Default false." },
       reason: reasonParam,
@@ -106,15 +107,29 @@ const planReorder: Tool = {
     if ([order !== undefined, hasMove, sortBy !== undefined].filter(Boolean).length !== 1 || (hasMove && (from === undefined || to === undefined))) {
       throw new SpotikitError("INVALID_ARGUMENT", "Give exactly one of sort_by, order, or both move_from and move_to.");
     }
-    if (sortBy !== undefined && !(SORT_KEYS as readonly string[]).includes(sortBy)) {
-      throw new SpotikitError("INVALID_ARGUMENT", `sort_by must be one of: ${SORT_KEYS.join(", ")}.`);
+    if (sortBy !== undefined && sortBy !== "recorded" && !(SORT_KEYS as readonly string[]).includes(sortBy)) {
+      throw new SpotikitError("INVALID_ARGUMENT", `sort_by must be one of: ${[...SORT_KEYS, "recorded"].join(", ")}.`);
     }
-    const plan: ItemPlan = await buildReorderPlan(
-      ctx.client,
-      playlistId,
-      sortBy ? { sortBy: sortBy as SortKey, descending: Boolean(args.descending) } : order ? { newOrder: order.map((n) => n - 1) } : { move: [from! - 1, to! - 1] },
-      str(args, "reason") ?? null,
-    );
+    if (sortBy === "recorded" && !ctx.recordings) throw new SpotikitError("INVALID_ARGUMENT", "Recording dates are not available.");
+    const options =
+      sortBy === "recorded"
+        ? { recordings: await ctx.recordings!.load() }
+        : sortBy
+          ? { sortBy: sortBy as SortKey, descending: Boolean(args.descending) }
+          : order
+            ? { newOrder: order.map((n) => n - 1) }
+            : { move: [from! - 1, to! - 1] as [number, number] };
+    let plan: ItemPlan;
+    try {
+      plan = await buildReorderPlan(ctx.client, playlistId, options, str(args, "reason") ?? null);
+    } catch (exc) {
+      // Missing dates: tell the model which tracks (by number) so it can store them and retry.
+      if (exc instanceof SpotikitError && exc.code === "RECORDING_DATES_MISSING") {
+        const missing = (exc.details.missing as { position: number; name: string | null }[]).map((m) => `${m.position + 1}. ${m.name}`);
+        throw new SpotikitError("RECORDING_DATES_MISSING", `No recording date for: ${missing.join("; ")}. Store them with recordings_set, then retry.`);
+      }
+      throw exc;
+    }
     register(ctx, plan);
     return {
       plan_id: plan.plan_id,
