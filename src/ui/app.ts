@@ -8,6 +8,7 @@ import { SpotikitError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { ActivityLog } from "./activity";
 import type { ChatView } from "./chat";
+import { cover } from "./covers";
 import { h } from "./dom";
 import { icon } from "./icons";
 import { renderPlaylistPanel } from "./playlist-panel";
@@ -107,7 +108,7 @@ export class App {
     if (this.route.view !== "playlist") this.chat.setContext(null);
     else {
       // Set the chat's context right away when the name is known; the panel confirms it once loaded.
-      const name = this.sidebar!.nameOf(this.route.id);
+      const name = this.sidebar!.playlistOf(this.route.id)?.name;
       if (name) this.chat.setContext({ id: this.route.id, name });
     }
     await this.renderPanel();
@@ -208,13 +209,29 @@ export class App {
     return [close, content];
   }
 
-  /** Placeholder while a panel loads (a long playlist takes a few seconds): the title when known, then shimmering rows. */
+  /**
+   * Placeholder while a panel loads (a long playlist takes a few seconds): for a playlist, its cover and name
+   * from the sidebar's list when known, then shimmering rows.
+   */
   private skeleton(route: Exclude<Route, { view: "home" }>): HTMLElement {
-    const title = route.view === "playlist" ? this.sidebar?.nameOf(route.id) : route.view === "recordings" ? "Recording dates" : "Activity";
     const bone = (cls: string) => h("div", { class: `skel ${cls}` });
+    let head: HTMLElement[];
+    if (route.view === "playlist") {
+      const known = this.sidebar?.playlistOf(route.id) ?? null;
+      head = [
+        h("div", { class: "panel-hero" }, [
+          known ? cover(known.images, known.name, 96, "panel-cover") : bone("panel-cover"),
+          h("div", { class: "panel-hero-text" }, [
+            h("div", { class: "panel-kicker muted small", text: "Playlist" }),
+            known?.name ? h("h2", { class: "panel-title", text: known.name }) : bone("skel-title"),
+          ]),
+        ]),
+      ];
+    } else {
+      head = [h("div", { class: "panel-kicker muted small" }), h("h2", { class: "panel-title", text: route.view === "recordings" ? "Recording dates" : "Activity" })];
+    }
     return h("div", { class: "panel-content panel-skeleton" }, [
-      h("div", { class: "panel-kicker muted small", text: route.view === "playlist" ? "Playlist" : "" }),
-      title ? h("h2", { class: "skel-name panel-title", text: title }) : bone("skel-title"),
+      ...head,
       h("div", { class: "facts" }, [bone("skel-pill"), bone("skel-pill"), bone("skel-pill")]),
       h("div", { class: "loading-line", attrs: { role: "status" } }, [h("span", { class: "spinner" }), h("span", { text: route.view === "playlist" ? "Loading the tracks from Spotify…" : "Loading…" })]),
       ...Array.from({ length: 8 }, () => h("div", { class: "skel-row" }, [bone("skel-line"), bone("skel-line short")])),

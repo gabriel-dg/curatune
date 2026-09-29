@@ -1,6 +1,7 @@
 // Playlist reads: list the user's playlists, read one playlist with all its items, read metadata only.
 // Follows spotikit commit b3531aa, src/spotikit/playlists.py (list_playlists, get_playlist,
-// get_playlist_meta). Not ported: market-dependent reads (plans always read without a market).
+// get_playlist_meta). Not ported: market-dependent reads (plans always read without a market). Difference:
+// the metadata fields include `images` (the cover, shown in the UI).
 
 import { SpotikitError } from "./errors";
 import type { SpotifyClient } from "./http";
@@ -9,7 +10,7 @@ import { parseId } from "./refs";
 
 export const ITEMS_PAGE_LIMIT = 50;
 export const PLAYLIST_META_FIELDS =
-  "id,uri,name,description,owner(id,display_name),collaborative,public,snapshot_id,external_urls";
+  "id,uri,name,description,owner(id,display_name),collaborative,public,snapshot_id,external_urls,images";
 const READ_ATTEMPTS = 3;
 
 export interface Warning {

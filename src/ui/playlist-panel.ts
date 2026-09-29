@@ -6,6 +6,7 @@ import type { SpotifyClient } from "../spotify/http";
 import { formatDuration, type Playlist, type PlaylistItem } from "../spotify/models";
 import { getPlaylist } from "../spotify/playlists";
 import { spotifyPlaylistLink } from "./cards";
+import { cover } from "./covers";
 import { h } from "./dom";
 import { icon } from "./icons";
 import { userWarnings } from "./warnings";
@@ -62,8 +63,10 @@ export async function renderPlaylistPanel(
     : [["Describe it", `Describe the playlist "${name}"`]];
 
   const header = h("div", { class: "panel-header" }, [
-    h("div", { class: "panel-kicker muted small", text: "Playlist" }),
-    h("h2", { class: "panel-title", text: name }),
+    h("div", { class: "panel-hero" }, [
+      cover(playlist.images, name, 96, "panel-cover"),
+      h("div", { class: "panel-hero-text" }, [h("div", { class: "panel-kicker muted small", text: "Playlist" }), h("h2", { class: "panel-title", text: name })]),
+    ]),
     playlist.description ? h("p", { class: "panel-description", text: playlist.description }) : null,
     h("div", { class: "facts" }, [
       ...facts.map((f) => h("span", { class: "fact", text: f })),

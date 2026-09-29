@@ -77,6 +77,14 @@ describe("read tools", () => {
     expect(owned.result.count).toBe(4);
   });
 
+  it("never sends cover image URLs to the model", async () => {
+    const { run, ids } = setup();
+    for (const [name, args] of [["playlists_list", {}], ["playlist_show", { playlist_id: ids.bebop }]] as const) {
+      const { execution } = await run(name, args);
+      expect(execution.content).not.toMatch(/scdn\.co|spotifycdn/);
+    }
+  });
+
   it("playlist_show returns brief items, the total duration, and nothing about the session", async () => {
     const { run, ids } = setup();
     const { result, execution } = await run("playlist_show", { playlist_id: ids.bebop });

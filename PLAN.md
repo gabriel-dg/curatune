@@ -229,6 +229,16 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   tracks the operations carry count as moved). Found while testing: a database version upgrade could
   block forever when another tab ran the old version (blank page); now tabs yield on versionchange and
   the app falls back to memory with a warning after 3 s.
+- UI refinements (2026-09-29): loading feedback when opening a playlist (a spinner on its sidebar row, a
+  skeleton panel, a loading bar); the suggestions presented as examples, pointing to free text; the
+  compensated `SNAPSHOT_READ_LAG` hidden from the UI and the other warnings worded plainly.
+- Playlist covers (2026-09-29) in the sidebar and the panel header, from the `images` that `/me/playlists`
+  and the playlist read already return (no extra API calls); the initial letter as fallback. Measured in
+  the browser on the operator's account (28 playlists, 1x display, 6 reloads each): the list appears
+  after about 1.05 s with and without covers, since the wait is Spotify's response. Covers with a cold
+  cache: 28 requests, about 325 KB (uploaded covers about 28 KB each; mosaics offered in 60/300/640 px, the
+  60 px one about 2.3 KB), all shown about 1.1 s after the list; with a warm cache, 0-0.35 s after. On a
+  2x display the browser picks the 300 px mosaics (about 25 KB each).
 
 ## Phase 5 — Remote access (optional)
 

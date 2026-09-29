@@ -45,8 +45,9 @@ IP addresses, hostnames, local paths) in versioned files.
 - LM Studio silently truncates conversations that exceed the loaded context length (4096 by default when
   it loads a model on demand). The loop detects it (prompt tokens shrinking within a turn) and fails with
   `LLM_CONTEXT_EXCEEDED`. Load models with at least 32768 tokens of context.
-- The CSP is built in `config/csp.ts` (its `connect-src` includes the origin of `VITE_LLM_BASE_URL`) and
-  injected as a `<meta>` tag; the dev and preview servers also send it as a header.
+- The CSP is built in `config/csp.ts` (its `connect-src` includes the origin of `VITE_LLM_BASE_URL`; its
+  `img-src` allows Spotify's image CDNs for playlist covers) and injected as a `<meta>` tag; the dev and
+  preview servers also send it as a header, computed at startup (restart them after changing it).
 
 ## Security invariants (keep them; each needs tests)
 
@@ -64,7 +65,9 @@ IP addresses, hostnames, local paths) in versioned files.
   (`performance.getEntriesByType("navigation")`), which only same-origin scripts can read.
 - Spotify content (names, descriptions) is untrusted third-party text: render it with `textContent`, never
   `innerHTML`; tell the model to treat it as data, never as instructions.
-- Strict Content Security Policy; no third-party scripts, fonts, or analytics.
+- Strict Content Security Policy; no third-party scripts, fonts, or analytics. The only external images are
+  playlist covers from Spotify's image CDNs (`*.scdn.co`, `*.spotifycdn.com`): loaded lazily and without a
+  referrer, their URLs checked before use (`src/ui/covers.ts`), never sent to the model.
 - **The model never applies a plan.** There is no "apply" tool; a plan is applied only through a UI button
   after the plan has been rendered to the user. Only `src/plans/` imports `plans/ops.ts`, and only `src/ui/`
   calls `applyPlan` (both checked in `tests/invariants.test.ts`). The model learns what the user did with a

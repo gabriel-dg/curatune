@@ -1,8 +1,10 @@
 // Content Security Policy for the page. The page holds a Spotify token, so it may only load its own
 // scripts and styles and only talk to Spotify and the configured LLM endpoints (the local one and, when
-// configured, the optional hosted one).
+// configured, the optional hosted one). Images: its own, and playlist covers from Spotify's image CDNs.
 
 export const SPOTIFY_ORIGINS = ["https://accounts.spotify.com", "https://api.spotify.com"] as const;
+/** Where Spotify serves cover images (i.scdn.co, mosaic.scdn.co, image-cdn-*.spotifycdn.com, …). */
+export const SPOTIFY_IMAGE_SOURCES = ["https://*.scdn.co", "https://*.spotifycdn.com"] as const;
 
 /** Origin of an LLM endpoint (scheme, host, port), or null when it is not configured. */
 export function llmOrigin(baseUrl: string | undefined, variable = "VITE_LLM_BASE_URL"): string | null {
@@ -38,7 +40,7 @@ export function buildCsp({ llmBaseUrl, hostedLlmBaseUrl, header = false }: CspOp
     ["default-src", ["'none'"]],
     ["script-src", ["'self'"]],
     ["style-src", ["'self'"]],
-    ["img-src", ["'self'"]],
+    ["img-src", ["'self'", ...SPOTIFY_IMAGE_SOURCES]],
     ["connect-src", connect],
     ["base-uri", ["'none'"]],
     ["form-action", ["'none'"]],
