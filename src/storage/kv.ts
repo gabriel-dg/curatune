@@ -31,8 +31,9 @@ export class MemoryStore implements KeyValueStore {
 }
 
 const DB_NAME = "spotikit-web";
-const DB_VERSION = 1;
-export const STORES = ["write-log", "plan-backups"] as const;
+// Bump the version whenever a store is added: onupgradeneeded creates the missing ones.
+const DB_VERSION = 2;
+export const STORES = ["write-log", "plan-backups", "recordings"] as const;
 export type StoreName = (typeof STORES)[number];
 
 function request<T>(req: IDBRequest<T>): Promise<T> {

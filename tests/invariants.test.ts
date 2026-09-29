@@ -76,6 +76,13 @@ describe("source invariants", () => {
     expect(callers.every((path) => path.includes("/ui/"))).toBe(true);
   });
 
+  it("keeps recordings/ independent of the UI, the DOM, the LLM, and the auth module", () => {
+    const recordings = layer(/\/recordings\//);
+    expect(Object.keys(recordings).length).toBeGreaterThan(0);
+    expect(offenders(/from "\.\.\/(ui|agent|tools)\//, recordings)).toEqual([]);
+    expect(offenders(/\bdocument\.|\bwindow\.|console\.|indexedDB|from "\.\.\/spotify\/auth"/, recordings)).toEqual([]);
+  });
+
   it("keeps plans/ independent of the UI, the DOM, and the LLM", () => {
     const plans = layer(/\/plans\//);
     expect(Object.keys(plans).length).toBeGreaterThan(1);

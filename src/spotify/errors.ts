@@ -26,6 +26,7 @@ export type ErrorCode =
   | "SNAPSHOT_MISMATCH"
   | "APPLY_FAILED"
   | "VERIFICATION_FAILED"
+  | "RECORDING_DATES_MISSING"
   | "API_ERROR";
 
 export type Details = Record<string, unknown>;

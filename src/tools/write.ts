@@ -10,7 +10,7 @@ import type { Tool, ToolContext } from "./types";
 
 const str = (args: Args, key: string) => args[key] as string | undefined;
 
-function requireKnownIds(ctx: ToolContext, ids: string[]): void {
+export function requireKnownIds(ctx: ToolContext, ids: string[]): void {
   if (!ctx.isKnownId) return;
   const unknown = [...new Set(ids.filter((id) => !ctx.isKnownId!(id)))];
   if (unknown.length) {

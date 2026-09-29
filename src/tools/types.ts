@@ -1,4 +1,5 @@
 import type { Plan } from "../plans/plans";
+import type { RecordingStore } from "../recordings/recordings";
 import type { SpotifyClient } from "../spotify/http";
 import type { Args, ObjectSchema } from "./schema";
 
@@ -11,6 +12,8 @@ export interface ToolContext {
   isKnownId?: (id: string) => boolean;
   /** Receives every plan a tool builds, so the UI can show it with its Apply button. */
   onPlan?: (plan: Plan) => void;
+  /** Recording dates (IndexedDB in the app); tools that need it fail cleanly without it. */
+  recordings?: RecordingStore;
 }
 
 /** How the UI shows a write that was performed. */

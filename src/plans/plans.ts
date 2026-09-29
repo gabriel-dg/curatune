@@ -2,7 +2,7 @@
 // Follows spotikit commit b3531aa, src/spotikit/plans.py. Differences, all deliberate:
 // - Plans live in memory (a PlanRegistry in the app), not in files; backups go to an async KeyValueStore
 //   (IndexedDB in the app).
-// - No reorder by recording date (v1 excludes recording dates). Instead: an explicit order, a move, or a
+// - Besides spotikit's explicit order, move, and order by recording date (from the recordings store), a
 //   deterministic sort by title, artist, album, edition date, or duration (sortedOrder).
 // - Checksums use SHA-256 from Web Crypto over the same canonical JSON (sorted keys, no spaces).
 //
@@ -17,6 +17,7 @@ import type { SpotifyClient } from "../spotify/http";
 import type { PlaylistItem } from "../spotify/models";
 import { getPlaylist, getPlaylistMeta, listPlaylists, type PlaylistState, type Warning } from "../spotify/playlists";
 import { requireEditable } from "../spotify/writes";
+import { chronologicalOrder, type RecordingMap } from "../recordings/recordings";
 import type { KeyValueStore } from "../storage/kv";
 import { DETAIL_FIELDS, insertUris, moveRange, removeUris, setDetails, type DetailField } from "./ops";
 
@@ -433,23 +434,28 @@ export function sortedOrder(items: PlaylistItem[], key: SortKey, descending = fa
   return keyed.map((k) => k.position);
 }
 
-/** Plan a reorder. Exactly one of `newOrder` (a permutation of 0-based positions), `move` [from, to], or `sortBy`. */
+/**
+ * Plan a reorder. Exactly one of `newOrder` (a permutation of 0-based positions), `move` [from, to], `sortBy`,
+ * or `recordings` (order by recording date; fails with RECORDING_DATES_MISSING if any item has no date).
+ */
 export async function buildReorderPlan(
   client: SpotifyClient,
   playlistRef: string,
-  options: { newOrder?: number[]; move?: [number, number]; sortBy?: SortKey; descending?: boolean },
+  options: { newOrder?: number[]; move?: [number, number]; sortBy?: SortKey; descending?: boolean; recordings?: RecordingMap },
   reason: string | null = null,
 ): Promise<ItemPlan> {
   const state = await getPlaylist(client, playlistRef); // no market: plans need the stored URIs
   requireEditable(state.playlist);
   const count = state.items.length;
-  const given = [options.newOrder, options.move, options.sortBy].filter((x) => x !== undefined).length;
-  if (given !== 1) throw planError("Provide exactly one of new_order, move, or sort_by.");
+  const given = [options.newOrder, options.move, options.sortBy, options.recordings].filter((x) => x !== undefined).length;
+  if (given !== 1) throw planError("Provide exactly one of new_order, move, sort_by, or recording dates.");
   const newOrder = options.move
     ? orderFromMove(count, options.move[0], options.move[1])
     : options.sortBy
       ? sortedOrder(state.items, options.sortBy, Boolean(options.descending))
-      : options.newOrder!;
+      : options.recordings
+        ? chronologicalOrder(state.items, options.recordings)
+        : options.newOrder!;
   const sorted = [...newOrder].sort((a, b) => a - b);
   if (newOrder.length !== count || sorted.some((p, i) => p !== i)) {
     throw planError("new_order must be a permutation of all current positions.", { item_count: count, given_length: newOrder.length });

@@ -12,7 +12,7 @@ Setup: development and browser on a Windows PC; LM Studio on a Mac on the same L
 | Repository | Separate repo, sibling of spotikit |
 | Stack | Vite + TypeScript, no UI framework; Vitest |
 | Browser (phases 1–4) | Windows PC, calling LM Studio on the Mac over the LAN |
-| v1 scope | No web search, no recording dates |
+| v1 scope | No web search. Recording dates: added after phase 4 (a local store, as in spotikit) |
 
 ## Principles (all phases)
 
@@ -213,6 +213,13 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   `gemini-3.8-flash`: one `search_many` with 20 searches (3.6 s), `playlist_create`, one `playlist_add` with
   20 tracks, about 10 s from creating to adding; 20 distinct, genuinely lesser-known artists, in
   chronological order by year, with plausible years.
+
+- Recording-date store (2026-09-29), ported from spotikit's `recordings.py`: same JSON format (import and
+  export on a Recordings page, so the operator's 144 curated dates can come over), IndexedDB storage,
+  lookup by URI or ISRC, `recordings_show` and `recordings_set` tools, `plan_reorder` with `sort_by:
+  "recorded"`, and a Recorded column in the playlist view. Gemini passed the three new scenarios twice
+  (check chronology, reorder from stored dates, fill the missing dates from its knowledge without
+  touching stored ones): 48/48 overall.
 
 ## Phase 5 — Remote access (optional)
 

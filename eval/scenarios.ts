@@ -3,6 +3,7 @@
 // operator's language; one is in English.
 
 import type { ItemPlan, Plan } from "../src/plans/plans";
+import type { RecordingMap } from "../src/recordings/recordings";
 import type { ToolExecution } from "../src/tools";
 import type { FakeSpotify } from "../tests/fake-spotify";
 
@@ -31,6 +32,10 @@ export interface Scenario {
   checkState?: (spotify: FakeSpotify, ids: Record<string, string>) => string | null;
   /** Check on the plans the model proposed; returns a failure reason or null. */
   checkPlans?: (plans: Plan[], ids: Record<string, string>) => string | null;
+  /** Recording dates stored before the turn. */
+  seedRecordings?: (ids: Record<string, string>) => Record<string, unknown>[];
+  /** Check on the recordings store after the turn; returns a failure reason or null. */
+  checkRecordings?: (data: RecordingMap, ids: Record<string, string>) => string | null;
   answerMust?: RegExp[];
   answerMustNot?: RegExp[];
 }
@@ -301,6 +306,80 @@ SCENARIOS.push(
   },
 );
 
+// --- Recording dates -------------------------------------------------------------------------------
+
+/** True recording dates of the Bebop test tracks (same as the project's real test playlist). */
+const BEBOP_RECORDED: Record<string, string> = {
+  unPocoLoco: "1951-05-01", koko: "1945-11-26", roundMiles: "1956-09-10", manteca: "1947-12-30", swingToBop: "1941-05",
+  roundMonk: "1947-11-21", boplicity: "1949-04-22", saltPeanuts: "1945-05-11", ladyBird: "1948-09-13", woodyNYou: "1944-02-16",
+};
+/** Chronological order of Bebop test (0-based positions), with Ko-Ko's other edition next to Ko-Ko. */
+const BEBOP_CHRONOLOGICAL = [4, 11, 8, 1, 6, 10, 5, 3, 9, 7, 0, 2];
+
+const seed = (keys: string[]) => (ids: Record<string, string>) =>
+  keys.map((key) => ({
+    uri: `spotify:track:${ids[key]}`,
+    recorded: BEBOP_RECORDED[key],
+    confidence: "high",
+    source: "discography (eval seed)",
+    ...(key === "koko" ? { isrc: "USSVY4500001" } : {}),
+  }));
+
+const ALL_DATED = Object.keys(BEBOP_RECORDED);
+
+/** Seeded entries must survive unchanged: the model must not overwrite stored dates. */
+const keepsSeed = (keys: string[]) => (data: RecordingMap, ids: Record<string, string>) => {
+  const changed = keys.filter((key) => data[`spotify:track:${ids[key]}`]?.recorded !== BEBOP_RECORDED[key]);
+  return changed.length ? `overwrote stored dates: ${changed.join(", ")}` : null;
+};
+
+const reorderedChronologically = (plans: Plan[]) => {
+  const plan = onePlan(plans, "reorder");
+  if (typeof plan === "string") return plan;
+  const order = (plan as ItemPlan).changes.new_order ?? [];
+  return order.join() === BEBOP_CHRONOLOGICAL.join() ? null : `order ${order.map((p) => p + 1).join(",")}`;
+};
+
+SCENARIOS.push(
+  {
+    id: "recordings-check",
+    prompt: "¿Está Bebop test en orden cronológico de grabación?",
+    seedRecordings: seed(ALL_DATED),
+    requiredTools: ["recordings_show"],
+    forbiddenTools: ["plan_reorder", "recordings_set", "playlist_add", "playlist_create"],
+    checkRecordings: keepsSeed(ALL_DATED),
+    answerMust: [/\bno\b/i],
+  },
+  {
+    id: "recordings-reorder",
+    prompt: "Ordená Bebop test por fecha de grabación",
+    seedRecordings: seed(ALL_DATED),
+    requiredTools: ["plan_reorder"],
+    checkPlans: reorderedChronologically,
+    checkRecordings: keepsSeed(ALL_DATED),
+    checkState: unchanged,
+    answerMust: [APPLY_MENTION],
+    answerMustNot: [CLAIMS_APPLIED],
+  },
+  {
+    id: "recordings-fill-missing",
+    prompt: "Ordená Bebop test por fecha de grabación",
+    // Half the dates are stored; the model must add the rest from its knowledge, then plan the order.
+    seedRecordings: seed(["unPocoLoco", "koko", "roundMiles", "manteca", "swingToBop"]),
+    requiredTools: ["recordings_set", "plan_reorder"],
+    checkPlans: reorderedChronologically,
+    checkRecordings: (data, ids) => {
+      const kept = keepsSeed(["unPocoLoco", "koko", "roundMiles", "manteca", "swingToBop"])(data, ids);
+      if (kept) return kept;
+      const added = ["roundMonk", "boplicity", "saltPeanuts", "ladyBird", "woodyNYou"].map((k) => data[`spotify:track:${ids[k]}`]);
+      if (added.some((e) => !e)) return "did not store every missing date";
+      return added.some((e) => e!.source.toLowerCase().includes("eval seed")) ? "copied the seed's source" : null;
+    },
+    checkState: unchanged,
+    answerMust: [APPLY_MENTION],
+  },
+);
+
 /** Fill {key} placeholders in prompts with fixture ids. */
 export function renderPrompt(prompt: string, ids: Record<string, string>): string {
   return prompt.replace(/\{(\w+)\}/g, (_, key: string) => ids[key] ?? `{${key}}`);
@@ -341,6 +420,7 @@ export function grade(
   stoppedAtLimit: boolean,
   spotify: FakeSpotify,
   plans: Plan[] = [],
+  recordings: RecordingMap = {},
 ): string[] {
   const failures: string[] = [];
   const calls: Call[] = executions.map((e) => ({ name: e.name, args: e.args, ok: e.outcome.ok }));
@@ -365,6 +445,8 @@ export function grade(
   if (stateFailure) failures.push(stateFailure);
   const planFailure = scenario.checkPlans?.(plans, ids);
   if (planFailure) failures.push(planFailure);
+  const recordingsFailure = scenario.checkRecordings?.(recordings, ids);
+  if (recordingsFailure) failures.push(recordingsFailure);
   for (const re of scenario.answerMust ?? []) if (!re.test(answer)) failures.push(`answer lacks ${re}`);
   for (const re of scenario.answerMustNot ?? []) if (re.test(answer)) failures.push(`answer matches ${re}`);
   if (stoppedAtLimit) failures.push("hit the step limit");

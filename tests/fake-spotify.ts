@@ -206,6 +206,7 @@ export function buildFixture(): FakeData & { ids: Record<string, string> } {
       manteca: t.manteca,
       roundMonk: t.roundMonk,
       ladyBird: t.ladyBird,
+      roundMiles: t.roundMiles,
     },
   };
 }

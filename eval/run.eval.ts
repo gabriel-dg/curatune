@@ -14,6 +14,8 @@ import { LlmClient, type ChatMessage } from "../src/agent/llm";
 import { runTurn } from "../src/agent/loop";
 import { SYSTEM_PROMPT } from "../src/agent/prompt";
 import type { Plan } from "../src/plans/plans";
+import { RecordingStore } from "../src/recordings/recordings";
+import { MemoryStore } from "../src/storage/kv";
 import { SpotifyClient } from "../src/spotify/http";
 import { ALL_TOOLS } from "../src/tools";
 import { buildFixture, FakeSpotify } from "../tests/fake-spotify";
@@ -48,17 +50,20 @@ async function runScenario(llm: LlmClient, scenarioIndex: number): Promise<Scena
   const history: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
   let steps = 0;
   const plans: Plan[] = [];
+  const recordings = new RecordingStore(new MemoryStore());
+  const seeded = scenario.seedRecordings?.(fixture.ids);
+  if (seeded?.length) await recordings.upsert(seeded);
   const started = performance.now();
   try {
     const result = await runTurn(history, prompt, {
       model: llm,
       tools: ALL_TOOLS,
-      ctx: { client, onPlan: (plan) => plans.push(plan) },
+      ctx: { client, onPlan: (plan) => plans.push(plan), recordings },
       onEvent: (e) => {
         if (e.type === "model_start") steps = e.step;
       },
     });
-    const failures = grade(scenario, prompt, fixture.ids, result.executions, result.answer, result.stoppedAtLimit, spotify, plans);
+    const failures = grade(scenario, prompt, fixture.ids, result.executions, result.answer, result.stoppedAtLimit, spotify, plans, await recordings.load());
     return {
       id: scenario.id,
       passed: failures.length === 0,

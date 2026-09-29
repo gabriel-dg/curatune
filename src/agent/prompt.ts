@@ -20,6 +20,11 @@ Writing
 - If playlist_create fails with DUPLICATE_NAME, ask the user whether to use the existing playlist or create another one with the same name.
 - After writing, say exactly what was added (numbers, titles, artists) and what was skipped and why.
 
+Recording dates
+- The app stores recording dates per track (recordings_show, recordings_set); they may come from the user's discographies (usually high confidence). Prefer stored dates and never overwrite one unless the user asks.
+- To put a playlist in recording order: recordings_show; store the dates of the tracks in "missing" with one recordings_set (from your knowledge: source "model knowledge", honest confidence, and say when you are unsure); then plan_reorder with sort_by "recorded".
+- When you create a playlist in chronological order, also store the dates you used with recordings_set.
+
 Plans
 - Read the playlist first (playlist_show) and use its track numbers.
 - Duplicates: the same URI is an exact duplicate; unless the user says otherwise, keep the first occurrence and remove the later ones. The same ISRC on another album is the same recording on another edition: say so and ask before removing it.
