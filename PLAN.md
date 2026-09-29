@@ -190,11 +190,22 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
 - Conclusion: the deterministic layer matches spotikit; the gap is the model's knowledge. spotikit relies on
   Claude (and web search) for recording dates and stores them (`recordings set`), then sorts in code.
   Candidates: a stronger hosted model for knowledge-heavy requests, and porting the recording-date store.
+- Comparison with the same code and scenarios (21 scenarios, 2 runs each, fake Spotify, 2026-09-29):
+
+  | Model | Passed | Time for both runs | Per model step |
+  |---|---|---|---|
+  | `ornith-1.5-9b-mlx` (local, 32k context) | 40/42 | 69 min | ~30 s |
+  | `gemini-3.8-flash` (hosted, Tier 1) | 42/42 | 4.3 min | ~2 s |
+
+  Per scenario Gemini was 4-19x faster (about 65x on the chronological one: 12 s against 13 min). Ornith
+  failed "create in chronological order" twice (wrong recording years); Gemini ordered it correctly both
+  times, with months. One Ornith failure in the first tally was a grader false positive ("que aplique",
+  subjunctive), fixed; Ornith did offer to apply a plan itself there, so the prompt now forbids that.
+  The evaluation uses the fake Spotify: with the real API each Spotify call adds about 0.5-2 s.
 - Hosted model comparison: `npm run eval` can target an OpenAI-compatible hosted API (`EVAL_HOSTED=1`,
   `EVAL_LLM_BASE_URL`, `EVAL_LLM_API_KEY` in `.env.local`, read only by the evaluation, never bundled).
-  `gemini-3.8-flash` works (tool calls in the history included), but its free tier allows 20 requests
-  per day, and a full run needs 70-80: not comparable yet. On the scenarios it completed it took about
-  half to two thirds of Ornith's time.
+  `gemini-3.8-flash` works (tool calls in the history included). Its free tier allows 20 requests per
+  day per model, not enough for a run (70-80 requests); results above are from a Tier 1 (billed) project.
 
 ## Phase 5 — Remote access (optional)
 

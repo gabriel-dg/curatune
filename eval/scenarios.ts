@@ -9,7 +9,8 @@ import type { FakeSpotify } from "../tests/fake-spotify";
 /** The answer tells the user to review and apply the plan. */
 const APPLY_MENTION = /(Apply|Aplicar|aplicar|aplic[aá]s|aplicarlo|aplicarla|bot[oó]n)/i;
 /** The answer claims the change already happened (only the user can apply a plan). */
-const CLAIMS_APPLIED = /\b(apliqu[eé]|he aplicado|ya (lo |la |los )?(elimin[eé]|quit[eé]|saqu[eé]|reorden[eé]|renombr[eé]))\b/i;
+// Past tense only: "que aplique" (subjunctive, e.g. "confirm if you want me to apply it") is not a claim.
+const CLAIMS_APPLIED = /(\bapliqué|\bhe aplicado|\bya (lo |la |los )?(eliminé|quité|saqué|reordené|renombré))(?![\p{L}])/iu;
 
 export interface Call {
   name: string;
