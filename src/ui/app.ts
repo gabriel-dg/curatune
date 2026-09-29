@@ -1,37 +1,35 @@
-// App shell: login, header, and routes. Routes live in the hash so reloads and the back button keep the
-// view: #/ (chat), #/playlists, #/playlist/<id>, #/recordings.
+// App shell: login, top bar, sidebar (playlists), chat in the centre, and a side panel (a playlist, the
+// recording dates, or the session's activity). Routes live in the hash so reloads and the back button keep
+// the view: #/ (no panel), #/playlist/<id>, #/recordings, #/activity.
 
+import type { RecordingStore } from "../recordings/recordings";
 import type { SpotifyAuth } from "../spotify/auth";
 import { SpotikitError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
-import { formatDuration, type Playlist, type PlaylistItem } from "../spotify/models";
-import { getPlaylist, listPlaylists, type Warning } from "../spotify/playlists";
-import { parseId } from "../spotify/refs";
-import { lookup, type RecordingMap, type RecordingStore } from "../recordings/recordings";
+import type { ActivityLog } from "./activity";
 import type { ChatView } from "./chat";
 import { h } from "./dom";
+import { icon } from "./icons";
+import { renderPlaylistPanel } from "./playlist-panel";
+import { renderActivityPanel, renderRecordingsPanel } from "./side-panels";
+import { Sidebar } from "./sidebar";
 
-type Route = { view: "chat" } | { view: "playlists" } | { view: "playlist"; id: string } | { view: "recordings" };
+type Route = { view: "home" } | { view: "playlist"; id: string } | { view: "recordings" } | { view: "activity" };
 
 function parseRoute(hash: string): Route {
   const match = /^#\/playlist\/([A-Za-z0-9]{22})$/.exec(hash);
   if (match) return { view: "playlist", id: match[1]! };
   if (hash === "#/recordings") return { view: "recordings" };
-  return hash === "#/playlists" ? { view: "playlists" } : { view: "chat" };
-}
-
-/** Only links to open.spotify.com are rendered; anything else from a response is shown as plain text. */
-function spotifyLink(url: string | null, label: string): Node {
-  if (url && /^https:\/\/open\.spotify\.com\//.test(url)) {
-    return h("a", { text: label, attrs: { href: url, target: "_blank", rel: "noopener noreferrer" } });
-  }
-  return document.createTextNode(label);
+  if (hash === "#/activity") return { view: "activity" };
+  return { view: "home" };
 }
 
 function describeError(exc: unknown): string {
-  if (exc instanceof SpotikitError) return `${exc.code}: ${exc.message}`;
+  if (exc instanceof SpotikitError) return `${exc.message} (${exc.code})`;
   return "Unexpected error. See the browser console for details.";
 }
+
+const isAuthError = (exc: unknown) => exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED");
 
 export class App {
   private readonly root: HTMLElement;
@@ -39,299 +37,218 @@ export class App {
   private readonly client: SpotifyClient;
   private readonly chat: ChatView;
   private readonly recordings: RecordingStore;
-  private readonly header: HTMLElement;
-  private readonly notice: HTMLElement;
-  private readonly main: HTMLElement;
+  private readonly activity: ActivityLog;
+  private shell: HTMLElement | null = null;
+  private sidebar: Sidebar | null = null;
+  private panel: HTMLElement | null = null;
+  private notice: HTMLElement | null = null;
+  private userLabel: HTMLElement | null = null;
+  private loginError: unknown = null;
+  /** A lasting warning (unlike errors, not cleared on navigation), e.g. storage not persistent. */
+  private warning: string | null = null;
   private renderId = 0;
+  private route: Route = { view: "home" };
 
-  constructor(root: HTMLElement, auth: SpotifyAuth, client: SpotifyClient, chat: ChatView, recordings: RecordingStore) {
+  constructor(root: HTMLElement, auth: SpotifyAuth, client: SpotifyClient, chat: ChatView, recordings: RecordingStore, activity: ActivityLog) {
     this.root = root;
     this.auth = auth;
     this.client = client;
     this.chat = chat;
     this.recordings = recordings;
-    this.chat.onAuthError = () => {
-      this.auth.logout();
-      void this.render();
+    this.activity = activity;
+    this.chat.onAuthError = () => this.sessionEnded();
+    this.chat.onOpenPlaylist = (id) => (location.hash = `#/playlist/${id}`);
+    this.chat.onWrite = (report) => {
+      void this.sidebar?.load();
+      // The panel shows data that just changed: refresh it.
+      if ((this.route.view === "playlist" && report.playlistId === this.route.id) || this.route.view === "recordings") void this.renderPanel();
     };
-    this.header = h("header", { class: "top" });
-    this.notice = h("div", { class: "notice", attrs: { role: "alert", hidden: "" } });
-    this.main = h("main");
-    this.root.replaceChildren(this.header, this.notice, this.main);
-    window.addEventListener("hashchange", () => {
-      this.clearError();
-      void this.render();
+    this.activity.subscribe(() => {
+      this.sidebar?.setActivityCount(this.activity.entries.length);
+      if (this.route.view === "activity") void this.renderPanel();
     });
+    window.addEventListener("hashchange", () => void this.render());
   }
 
   showError(exc: unknown): void {
     if (!(exc instanceof SpotikitError)) console.error(exc);
-    this.notice.textContent = describeError(exc);
+    if (!this.notice) {
+      // Not logged in yet (e.g. a failed login callback): shown on the login screen.
+      this.loginError = exc;
+      return;
+    }
+    const close = h("button", { class: "ghost tiny", attrs: { "aria-label": "Dismiss" }, on: { click: () => this.clearError() } }, [icon("close", 13)]);
+    this.notice.replaceChildren(h("span", { text: describeError(exc) }), close);
     this.notice.hidden = false;
   }
 
+  showWarning(text: string): void {
+    this.warning = text;
+  }
+
   clearError(): void {
-    this.notice.textContent = "";
+    if (!this.notice) return;
     this.notice.hidden = true;
+    this.notice.replaceChildren();
   }
 
   async render(): Promise<void> {
-    const id = ++this.renderId;
     if (!this.auth.isLoggedIn()) {
-      this.renderLoggedOut();
+      this.renderLogin();
       return;
     }
-    const route = parseRoute(location.hash);
-    this.renderHeader(null, route);
-    this.main.replaceChildren(h("p", { class: "muted", text: "Loading…" }));
+    if (!this.shell) this.buildShell();
+    this.route = parseRoute(location.hash);
+    this.clearError();
+    this.shell!.classList.remove("sidebar-open");
+    this.sidebar!.setActive(this.route);
+    if (this.route.view !== "playlist") this.chat.setContext(null);
+    else {
+      // Set the chat's context right away when the name is known; the panel confirms it once loaded.
+      const name = this.sidebar!.nameOf(this.route.id);
+      if (name) this.chat.setContext({ id: this.route.id, name });
+    }
+    await this.renderPanel();
+  }
+
+  // --- Login ------------------------------------------------------------------------------------
+
+  private renderLogin(): void {
+    this.shell = null;
+    this.sidebar = null;
+    this.notice = null;
+    const status = h("div", { class: "error-text small", text: this.loginError ? describeError(this.loginError) : "" });
+    this.loginError = null;
+    const button = h("button", { class: "primary large" }, [icon("music", 18), "Log in with Spotify"]);
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        location.assign(await this.auth.beginLogin());
+      } catch (exc) {
+        button.disabled = false;
+        status.textContent = describeError(exc);
+      }
+    });
+    this.root.replaceChildren(
+      h("div", { class: "login" }, [
+        h("div", { class: "login-card" }, [
+          h("div", { class: "brand large" }, [icon("logo", 38), h("span", { text: "spotikit" })]),
+          h("p", { class: "login-lead", text: "Curate your Spotify playlists by chatting." }),
+          h("ul", { class: "login-points" }, [
+            h("li", {}, [icon("search", 16), h("span", { text: "Find the right recordings and build playlists" })]),
+            h("li", {}, [icon("calendar", 16), h("span", { text: "Keep them in recording order, without duplicates" })]),
+            h("li", {}, [icon("check", 16), h("span", { text: "Removals and reorders only when you press Apply" })]),
+          ]),
+          button,
+          status,
+          h("p", { class: "muted small", text: "Your Spotify token stays in this browser tab and is only ever sent to Spotify." }),
+        ]),
+      ]),
+    );
+  }
+
+  private sessionEnded(): void {
+    this.auth.logout();
+    void this.render();
+  }
+
+  // --- Shell ------------------------------------------------------------------------------------
+
+  private buildShell(): void {
+    this.sidebar = new Sidebar(this.client);
+    this.sidebar.setActivityCount(this.activity.entries.length);
+    this.panel = h("section", { class: "panel", attrs: { hidden: "", "aria-label": "Details" } });
+    this.notice = h("div", { class: "notice", attrs: { role: "alert", hidden: "" } });
+    this.userLabel = h("span", { class: "user-name muted small" });
+    const toggleSidebar = () => this.shell!.classList.toggle("sidebar-open");
+    const topbar = h("header", { class: "topbar" }, [
+      h("button", { class: "ghost icon-button only-narrow", attrs: { "aria-label": "Show playlists" }, on: { click: toggleSidebar } }, [icon("menu", 20)]),
+      h("a", { class: "brand", attrs: { href: "#/" } }, [icon("logo", 24), h("span", { text: "spotikit" })]),
+      h("span", { class: "spacer" }),
+      this.userLabel,
+      h("button", { class: "ghost small", attrs: { title: "Log out" }, on: { click: () => this.logout() } }, [icon("logout", 15), h("span", { class: "hide-narrow", text: "Log out" })]),
+    ]);
+    this.shell = h("div", { class: "shell" }, [
+      topbar,
+      h("div", { class: "workspace" }, [
+        this.sidebar.element,
+        h("div", { class: "scrim", on: { click: () => this.shell!.classList.remove("sidebar-open") } }),
+        h("main", { class: "center" }, [this.notice, this.chat.element]),
+        this.panel,
+      ]),
+    ]);
+    const warning = this.warning
+      ? h("div", { class: "notice warn-notice", attrs: { role: "status" } }, [
+          h("span", { text: this.warning }),
+          h("button", { class: "ghost tiny", attrs: { "aria-label": "Dismiss" }, on: { click: (e) => (e.currentTarget as HTMLElement).parentElement!.remove() } }, [icon("close", 13)]),
+        ])
+      : null;
+    if (warning) this.notice.before(warning);
+    this.root.replaceChildren(this.shell);
+    void this.sidebar.load();
+    this.client.currentUser().then(
+      (user) => (this.userLabel!.textContent = user.display_name ?? user.id),
+      (exc: unknown) => isAuthError(exc) && this.sessionEnded(),
+    );
+  }
+
+  private logout(): void {
+    this.auth.logout();
+    location.hash = "";
+    void this.render();
+  }
+
+  // --- Panel ------------------------------------------------------------------------------------
+
+  private framed(content: HTMLElement): HTMLElement[] {
+    const close = h("button", { class: "ghost icon-button panel-close", attrs: { "aria-label": "Close panel", title: "Close" }, on: { click: () => (location.hash = "#/") } }, [icon("close", 18)]);
+    return [close, content];
+  }
+
+  private async renderPanel(): Promise<void> {
+    const id = ++this.renderId;
+    const route = this.route;
+    const panel = this.panel!;
+    if (route.view === "home") {
+      panel.hidden = true;
+      this.shell!.classList.remove("panel-open");
+      return;
+    }
+    panel.hidden = false;
+    this.shell!.classList.add("panel-open");
+    if (!panel.childElementCount) panel.replaceChildren(...this.framed(h("div", { class: "panel-loading muted", text: "Loading…" })));
     try {
-      const user = await this.client.currentUser();
+      let content: HTMLElement;
+      if (route.view === "playlist") {
+        content = await renderPlaylistPanel(this.client, this.recordings, route.id, {
+          askAbout: (p) => {
+            this.chat.setContext(p);
+            this.chat.focus();
+          },
+          ask: (p, text) => {
+            this.chat.setContext(p);
+            this.chat.ask(text);
+          },
+        });
+      } else if (route.view === "recordings") {
+        content = await renderRecordingsPanel(this.recordings, (exc) => this.showError(exc), () => void this.renderPanel());
+      } else {
+        content = renderActivityPanel(this.activity, (playlistId) => (location.hash = `#/playlist/${playlistId}`));
+      }
       if (id !== this.renderId) return;
-      this.renderHeader(user.display_name ?? user.id, route);
-      if (route.view === "chat") this.main.replaceChildren(this.chat.element);
-      else if (route.view === "playlist") await this.renderPlaylist(route.id, id);
-      else if (route.view === "recordings") await this.renderRecordings(id);
-      else await this.renderPlaylists(id);
+      panel.replaceChildren(...this.framed(content));
+      // Opening a playlist makes it the chat's context (shown above the composer; it can be cleared).
+      if (route.view === "playlist") {
+        const title = content.querySelector(".panel-title")?.textContent;
+        if (title) this.chat.setContext({ id: route.id, name: title });
+      }
     } catch (exc) {
       if (id !== this.renderId) return;
-      if (exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) {
-        this.auth.logout();
-        this.renderLoggedOut();
-      } else {
-        this.main.replaceChildren();
+      if (isAuthError(exc)) {
+        this.sessionEnded();
+        return;
       }
-      this.showError(exc);
+      panel.replaceChildren(...this.framed(h("div", { class: "panel-content" }, [h("div", { class: "card error-card", text: describeError(exc) })])));
     }
   }
-
-  // --- Views ------------------------------------------------------------------------------------
-
-  private renderLoggedOut(): void {
-    this.header.replaceChildren(h("h1", { text: "spotikit-web" }));
-    const button = h("button", {
-      text: "Log in with Spotify",
-      on: {
-        click: async () => {
-          button.disabled = true;
-          try {
-            location.assign(await this.auth.beginLogin());
-          } catch (exc) {
-            button.disabled = false;
-            this.showError(exc);
-          }
-        },
-      },
-    });
-    this.main.replaceChildren(
-      h("section", { class: "login" }, [
-        h("p", { text: "Log in to read your playlists. Your Spotify token stays in this browser tab." }),
-        button,
-      ]),
-    );
-  }
-
-  private renderHeader(userLabel: string | null, route: Route): void {
-    const status = this.auth.status();
-    const missing = status?.missingScopes.length ? `Missing scopes: ${status.missingScopes.join(", ")}` : null;
-    const navLink = (text: string, href: string, active: boolean) =>
-      h("a", { text, class: active ? "active" : undefined, attrs: { href, ...(active ? { "aria-current": "page" } : {}) } });
-    this.header.replaceChildren(
-      h("h1", {}, [h("a", { text: "spotikit-web", attrs: { href: "#/" } })]),
-      h("nav", {}, [
-        navLink("Chat", "#/", route.view === "chat"),
-        navLink("Playlists", "#/playlists", route.view === "playlists" || route.view === "playlist"),
-        navLink("Recordings", "#/recordings", route.view === "recordings"),
-      ]),
-      h("div", { class: "user" }, [
-        missing && h("span", { class: "warning", text: missing }),
-        userLabel && h("span", { text: userLabel }),
-        h("button", {
-          class: "secondary",
-          text: "Log out",
-          on: {
-            click: () => {
-              this.auth.logout();
-              this.clearError();
-              location.hash = "";
-              void this.render();
-            },
-          },
-        }),
-      ]),
-    );
-  }
-
-  private async renderPlaylists(renderId: number): Promise<void> {
-    const data = await listPlaylists(this.client);
-    if (renderId !== this.renderId) return;
-
-    const input = h("input", {
-      attrs: { type: "text", placeholder: "Playlist URL, URI, or ID", "aria-label": "Playlist reference" },
-    });
-    const onSubmit = (event: SubmitEvent) => {
-      event.preventDefault();
-      try {
-        location.hash = `#/playlist/${parseId(input.value, "playlist")}`;
-        this.clearError();
-      } catch (exc) {
-        this.showError(exc);
-      }
-    };
-    const open = h("form", { class: "open", on: { submit: onSubmit } }, [
-      input,
-      h("button", { text: "Open", attrs: { type: "submit" } }),
-    ]);
-
-    const rows = data.playlists.map((p) =>
-      h("tr", {}, [
-        h("td", {}, [p.id ? h("a", { text: p.name || "(untitled)", attrs: { href: `#/playlist/${p.id}` } }) : p.name]),
-        h("td", { text: p.owned ? "you" : (p.owner_name ?? p.owner_id ?? "") }),
-        h("td", { class: "num", text: String(p.item_count ?? "") }),
-        h("td", { text: visibilityLabel(p) }),
-      ]),
-    );
-    this.main.replaceChildren(
-      h("h2", { text: `Playlists (${data.count})` }),
-      open,
-      h("table", {}, [
-        h("thead", {}, [h("tr", {}, [th("Name"), th("Owner"), th("Items", "num"), th("Visibility")])]),
-        h("tbody", {}, rows),
-      ]),
-    );
-  }
-
-  private async renderPlaylist(playlistId: string, renderId: number): Promise<void> {
-    const { playlist, items, warnings } = await getPlaylist(this.client, playlistId);
-    const recordings = await this.recordings.load();
-    if (renderId !== this.renderId) return;
-    const dated = items.filter((i) => lookup(recordings, i.uri, i.isrc)[0]).length;
-
-    const totalMs = items.reduce((sum, i) => sum + (i.duration_ms ?? 0), 0);
-    const facts = [
-      `${items.length} items`,
-      formatLongDuration(totalMs),
-      `owner: ${playlist.owned ? "you" : (playlist.owner_name ?? playlist.owner_id ?? "?")}`,
-      visibilityLabel(playlist),
-      `recording dates: ${dated}/${items.length}`,
-    ];
-    this.main.replaceChildren(
-      h("p", {}, [h("a", { text: "← Playlists", attrs: { href: "#/playlists" } })]),
-      h("h2", {}, [spotifyLink(playlist.url, playlist.name || "(untitled)")]),
-      ...(playlist.description ? [h("p", { class: "description", text: playlist.description })] : []),
-      h("p", { class: "muted", text: facts.join(" · ") }),
-      ...warnings.map(renderWarning),
-      h("table", {}, [
-        h("thead", {}, [
-          h("tr", {}, [th("#", "num"), th("Title"), th("Artists"), th("Album"), th("Released"), th("Recorded"), th("Duration", "num")]),
-        ]),
-        h("tbody", {}, items.map((item) => renderItem(item, recordings))),
-      ]),
-    );
-  }
-  private async renderRecordings(renderId: number): Promise<void> {
-    const data = await this.recordings.load();
-    if (renderId !== this.renderId) return;
-    const status = h("p", { class: "muted" });
-    const fileInput = h("input", { attrs: { type: "file", accept: ".json,application/json", "aria-label": "Recordings JSON file" } });
-    const importFile = async () => {
-      const file = fileInput.files?.[0];
-      if (!file) return;
-      try {
-        const result = await this.recordings.importJson(await file.text());
-        this.clearError();
-        await this.renderRecordings(this.renderId);
-        this.main.querySelector(".import-status")!.textContent = `Imported: ${result.created} new, ${result.updated} updated, ${result.total} in total.`;
-      } catch (exc) {
-        this.showError(exc);
-      }
-    };
-    fileInput.addEventListener("change", () => void importFile());
-    const exportFile = async () => {
-      const blob = new Blob([await this.recordings.exportJson()], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      h("a", { attrs: { href: url, download: "recordings.json" } }).click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
-    const entries = Object.entries(data).sort(([, a], [, b]) => (a.recorded < b.recorded ? -1 : a.recorded > b.recorded ? 1 : 0));
-    const rows = entries.map(([uri, e]) =>
-      h("tr", {}, [
-        h("td", { text: e.recorded }),
-        h("td", { text: e.name ?? uri }),
-        h("td", { text: (e.artists ?? []).join(", ") }),
-        h("td", { class: `recorded ${e.confidence}`, text: e.confidence }),
-        h("td", { text: [e.source, e.note].filter(Boolean).join(" · ") }),
-        h("td", {}, [
-          h("button", {
-            class: "secondary small",
-            text: "Remove",
-            on: {
-              click: async () => {
-                await this.recordings.remove([uri]);
-                await this.renderRecordings(this.renderId);
-              },
-            },
-          }),
-        ]),
-      ]),
-    );
-    status.className = "muted import-status";
-    this.main.replaceChildren(
-      h("h2", { text: `Recording dates (${entries.length})` }),
-      h("p", {
-        class: "muted",
-        text:
-          "Kept in this browser and used to order playlists by recording date. Same format as spotikit's " +
-          "data/recordings.json: import it to bring your dates; export to back them up or take them back to spotikit.",
-      }),
-      h("div", { class: "open" }, [
-        h("label", { class: "file-label" }, ["Import JSON ", fileInput]),
-        h("button", { class: "secondary", text: "Export JSON", attrs: entries.length ? {} : { disabled: "" }, on: { click: () => void exportFile() } }),
-      ]),
-      status,
-      entries.length
-        ? h("table", {}, [
-            h("thead", {}, [h("tr", {}, [th("Recorded"), th("Track"), th("Artists"), th("Confidence"), th("Source"), th("")])]),
-            h("tbody", {}, rows),
-          ])
-        : h("p", { class: "muted", text: "No recording dates yet." }),
-    );
-  }
-}
-
-function th(text: string, cls?: string): HTMLTableCellElement {
-  return h("th", { text, class: cls, attrs: { scope: "col" } });
-}
-
-function visibilityLabel(p: Playlist): string {
-  if (p.collaborative) return "collaborative";
-  if (p.public === null) return "";
-  return p.public ? "public" : "private";
-}
-
-function formatLongDuration(ms: number): string {
-  const minutes = Math.round(ms / 60_000);
-  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
-}
-
-function renderWarning(w: Warning): HTMLElement {
-  // Track numbers are shown 1-based, as in the Spotify app and in what the model says.
-  const positions = Array.isArray(w.positions) ? ` Tracks: ${w.positions.map((p: number) => p + 1).join(", ")}.` : "";
-  return h("p", { class: "warning", text: `${w.code}: ${w.message}${positions}` });
-}
-
-function renderItem(item: PlaylistItem, recordings: RecordingMap): HTMLTableRowElement {
-  const unavailable = item.uri === null;
-  const [recording, matchedBy] = lookup(recordings, item.uri, item.isrc);
-  const recordedTitle = recording
-    ? `${recording.confidence} confidence · ${recording.source}${matchedBy === "isrc" ? " · matched by ISRC" : ""}${recording.note ? ` · ${recording.note}` : ""}`
-    : "No recording date stored";
-  return h("tr", { class: unavailable ? "unavailable" : undefined }, [
-    h("td", { class: "num", text: String(item.position + 1) }),
-    h("td", {}, [item.name ?? (unavailable ? "(unavailable)" : ""), item.is_local ? " (local)" : ""]),
-    h("td", { text: item.artists.map((a) => a.name ?? "").join(", ") }),
-    h("td", { text: item.album?.name ?? "" }),
-    h("td", { text: item.album?.release_date ?? "" }),
-    h("td", { class: recording ? `recorded ${recording.confidence}` : "recorded muted", text: recording?.recorded ?? "—", attrs: { title: recordedTitle } }),
-    h("td", { class: "num", text: item.duration ?? formatDuration(item.duration_ms) ?? "" }),
-  ]);
 }

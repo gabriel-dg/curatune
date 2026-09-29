@@ -2,8 +2,9 @@ import { loadConfig } from "./config";
 import { SpotifyAuth, takeCallbackParams } from "./spotify/auth";
 import { SpotifyClient } from "./spotify/http";
 import { WriteLog } from "./spotify/writelog";
-import { openStore } from "./storage/kv";
+import { indexedDbSupported, isPersistent, openStore } from "./storage/kv";
 import { RecordingStore } from "./recordings/recordings";
+import { ActivityLog } from "./ui/activity";
 import { App } from "./ui/app";
 import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
@@ -27,19 +28,28 @@ async function start(root: HTMLElement): Promise<void> {
     root.replaceChildren(h("p", { class: "notice", text: exc instanceof Error ? exc.message : "Configuration error." }));
     return;
   }
-  // IndexedDB (memory if unavailable): the write log for snapshot read lag, and backups before applying plans.
-  const writeLog = new WriteLog(await openStore("write-log"));
-  const backups = await openStore("plan-backups");
-  const recordings = new RecordingStore(await openStore("recordings"));
+  // IndexedDB (memory if unavailable): the write log for snapshot read lag, backups before applying plans,
+  // and recording dates.
+  const [writeLogStore, backups, recordingsStore] = await Promise.all([openStore("write-log"), openStore("plan-backups"), openStore("recordings")]);
+  const writeLog = new WriteLog(writeLogStore);
+  const recordings = new RecordingStore(recordingsStore);
+  const persistent = [writeLogStore, backups, recordingsStore].every(isPersistent);
   const client = new SpotifyClient(auth, { fetch: (input, init) => window.fetch(input, init), writeLog });
 
   // LLM clients get their own fetch and never see `auth`: the Spotify token cannot reach a model. A hosted
   // provider's API key lives in sessionStorage (per tab), pasted by the user; never in the build.
   const providers = buildProviders(config, (input, init) => window.fetch(input, init));
   const settings = new LlmSettings(window.sessionStorage);
-  const chat = new ChatView({ providers, settings, ctx: { client, recordings }, backups });
-  const app = new App(root, auth, client, chat, recordings);
+  const activity = new ActivityLog();
+  const chat = new ChatView({ providers, settings, ctx: { client, recordings }, backups, activity });
+  const app = new App(root, auth, client, chat, recordings, activity);
 
+  if (!persistent && indexedDbSupported()) {
+    app.showWarning(
+      "Local storage is unavailable, probably because another spotikit tab runs an older version. Recording dates " +
+        "and backups will not be saved: close the other spotikit tabs and reload this one.",
+    );
+  }
   if (callback) {
     try {
       await auth.completeLogin(callback);
