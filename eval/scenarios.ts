@@ -271,7 +271,9 @@ SCENARIOS.push(
   {
     id: "reorder-alphabetical",
     prompt: "Proponé un orden alfabético por título para Bebop test",
-    requiredTools: ["playlist_show", "plan_reorder"],
+    // No playlist_show required: plan_reorder with sort_by "title" reads the playlist itself. checkPlans
+    // verifies the resulting order either way.
+    requiredTools: ["plan_reorder"],
     checkPlans: (plans) => {
       const plan = onePlan(plans, "reorder");
       if (typeof plan === "string") return plan;

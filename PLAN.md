@@ -242,6 +242,29 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
 - Resizable columns (2026-09-29): drag the edge of the playlists column or of the panel (the chat takes the
   rest, never under 420 px beside the panel), double-click to reset, arrow keys on a focused edge.
   Widths are remembered in localStorage (two numbers; the only use of it, checked by the invariants).
+- More models (2026-09-29), same code and fake Spotify:
+  - `qwen3.8-27b` (local, GGUF IQ4_XS, 15.2 GB) loads with 32768 context on the operator's 24 GB Mac (the
+    MLX build was clamped to 4096). On 10 scenarios (1 run) it passed the 8 mechanical ones, about 1.6x
+    slower than Ornith (~38 s per step against ~23 s); on the two knowledge-heavy ones a single step took
+    over 300 s, so Node's fetch cut it (reported as `LLM_UNREACHABLE`; the app's own timeout is 300 s too).
+    Not an improvement on this machine.
+  - `gemini-3.5-flash-lite` (the newest Flash Lite; there is no 3.6-3.8 Lite for text): 44/48 on the full
+    set (2 runs), about 1.1 s per step against 2.3 s for 3.8 Flash. It failed "create in chronological
+    order" twice (Boplicity after Un Poco Loco; once Lady Bird before Manteca) and "create with tracks"
+    twice (a misspelled playlist name, an empty final answer). Two more failures were a grader false
+    negative: `plan_reorder` with `sort_by: "title"` reads the playlist itself, so `playlist_show` is no
+    longer required there.
+
+  | Model | Where | Passed | Per model step | Recording years |
+  |---|---|---|---|---|
+  | `gemini-3.8-flash` | hosted | 48/48 | ~2.3 s | right, with months |
+  | `gemini-3.5-flash-lite` | hosted | 44/48 | ~1.1 s | close, but misorders |
+  | `ornith-1.5-9b-mlx` | local, 9.5 GB | 40/42 (21 scenarios) | ~23-30 s | wrong, with confidence |
+  | `qwen3.8-27b` (GGUF) | local, 15.2 GB | 8/10 (subset) | ~38 s | steps over 300 s |
+
+- Model selector (2026-09-29): `VITE_HOSTED_LLM_MODEL` takes a comma-separated list, each model in the
+  chat's selector with one shared API key, so the operator picks per task: Flash Lite for mechanical
+  work, 3.8 Flash for anything that depends on knowledge, the local model to keep everything on the LAN.
 
 ## Phase 5 — Remote access (optional)
 

@@ -13,7 +13,7 @@ import type { ActivityLog } from "./activity";
 import { writeCard } from "./cards";
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
-import type { LlmSettings, ProviderOption } from "./llm-providers";
+import { pickProvider, type LlmSettings, type ProviderOption } from "./llm-providers";
 import { renderMarkdown } from "./markdown";
 import { planCard } from "./plan-card";
 
@@ -119,7 +119,7 @@ export class ChatView {
   constructor(options: { providers: ProviderOption[]; settings: LlmSettings; ctx: ToolContext; backups: KeyValueStore; activity: ActivityLog }) {
     this.providers = options.providers;
     this.settings = options.settings;
-    this.provider = this.providers.find((p) => p.id === this.settings.selected()) ?? this.providers[0]!;
+    this.provider = pickProvider(this.providers, this.settings.selected());
     this.ctx = options.ctx;
     this.backups = options.backups;
     this.activity = options.activity;
@@ -256,11 +256,12 @@ export class ChatView {
       }
     });
     return h("div", { class: "card key-form" }, [
-      h("div", { class: "card-title" }, [icon("key", 18), h("strong", { text: `${this.provider.label} needs an API key` })]),
+      h("div", { class: "card-title" }, [icon("key", 18), h("strong", { text: `${this.provider.name} needs an API key` })]),
       h("p", {
         class: "muted",
         text:
-          `It stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}. ` +
+          `It stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}` +
+          `${this.providers.filter((p) => p.keyId !== null && p.keyId === this.provider.keyId).length > 1 ? `, for every ${this.provider.name} model in the list` : ""}. ` +
           "Using this model sends the conversation and your playlist data (names, tracks, artists) to that provider; your Spotify token is never sent.",
       }),
       h("div", { class: "inline-form" }, [input, h("button", { class: "primary", text: "Use this key", on: { click: save } })]),
