@@ -7,7 +7,12 @@ export type ParamSchema =
   | { type: "string"; description: string; minLength?: number }
   | { type: "integer"; description: string; minimum?: number; maximum?: number }
   | { type: "boolean"; description: string }
-  | { type: "array"; description: string; items: { type: "string" | "integer" }; minItems?: number; maxItems?: number };
+  | { type: "array"; description: string; items: ItemSchema; minItems?: number; maxItems?: number };
+
+/** Array items: strings, integers, or flat objects whose values are all strings. */
+export type ItemSchema =
+  | { type: "string" | "integer" }
+  | { type: "object"; properties: Record<string, { type: "string"; description: string }>; additionalProperties: false };
 
 export interface ObjectSchema {
   type: "object";
@@ -16,7 +21,7 @@ export interface ObjectSchema {
   additionalProperties: false;
 }
 
-export type Args = Record<string, string | number | boolean | string[] | number[]>;
+export type Args = Record<string, string | number | boolean | string[] | number[] | Record<string, string>[]>;
 
 export function validateArgs(schema: ObjectSchema, value: unknown): Args {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -54,10 +59,25 @@ export function validateArgs(schema: ObjectSchema, value: unknown): Args {
       args[key] = num;
     } else if (param.type === "array") {
       if (!Array.isArray(raw)) throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array.`);
-      let items: string[] | number[];
-      if (param.items.type === "string") {
+      let items: string[] | number[] | Record<string, string>[];
+      const itemSchema = param.items;
+      if (itemSchema.type === "string") {
         if (raw.some((item) => typeof item !== "string")) throw new SpotikitError("INVALID_ARGUMENT", `${key} must be an array of strings.`);
         items = raw as string[];
+      } else if (itemSchema.type === "object") {
+        items = raw.map((item, i) => {
+          if (item === null || typeof item !== "object" || Array.isArray(item)) {
+            throw new SpotikitError("INVALID_ARGUMENT", `${key}[${i}] must be an object.`);
+          }
+          const out: Record<string, string> = {};
+          for (const [k, v] of Object.entries(item as Record<string, unknown>)) {
+            if (!(k in itemSchema.properties)) throw new SpotikitError("INVALID_ARGUMENT", `${key}[${i}] has an unknown key: ${k}.`);
+            if (v === null || v === undefined) continue;
+            if (typeof v !== "string") throw new SpotikitError("INVALID_ARGUMENT", `${key}[${i}].${k} must be a string.`);
+            out[k] = v;
+          }
+          return out;
+        });
       } else {
         items = raw.map((item) => (typeof item === "string" && /^\d+$/.test(item.trim()) ? Number(item) : item)) as number[];
         if (items.some((item) => typeof item !== "number" || !Number.isInteger(item))) {

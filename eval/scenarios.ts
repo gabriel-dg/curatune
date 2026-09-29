@@ -194,6 +194,32 @@ SCENARIOS.push(
   },
 );
 
+// --- A bigger create: many searches, chronological order from the model's knowledge ------------------
+
+SCENARIOS.push({
+  id: "create-chronological",
+  prompt:
+    "Creá una playlist llamada Bebop cronológico con estos temas, en orden cronológico de grabación y un tema por " +
+    "artista: Un Poco Loco de Bud Powell, Boplicity de Miles Davis, Swing to Bop de Charlie Christian, Manteca de " +
+    "Dizzy Gillespie, Ko-Ko de Charlie Parker, 'Round Midnight de Thelonious Monk, Lady Bird de Tadd Dameron y " +
+    "Woody'n You de Coleman Hawkins",
+  requiredTools: ["playlist_create", "playlist_add"],
+  checkState: (spotify, ids) => {
+    const created = spotify.data.playlists.filter((p) => p.name.toLowerCase() === "bebop cronológico");
+    if (created.length !== 1) return `expected one "Bebop cronológico" playlist, found ${created.length}`;
+    // Recording years (Monk's 'Round Midnight: November 1947; Manteca: December 1947).
+    const year: Record<string, number> = {
+      [ids.swingToBop!]: 1941, [ids.woodyNYou!]: 1944, [ids.koko!]: 1945, [ids.koko2!]: 1945, [ids.roundMonk!]: 1947,
+      [ids.manteca!]: 1947, [ids.ladyBird!]: 1948, [ids.boplicity!]: 1949, [ids.unPocoLoco!]: 1951,
+    };
+    const items = created[0]!.items;
+    const names = items.map((id) => spotify.data.tracks.get(id!)?.name ?? id).join(" | ");
+    if (items.length !== 8 || items.some((id) => !(id! in year))) return `wrong tracks: ${names}`;
+    const years = items.map((id) => year[id!]!);
+    return years.every((y, i) => i === 0 || y >= years[i - 1]!) ? null : `not chronological: ${names}`;
+  },
+});
+
 // --- Plans (phase 4) ---------------------------------------------------------------------------------
 
 const onePlan = (plans: Plan[], kind: Plan["kind"]): Plan | string => {
@@ -318,7 +344,11 @@ export function grade(
   const failures: string[] = [];
   const calls: Call[] = executions.map((e) => ({ name: e.name, args: e.args, ok: e.outcome.ok }));
   const names = new Set(calls.map((c) => c.name));
-  for (const tool of scenario.requiredTools ?? []) if (!names.has(tool)) failures.push(`missing tool ${tool}`);
+  // A batch search counts as a search.
+  const satisfies: Record<string, string[]> = { search_tracks: ["search_tracks", "search_many"] };
+  for (const tool of scenario.requiredTools ?? []) {
+    if (!(satisfies[tool] ?? [tool]).some((t) => names.has(t))) failures.push(`missing tool ${tool}`);
+  }
   if (scenario.forbiddenTools === "*") {
     if (calls.length) failures.push(`called tools when none were needed: ${[...names].join(", ")}`);
   } else {

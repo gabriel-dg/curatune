@@ -2,6 +2,7 @@
 // Spotify; there is deliberately no tool that applies a plan (see AGENTS.md).
 
 import { getAlbumTracks, getTrack, SEARCH_MAX_LIMIT, searchTracks } from "../spotify/catalog";
+import { SpotikitError } from "../spotify/errors";
 import { getPlaylist, listPlaylists, type Warning } from "../spotify/playlists";
 import type { Args } from "./schema";
 import { briefAlbum, briefAlbumTrack, briefItem, briefPlaylist, briefTrack, formatTotalDuration } from "./trim";
@@ -131,6 +132,80 @@ const searchTracksTool: Tool = {
   summarize: (result) => `${(result as { results: unknown[] }).results.length} results`,
 };
 
+export const SEARCH_MANY_MAX = 25;
+/** Concurrent searches: modest, since the Development Mode quota is shared per developer account. */
+const SEARCH_MANY_WORKERS = 4;
+
+/** Run `fn` over `items` with at most `workers` in flight; results keep the input order. */
+async function pool<T, R>(items: T[], workers: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(workers, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]!, i);
+      }
+    }),
+  );
+  return out;
+}
+
+const searchMany: Tool = {
+  name: "search_many",
+  description:
+    `Run up to ${SEARCH_MANY_MAX} track searches in one call (for example one per song of a list), with a few ` +
+    "results each. Prefer it over repeated search_tracks calls. Each search takes track and artist (and optionally " +
+    "album, year, or free text). One failed search does not fail the others.",
+  parameters: {
+    type: "object",
+    properties: {
+      searches: {
+        type: "array",
+        description: 'Searches, e.g. [{"track": "Salt Peanuts", "artist": "Dizzy Gillespie"}, …].',
+        items: {
+          type: "object",
+          properties: {
+            track: { type: "string", description: "Track title." },
+            artist: { type: "string", description: "Artist name." },
+            album: { type: "string", description: "Album name." },
+            year: { type: "string", description: "Edition release year or range (not the recording year)." },
+            query: { type: "string", description: "Free text." },
+          },
+          additionalProperties: false,
+        },
+        minItems: 1,
+        maxItems: SEARCH_MANY_MAX,
+      },
+      limit_each: { type: "integer", description: "Results per search, 1-5. Default 3.", minimum: 1, maximum: 5 },
+    },
+    required: ["searches"],
+    additionalProperties: false,
+  },
+  async run(args, { client }) {
+    const searches = args.searches as Record<string, string>[];
+    const limit = (args.limit_each as number | undefined) ?? 3;
+    const results = await pool(searches, SEARCH_MANY_WORKERS, async (s, index) => {
+      try {
+        const r = await searchTracks(client, { query: s.query, track: s.track, artist: s.artist, album: s.album, year: s.year }, limit, 0);
+        return { index, query: r.query, total: r.total, results: r.results.map(briefTrack) };
+      } catch (exc) {
+        // Authorization failures stop the whole call (the UI asks to log in again); others stay per search.
+        if (exc instanceof SpotikitError && !["AUTH_REQUIRED", "AUTH_EXPIRED", "CONFIG_ERROR"].includes(exc.code)) {
+          return { index, error: { code: exc.code, message: exc.message } };
+        }
+        throw exc;
+      }
+    });
+    return { count: results.length, failed: results.filter((r) => "error" in r).length, searches: results };
+  },
+  summarize: (result) => {
+    const r = result as { count: number; failed: number; searches: { results?: unknown[] }[] };
+    const empty = r.searches.filter((s) => s.results && s.results.length === 0).length;
+    return `${r.count} searches${empty ? `, ${empty} without results` : ""}${r.failed ? `, ${r.failed} failed` : ""}`;
+  },
+};
+
 const trackShow: Tool = {
   name: "track_show",
   description: "Show one track: uri, name, artists, album, album_uri, released, duration, isrc.",
@@ -179,4 +254,4 @@ const albumTracks: Tool = {
   summarize: (result) => `${(result as { tracks: unknown[] }).tracks.length} tracks`,
 };
 
-export const READ_TOOLS: Tool[] = [playlistsList, playlistShow, searchTracksTool, trackShow, albumTracks];
+export const READ_TOOLS: Tool[] = [playlistsList, playlistShow, searchTracksTool, searchMany, trackShow, albumTracks];

@@ -5,7 +5,7 @@
 import { executeTool, toolDefinitions, type Tool, type ToolContext, type ToolExecution } from "../tools";
 import { AgentError, type ChatMessage, type ChatModel, type ToolCall } from "./llm";
 
-export const DEFAULT_MAX_STEPS = 8;
+export const DEFAULT_MAX_STEPS = 12;
 export const MAX_TOOL_CALLS_PER_STEP = 8;
 
 export type AgentEvent =
@@ -127,8 +127,29 @@ export async function runTurn(history: ChatMessage[], userText: string, options:
     onEvent({ type: "checkpoint", messages: [...messages] });
   }
 
-  const answer = `Stopped after ${maxSteps} model steps without a final answer. Try a more specific request.`;
+  // Step limit reached: one last call without tools, so the user gets what was done and found so far
+  // instead of nothing (earlier writes and plans already happened and are shown in the UI).
+  messages.push({ role: "user", content: STEP_LIMIT_NOTICE });
+  if (signal?.aborted) throw new AgentError("CANCELLED", "Stopped.");
+  onEvent({ type: "model_start", step: maxSteps + 1 });
+  const started = now();
+  let answer: string;
+  try {
+    const completion = await model.complete(messages, [], signal);
+    onEvent({ type: "model_end", step: maxSteps + 1, ms: now() - started, promptTokens: completion.usage?.prompt_tokens ?? null });
+    answer = completion.toolCalls.length === 0 && completion.content ? completion.content : FALLBACK_LIMIT_ANSWER(maxSteps);
+  } catch (exc) {
+    if (exc instanceof AgentError && exc.code === "CANCELLED") throw exc;
+    answer = FALLBACK_LIMIT_ANSWER(maxSteps);
+  }
   messages.push({ role: "assistant", content: answer });
   onEvent({ type: "answer", content: answer });
   return { messages, answer, stoppedAtLimit: true, executions };
 }
+
+const STEP_LIMIT_NOTICE =
+  "[App notice: the step limit for this request was reached, so no more tools can be called now. Tell the " +
+  "user briefly what you did and found so far, what is still missing, and suggest a narrower next request.]";
+
+const FALLBACK_LIMIT_ANSWER = (steps: number) =>
+  `Stopped after ${steps} model steps without a final answer. Try a more specific request.`;
