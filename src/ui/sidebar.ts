@@ -17,6 +17,8 @@ export class Sidebar {
   private playlists: Playlist[] = [];
   private filter: "all" | "mine" = "all";
   private activeId: string | null = null;
+  /** The playlist whose panel is loading: its row shows a spinner. */
+  private loadingId: string | null = null;
   private loaded = false;
 
   constructor(client: SpotifyClient) {
@@ -64,6 +66,12 @@ export class Sidebar {
     this.renderList();
   }
 
+  setLoading(id: string | null): void {
+    if (id === this.loadingId) return;
+    this.loadingId = id;
+    this.renderList();
+  }
+
   setActivityCount(count: number): void {
     this.activityBadge.hidden = count === 0;
     this.activityBadge.textContent = String(count);
@@ -89,15 +97,17 @@ export class Sidebar {
       return;
     }
     this.list.replaceChildren(
-      ...shown.map((p) =>
-        h("a", { class: `playlist-link${p.id === this.activeId ? " active" : ""}`, attrs: { href: `#/playlist/${p.id}`, title: p.name ?? "" } }, [
-          h("span", { class: "playlist-glyph", text: (p.name ?? "?").trim().charAt(0).toUpperCase() || "?" }),
+      ...shown.map((p) => {
+        const loading = p.id === this.loadingId;
+        const glyph = loading ? [h("span", { class: "spinner", attrs: { role: "status", "aria-label": "Loading" } })] : [(p.name ?? "?").trim().charAt(0).toUpperCase() || "?"];
+        return h("a", { class: `playlist-link${p.id === this.activeId ? " active" : ""}${loading ? " loading" : ""}`, attrs: { href: `#/playlist/${p.id}`, title: p.name ?? "" } }, [
+          h("span", { class: "playlist-glyph" }, glyph),
           h("span", { class: "playlist-text" }, [
             h("span", { class: "playlist-name", text: p.name || "(untitled)" }),
             h("span", { class: "playlist-meta", text: `${p.item_count ?? 0} tracks${p.owned ? "" : ` · ${p.owner_name ?? p.owner_id ?? ""}`}` }),
           ]),
-        ]),
-      ),
+        ]);
+      }),
     );
   }
 }

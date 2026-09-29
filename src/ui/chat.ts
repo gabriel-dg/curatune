@@ -29,6 +29,9 @@ const GENERAL_SUGGESTIONS = [
   "Which of my playlists have duplicates?",
 ];
 
+const GENERAL_PLACEHOLDER = "Write anything, e.g. “60s soul ballads, one song per artist”…";
+const playlistPlaceholder = (name: string) => `Ask anything about "${name}", or say what to change…`;
+
 const playlistSuggestions = (name: string) => [
   `Are there duplicates in "${name}"?`,
   `Is "${name}" in chronological order of recording?`,
@@ -123,7 +126,7 @@ export class ChatView {
 
     this.transcript = h("div", { class: "transcript", attrs: { "aria-live": "polite" } });
     this.input = h("textarea", {
-      attrs: { rows: "1", placeholder: "Ask about your playlists, or tell me what to do…", "aria-label": "Message" },
+      attrs: { rows: "1", placeholder: GENERAL_PLACEHOLDER, "aria-label": "Message" },
       on: {
         keydown: (event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
@@ -179,6 +182,7 @@ export class ChatView {
   /** The playlist the user is looking at; the next messages mention it to the model. */
   setContext(context: PlaylistContext | null): void {
     this.context = context;
+    this.input.placeholder = context ? playlistPlaceholder(context.name) : GENERAL_PLACEHOLDER;
     if (!context) {
       this.contextBar.hidden = true;
       this.contextBar.replaceChildren();
@@ -275,19 +279,23 @@ export class ChatView {
       return;
     }
     const suggestions = this.context ? playlistSuggestions(this.context.name) : GENERAL_SUGGESTIONS;
+    // The suggestions are examples, not a menu: say so before and after them, and point at the composer.
     this.transcript.replaceChildren(
       h("div", { class: "empty" }, [
         h("div", { class: "empty-mark" }, [icon("logo", 40)]),
         h("h2", { text: this.context ? `What should we do with "${this.context.name}"?` : "What should we do with your playlists?" }),
+        h("p", { class: "empty-lead", text: "Write whatever you want, in any language, as you would ask a person." }),
         h("p", {
-          class: "muted",
-          text: "Ask in any language. I can read, search, create playlists, and add tracks; removals, reorders, and renames come as plans that you review and apply.",
+          class: "muted small",
+          text: "I can read your playlists, search Spotify, create playlists, and add tracks. Removals, reorders, and renames come as plans that you review and apply.",
         }),
+        h("div", { class: "suggestions-label" }, [icon("sparkle", 14), h("span", { text: "A few ideas to get started" })]),
         h(
           "div",
           { class: "suggestions" },
           suggestions.map((text) => h("button", { class: "suggestion", on: { click: () => this.ask(text) } }, [icon("sparkle", 15), h("span", { text })])),
         ),
+        h("button", { class: "free-hint", on: { click: () => this.input.focus() } }, [icon("arrowDown", 15), h("span", { text: "These are only examples: type your own request in the box below" })]),
       ]),
     );
   }

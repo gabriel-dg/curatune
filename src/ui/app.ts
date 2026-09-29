@@ -48,6 +48,8 @@ export class App {
   private warning: string | null = null;
   private renderId = 0;
   private route: Route = { view: "home" };
+  /** What the panel shows (e.g. "playlist:<id>"): opening something else replaces it with a skeleton. */
+  private panelKey: string | null = null;
 
   constructor(root: HTMLElement, auth: SpotifyAuth, client: SpotifyClient, chat: ChatView, recordings: RecordingStore, activity: ActivityLog) {
     this.root = root;
@@ -117,6 +119,7 @@ export class App {
     this.shell = null;
     this.sidebar = null;
     this.notice = null;
+    this.panelKey = null;
     const status = h("div", { class: "error-text small", text: this.loginError ? describeError(this.loginError) : "" });
     this.loginError = null;
     const button = h("button", { class: "primary large" }, [icon("music", 18), "Log in with Spotify"]);
@@ -205,6 +208,25 @@ export class App {
     return [close, content];
   }
 
+  /** Placeholder while a panel loads (a long playlist takes a few seconds): the title when known, then shimmering rows. */
+  private skeleton(route: Exclude<Route, { view: "home" }>): HTMLElement {
+    const title = route.view === "playlist" ? this.sidebar?.nameOf(route.id) : route.view === "recordings" ? "Recording dates" : "Activity";
+    const bone = (cls: string) => h("div", { class: `skel ${cls}` });
+    return h("div", { class: "panel-content panel-skeleton" }, [
+      h("div", { class: "panel-kicker muted small", text: route.view === "playlist" ? "Playlist" : "" }),
+      title ? h("h2", { class: "skel-name panel-title", text: title }) : bone("skel-title"),
+      h("div", { class: "facts" }, [bone("skel-pill"), bone("skel-pill"), bone("skel-pill")]),
+      h("div", { class: "loading-line", attrs: { role: "status" } }, [h("span", { class: "spinner" }), h("span", { text: route.view === "playlist" ? "Loading the tracks from Spotify…" : "Loading…" })]),
+      ...Array.from({ length: 8 }, () => h("div", { class: "skel-row" }, [bone("skel-line"), bone("skel-line short")])),
+    ]);
+  }
+
+  private setPanelLoading(loading: boolean, playlistId: string | null = null): void {
+    this.panel!.classList.toggle("loading", loading);
+    this.panel!.setAttribute("aria-busy", String(loading));
+    this.sidebar?.setLoading(loading ? playlistId : null);
+  }
+
   private async renderPanel(): Promise<void> {
     const id = ++this.renderId;
     const route = this.route;
@@ -212,11 +234,20 @@ export class App {
     if (route.view === "home") {
       panel.hidden = true;
       this.shell!.classList.remove("panel-open");
+      this.setPanelLoading(false);
       return;
     }
     panel.hidden = false;
     this.shell!.classList.add("panel-open");
-    if (!panel.childElementCount) panel.replaceChildren(...this.framed(h("div", { class: "panel-loading muted", text: "Loading…" })));
+    // Something new: a skeleton right away, so the click visibly does something. The same view again (a
+    // refresh after a write): keep it on screen, with only the loading bar on top.
+    const key = route.view === "playlist" ? `playlist:${route.id}` : route.view;
+    if (key !== this.panelKey) {
+      panel.replaceChildren(...this.framed(this.skeleton(route)));
+      panel.scrollTop = 0;
+      this.panelKey = key;
+    }
+    this.setPanelLoading(true, route.view === "playlist" ? route.id : null);
     try {
       let content: HTMLElement;
       if (route.view === "playlist") {
@@ -249,6 +280,8 @@ export class App {
         return;
       }
       panel.replaceChildren(...this.framed(h("div", { class: "panel-content" }, [h("div", { class: "card error-card", text: describeError(exc) })])));
+    } finally {
+      if (id === this.renderId) this.setPanelLoading(false);
     }
   }
 }
