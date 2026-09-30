@@ -1,6 +1,6 @@
 // Read-only catalog lookups: track search, single track, album track listing.
-// Follows spotikit commit b3531aa, src/spotikit/catalog.py. Not ported: batch search (the model can issue
-// several tool calls in one turn instead) and market-dependent reads.
+// Follows spotikit commit b3531aa, src/spotikit/catalog.py. Not ported: market-dependent reads. Batch search
+// lives in the `search_many` tool (src/tools/read.ts): up to 25 searches per call, 4 at a time.
 
 import { SpotikitError } from "./errors";
 import type { SpotifyClient } from "./http";

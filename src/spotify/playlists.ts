@@ -1,5 +1,5 @@
 // Playlist reads: list the user's playlists, read one playlist with all its items, read metadata only.
-// Follows spotikit commit b3531aa, src/spotikit/playlists.py (list_playlists, get_playlist,
+// Follows spotikit commit 590cd87, src/spotikit/playlists.py (list_playlists, get_playlist,
 // get_playlist_meta). Not ported: market-dependent reads (plans always read without a market). Difference:
 // the metadata fields include `images` (the cover, shown in the UI).
 
@@ -23,6 +23,7 @@ export interface PlaylistList {
   user_id: string;
   count: number;
   playlists: Playlist[];
+  warnings: Warning[];
 }
 
 export interface PlaylistState {
@@ -40,7 +41,28 @@ export async function listPlaylists(client: SpotifyClient, ownedOnly = false): P
     if (p) playlists.push(normalizePlaylist(p, me));
   }
   if (ownedOnly) playlists = playlists.filter((p) => p.owned);
-  return { user_id: me, count: playlists.length, playlists };
+  const warnings: Warning[] = [];
+  // The list lags behind writes (its items.total stays at the old value for a while): after this app's
+  // own recent writes, report the count the write left instead.
+  if (client.writeLog) {
+    const expected = await client.writeLog.expectedCounts();
+    const corrected: { playlist_id: string; listed_item_count: number | null; item_count: number }[] = [];
+    for (const p of playlists) {
+      const count = p.id ? expected.get(p.id) : undefined;
+      if (count !== undefined && count !== p.item_count) {
+        corrected.push({ playlist_id: p.id!, listed_item_count: p.item_count, item_count: count });
+        p.item_count = count;
+      }
+    }
+    if (corrected.length) {
+      warnings.push({
+        code: "ITEM_COUNT_READ_LAG",
+        message: "Spotify's playlist list returned stale item counts; using the counts left by this app's recent writes. Reading a playlist counts its items.",
+        playlists: corrected,
+      });
+    }
+  }
+  return { user_id: me, count: playlists.length, playlists, warnings };
 }
 
 async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {

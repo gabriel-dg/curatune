@@ -1,5 +1,5 @@
 // Local record of this app's own writes, used to compensate Spotify's snapshot_id read lag.
-// Follows spotikit commit b3531aa, src/spotikit/writelog.py. Difference: stored in IndexedDB through an
+// Follows spotikit commit 590cd87, src/spotikit/writelog.py. Difference: stored in IndexedDB through an
 // async KeyValueStore instead of a JSON file. The web app and the spotikit CLI keep separate logs, so do
 // not write the same playlist from both within minutes.
 //
@@ -33,6 +33,21 @@ export class WriteLog {
 
   async forget(playlistId: string): Promise<void> {
     await this.store.delete(playlistId);
+  }
+
+  /**
+   * Item counts expected after this app's recent writes, by playlist id. The playlist list lags behind
+   * writes too (`GET /me/playlists` keeps the old `items.total` for a while), so listing prefers these while
+   * they differ. Entries are not dropped here; only a full read (`resolve`) can tell whether a playlist
+   * moved on.
+   */
+  async expectedCounts(): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    for (const playlistId of await this.store.keys()) {
+      const entry = await this.store.get<Entry>(playlistId);
+      if (entry && this.now() - entry.recorded_at <= this.ttlMs) counts.set(playlistId, entry.uris.length);
+    }
+    return counts;
   }
 
   /**
