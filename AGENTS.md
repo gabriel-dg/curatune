@@ -115,6 +115,10 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
 - **snapshot_id read lag** (observed live): after a write, reads return the previous `snapshot_id` for a
   few minutes while items are already current; the write's snapshot is what reads converge to. Handled
   by `writelog.py` (`data/write_log.json`, `SNAPSHOT_READ_LAG`).
+- The playlist list lags too (observed 2026-09-29 by spotikit-web): right after creating a playlist and
+  adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
+  all 20. So `playlists list` may report a stale `item_count` for a while after a write; `playlist show`
+  counts the items it reads and is current.
 - `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; `plan apply` checks itself.
 - `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; spotikit only uses moves.
 - Refresh tokens expire 6 months after the original authorization (not extended by refreshing); on
