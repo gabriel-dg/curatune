@@ -82,3 +82,42 @@ def test_market_reads_do_not_use_the_log(log):
     playlists.add_items(fake, PLAYLIST_ID, [track_uri(10)])
     state = playlists.get_playlist(fake, PLAYLIST_ID, market="AR")
     assert state["playlist"]["snapshot_id"] == "snap-1"
+
+
+def _listed(fake):
+    result = playlists.list_playlists(fake)
+    [playlist] = [p for p in result["playlists"] if p["id"] == PLAYLIST_ID]
+    return playlist["item_count"], result["warnings"]
+
+
+def test_list_reports_the_count_our_write_left_while_the_list_lags(log):
+    fake = _lagging(log)
+    playlists.add_items(fake, PLAYLIST_ID, [track_uri(10), track_uri(11)])
+    count, warnings = _listed(fake)
+    assert count == 6  # the list itself still says 4
+    assert warnings == [
+        {
+            "code": "ITEM_COUNT_READ_LAG",
+            "message": warnings[0]["message"],
+            "playlists": [{"playlist_id": PLAYLIST_ID, "listed_item_count": 4, "item_count": 6}],
+        }
+    ]
+
+
+def test_list_needs_no_correction_once_it_agrees(log):
+    fake = _lagging(log)
+    playlists.add_items(fake, PLAYLIST_ID, [track_uri(10)])
+    fake.propagate()
+    assert _listed(fake) == (5, [])
+
+
+def test_list_ignores_expired_entries(tmp_path):
+    fake = _lagging(WriteLog(tmp_path / "write_log.json", ttl_seconds=-1))
+    playlists.add_items(fake, PLAYLIST_ID, [track_uri(10)])
+    assert _listed(fake) == (4, [])  # stale, but the entry is too old to vouch for anything
+
+
+def test_list_without_write_log_reports_what_spotify_says():
+    fake = _lagging(None)
+    playlists.add_items(fake, PLAYLIST_ID, [track_uri(10)])
+    assert _listed(fake) == (4, [])

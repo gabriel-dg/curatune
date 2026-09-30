@@ -74,7 +74,7 @@ about a third of the size, with every key always present:
 | `auth login [--port N] [--no-browser] [--timeout S]` | same as `auth status` |
 | `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path}` |
 | `auth logout` | `{logged_out, token_path}` |
-| `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` |
+| `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` + warning `ITEM_COUNT_READ_LAG` |
 | `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
 | `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position}], skipped: [{uri, reason}], item_count, snapshot_id}`. Skips URIs already present unless `--allow-duplicates`. |
@@ -219,6 +219,11 @@ match that record exactly, within 15 minutes of the write, uses the recorded sna
 `SNAPSHOT_READ_LAG`. Any other difference is treated as a real change. The URI list check in `plan apply`
 never relaxes.
 
+The playlist list lags too: `GET /me/playlists` keeps the old `items.total` for a while after a write.
+`playlists list` reports, for playlists written within the last 15 minutes, the item count the write left
+(the length of the recorded URI list) when it differs from the listed one, and emits
+`ITEM_COUNT_READ_LAG` with both counts. `playlist show` counts the items it reads and is always current.
+
 ## Error codes
 
 
@@ -236,6 +241,7 @@ Warning codes (in `warnings`; the command still succeeded):
 | Code | Meaning |
 |---|---|
 | `SNAPSHOT_READ_LAG` | The read returned a stale `snapshot_id`; the one from spotikit's last write is used. |
+| `ITEM_COUNT_READ_LAG` | The playlist list returned stale item counts; the counts left by spotikit's recent writes are used (`playlists`: `playlist_id`, `listed_item_count`, `item_count`). |
 | `LOCAL_FILES` | The playlist contains local files. |
 | `UNAVAILABLE_ITEMS` | Some items have no track object and no URI. |
 | `YEAR_IS_RELEASE_YEAR` | `--year` filters on the edition's release year, not the recording year. |

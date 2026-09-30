@@ -44,6 +44,20 @@ class WriteLog:
         if data.pop(playlist_id, None) is not None:
             self._save(data)
 
+    def expected_counts(self) -> dict[str, int]:
+        """Item counts expected after spotikit's recent writes, by playlist id.
+
+        The playlist list lags behind writes too: `GET /me/playlists` keeps the old `items.total` for a
+        while. `playlists list` prefers these counts while they differ. Entries are not dropped here;
+        only a full read (`resolve`) can tell whether a playlist moved on.
+        """
+        now = time.time()
+        return {
+            playlist_id: len(entry["uris"])
+            for playlist_id, entry in self._load().items()
+            if now - entry["recorded_at"] <= self.ttl_seconds
+        }
+
     def resolve(self, playlist_id: str, read_snapshot: str, read_uris: list[str | None]) -> tuple[str, bool]:
         """Return (effective snapshot_id, read_is_lagging).
 

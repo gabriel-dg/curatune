@@ -16,7 +16,8 @@ def track_uri(n: int) -> str:
 
 class FakeSpotify:
     """With `lag=True`, reads keep returning the pre-write snapshot_id until `propagate()` is
-    called, while items are always current (the behaviour observed live)."""
+    called, while items are always current (the behaviour observed live). The playlist list's
+    item total lags the same way (observed live by spotikit-web)."""
 
     def __init__(self, uris: list[str], owner_id: str = "me", lag: bool = False, write_log=None):
         self.uris = list(uris)
@@ -29,6 +30,7 @@ class FakeSpotify:
         self.other_playlists: list[dict[str, Any]] = []
         self.version = 1
         self.visible_version = 1
+        self.visible_count = len(self.uris)
         self.mutations: list[tuple[str, Any]] = []
 
     @property
@@ -37,6 +39,7 @@ class FakeSpotify:
 
     def propagate(self) -> None:
         self.visible_version = self.version
+        self.visible_count = len(self.uris)
 
     def current_user_id(self) -> str:
         return "me"
@@ -57,7 +60,7 @@ class FakeSpotify:
 
     def paginate(self, path: str, **params: Any):
         if path == "/me/playlists":
-            yield self.get(f"/playlists/{PLAYLIST_ID}")
+            yield {**self.get(f"/playlists/{PLAYLIST_ID}"), "items": {"total": self.visible_count}}
             yield from self.other_playlists
             return
         assert path == f"/playlists/{PLAYLIST_ID}/items", path
@@ -80,6 +83,7 @@ class FakeSpotify:
         self.version += 1
         if not self.lag:
             self.visible_version = self.version
+            self.visible_count = len(self.uris)
         return {"snapshot_id": self.snapshot_id}
 
     def post(self, path: str, body: Any) -> Any:
