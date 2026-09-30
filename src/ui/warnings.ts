@@ -5,7 +5,7 @@
 import type { Warning } from "../spotify/playlists";
 
 /** Handled by the app itself; nothing for the user to do or know. */
-const INTERNAL = new Set(["SNAPSHOT_READ_LAG"]);
+const INTERNAL = new Set(["SNAPSHOT_READ_LAG", "ITEM_COUNT_READ_LAG"]);
 
 /** "track 3" or "tracks 3, 7", or null when the warning names no positions. */
 function tracks(w: Warning): string | null {

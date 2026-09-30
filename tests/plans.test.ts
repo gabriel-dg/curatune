@@ -20,7 +20,7 @@ import {
 } from "../src/plans/plans";
 import { SpotikitError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
-import { getPlaylist } from "../src/spotify/playlists";
+import { getPlaylist, listPlaylists } from "../src/spotify/playlists";
 import { WriteLog } from "../src/spotify/writelog";
 import { addItems } from "../src/spotify/writes";
 import { MemoryStore } from "../src/storage/kv";
@@ -316,6 +316,37 @@ describe("snapshot read lag", () => {
     expect(await log.resolve("p", "snap-old", ["a"])).toEqual(["snap-new", true]);
     expect(await log.resolve("p", "snap-new", ["a"])).toEqual(["snap-new", false]);
     expect(await log.resolve("p", "snap-old", ["a"])).toEqual(["snap-old", false]);
+  });
+});
+
+// --- Playlist list lag (spotikit 590cd87) --------------------------------------------------------------------
+
+describe("playlist list lag", () => {
+  it("lists the count our recent write left while Spotify's list still has the old total", async () => {
+    const { client, plain, log, trackIds } = setup();
+    // As after adding two tracks: the write log expects 10 items, the list still says 8.
+    await log!.record(plain.id, "snap-after-add", trackIds.slice(0, 10).map((id) => `spotify:track:${id}`));
+    const data = await listPlaylists(client);
+    expect(data.playlists.find((p) => p.id === plain.id)!.item_count).toBe(10);
+    expect(data.warnings).toEqual([
+      expect.objectContaining({ code: "ITEM_COUNT_READ_LAG", playlists: [{ playlist_id: plain.id, listed_item_count: 8, item_count: 10 }] }),
+    ]);
+  });
+
+  it("leaves the list alone once it agrees, for expired entries, and without a write log", async () => {
+    const agrees = setup();
+    await agrees.log!.record(agrees.plain.id, "snap", agrees.uris());
+    expect((await listPlaylists(agrees.client)).warnings).toEqual([]);
+
+    const expired = setup();
+    const old = new WriteLog(new MemoryStore(), -1);
+    await old.record(expired.plain.id, "snap", ["spotify:track:x"]);
+    expect(await old.expectedCounts()).toEqual(new Map());
+
+    const none = setup({ writeLog: false });
+    const data = await listPlaylists(none.client);
+    expect(data.playlists.find((p) => p.id === none.plain.id)!.item_count).toBe(8);
+    expect(data.warnings).toEqual([]);
   });
 });
 

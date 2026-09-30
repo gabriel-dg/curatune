@@ -23,6 +23,25 @@ IP addresses, hostnames, local paths) in versioned files.
 - Each ported module records, in a header comment, the spotikit commit it follows.
 - The "Spotify Web API facts" below are copied from spotikit. When either project verifies something new,
   update both.
+- Deliberate differences (keep this list current; module headers give the details):
+  - Auth: PKCE with the callback as a page of this app, tokens in `sessionStorage` (spotikit: a local
+    callback server and an owner-only token file). HTTP uses `redirect: "error"`.
+  - Storage: write log, plan backups, and recording dates in IndexedDB, separate from spotikit's `data/`
+    files (nothing is shared; recording dates move by importing or exporting the same JSON). Plans live in
+    memory, not in files.
+  - Tools, not commands: the model sees 1-based `number` (see Development); results are trimmed for the
+    model instead of `--brief`; batch search is `search_many` (up to 25 searches per call, 4 at a time).
+  - Plans are applied only by the UI's Apply button; there is no apply tool (spotikit: `plan apply`, run by
+    the agent after the user confirms). Write tools accept only IDs seen earlier in the conversation, and
+    create always requests a private playlist.
+  - `plan_reorder` also takes `sort_by` title, artist, album, released (edition date), or duration, besides
+    `recorded` (spotikit's `--by-recording-date`), an explicit order, or a move.
+  - Playlist metadata includes `images` (covers, shown in the UI, never sent to the model).
+  - The UI hides warnings the app already compensates (`SNAPSHOT_READ_LAG`, `ITEM_COUNT_READ_LAG`) and words
+    the rest plainly; the model gets them as spotikit reports them. The sidebar also takes track counts from
+    writes and from reading a playlist.
+  - Not ported: market-dependent reads (`--market`, `is_playable`), `plan show --check` (the UI renders the
+    plan; applying re-checks), per-process HTTP metrics, and the CLI and its configuration.
 
 ## Architecture
 
@@ -132,8 +151,8 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   from both within minutes.
 - The playlist list lags too (observed 2026-09-29, spotikit-web): right after creating a playlist and
   adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
-  all 20. The web app shows the count known from its own write (or from reading the playlist) until the
-  list agrees.
+  all 20. Listing reports the count left by the app's own writes of the last 15 minutes when the list
+  disagrees (write log, `ITEM_COUNT_READ_LAG`, as in spotikit 590cd87).
 - `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; plan application checks
   itself.
 - `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; only moves are used.

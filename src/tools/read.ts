@@ -40,7 +40,7 @@ const playlistsList: Tool = {
   },
   async run(args, { client }) {
     const data = await listPlaylists(client, Boolean(args.owned_only));
-    return { count: data.count, playlists: data.playlists.map(briefPlaylist) };
+    return { count: data.count, playlists: data.playlists.map(briefPlaylist), ...(data.warnings.length ? { warnings: data.warnings } : {}) };
   },
   summarize: (result) => `${(result as { count: number }).count} playlists`,
 };
