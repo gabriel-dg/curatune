@@ -33,7 +33,7 @@ IP addresses, hostnames, local paths) in versioned files.
     model instead of `--brief`; batch search is `search_many` (up to 25 searches per call, 4 at a time).
   - Plans are applied only by the UI's Apply button; there is no apply tool (spotikit: `plan apply`, run by
     the agent after the user confirms). Write tools accept only IDs seen earlier in the conversation, and
-    create always requests a private playlist.
+    create has no public option (spotikit's `--public`): the model never chooses visibility.
   - `plan_reorder` also takes `sort_by` title, artist, album, released (edition date), or duration, besides
     `recorded` (spotikit's `--by-recording-date`), an explicit order, or a move.
   - Playlist metadata includes `images` (covers, shown in the UI, never sent to the model).
