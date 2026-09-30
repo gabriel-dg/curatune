@@ -28,7 +28,27 @@ def list_playlists(client: SpotifyClient, owned_only: bool = False) -> dict[str,
     playlists = [normalize_playlist(p, me) for p in client.paginate("/me/playlists", limit=50) if p]
     if owned_only:
         playlists = [p for p in playlists if p["owned"]]
-    return {"user_id": me, "count": len(playlists), "playlists": playlists}
+    warnings = []
+    # The list lags behind writes (its items.total stays at the old value for a while): after our own
+    # recent writes, report the count the write left instead.
+    if client.write_log is not None:
+        expected = client.write_log.expected_counts()
+        corrected = []
+        for p in playlists:
+            count = expected.get(p["id"])
+            if count is not None and count != p["item_count"]:
+                corrected.append({"playlist_id": p["id"], "listed_item_count": p["item_count"], "item_count": count})
+                p["item_count"] = count
+        if corrected:
+            warnings.append(
+                {
+                    "code": "ITEM_COUNT_READ_LAG",
+                    "message": "Spotify's playlist list returned stale item counts; using the counts left by "
+                    "spotikit's recent writes. `playlist show` counts the items it reads.",
+                    "playlists": corrected,
+                }
+            )
+    return {"user_id": me, "count": len(playlists), "playlists": playlists, "warnings": warnings}
 
 
 def get_playlist(client: SpotifyClient, ref: str, market: str | None = None) -> dict[str, Any]:

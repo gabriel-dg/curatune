@@ -224,6 +224,7 @@ To set a description when creating a playlist, use `playlist create --descriptio
 | Code | Action |
 |---|---|
 | `SNAPSHOT_READ_LAG` (warning) | Normal right after a write. Nothing to do. |
+| `ITEM_COUNT_READ_LAG` (warning) | Normal right after a write: the listed counts were stale and the ones spotikit's writes left are shown. Nothing to do; `playlist show` gives the exact items. |
 | `YEAR_IS_RELEASE_YEAR` (warning) | `--year` matches the edition's release year. Don't use it to find period recordings on later compilations. |
 | `VISIBILITY_NOT_APPLIED` / `VISIBILITY_UNVERIFIED` | Tell the user the playlist is or may be public. |
 | `LOCAL_FILES`, `UNAVAILABLE_ITEMS` | Mention them. Items without a URI cannot be removed through the API. |
