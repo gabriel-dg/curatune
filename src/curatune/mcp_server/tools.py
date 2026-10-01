@@ -47,7 +47,16 @@ TrackRef = Annotated[str, Field(description="Track ID, spotify:track: URI, or op
 AlbumRef = Annotated[str, Field(description="Album ID, spotify:album: URI, or open.spotify.com URL.")]
 Entries = Annotated[list[schemas.RecordingEntry], Field(min_length=1, max_length=100)]
 TrackNumber = Annotated[int, Field(ge=1)]
-Reason = Annotated[str | None, Field(description="One sentence on why, kept in the plan.")]
+Reason = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=300,
+        pattern=r"\S",
+        description="Why, for the user, in one or two sentences, including your judgment calls (such as which "
+        "copy or edition you keep). Shown in the confirmation dialog, labelled as your explanation.",
+    ),
+]
 PlanId = Annotated[str, Field(description="A plan_id from a plan_* result.")]
 SortKey = Literal["title", "artist", "album", "released", "duration", "recorded"]
 Full = Annotated[
@@ -305,7 +314,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
         numbers: Annotated[
             list[TrackNumber], Field(min_length=1, max_length=500, description="Numbers of the tracks to remove.")
         ],
-        reason: Reason = None,
+        reason: Reason,
     ) -> Annotated[CallToolResult, schemas.Plan]:
         positions = [to_position(n) for n in numbers]
         return rt.call(
@@ -328,6 +337,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
     def plan_reorder(
         ctx: Context,
         playlist: PlaylistRef,
+        reason: Reason,
         sort_by: Annotated[SortKey | None, Field(description="Sort key.")] = None,
         descending: Annotated[bool, Field(description="With sort_by: Z to A, newest or longest first.")] = False,
         order: Annotated[
@@ -336,7 +346,6 @@ def register(server: MCPServer, rt: Runtime) -> None:
         ] = None,
         move_from: Annotated[int | None, Field(ge=1, description="Current number of the track to move.")] = None,
         move_to: Annotated[int | None, Field(ge=1, description="Number the moved track will have.")] = None,
-        reason: Reason = None,
     ) -> Annotated[CallToolResult, schemas.Plan]:
         def run(client: Any) -> dict[str, Any]:
             has_move = move_from is not None or move_to is not None
@@ -384,9 +393,9 @@ def register(server: MCPServer, rt: Runtime) -> None:
     def plan_details(
         ctx: Context,
         playlist: PlaylistRef,
+        reason: Reason,
         name: Annotated[str | None, Field(description="New name.")] = None,
         description: Annotated[str | None, Field(description="New description. Can't be empty: Spotify can't clear one through the API (only in its app).")] = None,
-        reason: Reason = None,
     ) -> Annotated[CallToolResult, schemas.Plan]:
         return rt.call(
             ctx,
@@ -457,14 +466,15 @@ def register(server: MCPServer, rt: Runtime) -> None:
 
     @server.tool(
         title="Apply a plan",
-        description="Apply a plan after the user confirms it. The client shows the user a dialog with a summary "
-        "built from the plan itself; you cannot answer it for them, and if they decline or close it nothing "
-        "changes. Only for a plan built in this conversation at the user's request, or one the user asked to apply "
-        "after reviewing it with plan_show. Before changing anything it checks that the playlist hasn't changed "
-        "since the plan was built and backs it up; afterwards it verifies the result. Never say a plan was applied "
-        'unless this returns status "applied". In the same message, before calling it, tell the user what the plan '
-        "changes and why, above all your judgment calls (such as removing another edition of the same recording); "
-        "don't wait for a reply: the dialog is their confirmation.",
+        description="Before calling this, in the same message, tell the user what the plan changes and why, above "
+        "all your judgment calls (such as removing another edition of the same recording); don't wait for a reply: "
+        "the dialog is their confirmation. Applies a plan after the user confirms it. The client shows the user a "
+        "dialog with a summary built from the plan itself, followed by the plan's reason labelled as your "
+        "explanation; you cannot answer it for them, and if they decline or close it nothing changes. Only for a "
+        "plan built in this conversation at the user's request, or one the user asked to apply after reviewing it "
+        "with plan_show. Before changing anything it checks that the playlist hasn't changed since the plan was "
+        "built and backs it up; afterwards it verifies the result. Never say a plan was applied unless this returns "
+        'status "applied".',
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=True),
         meta={"anthropic/requiresUserInteraction": True},
     )

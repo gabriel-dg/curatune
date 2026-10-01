@@ -58,7 +58,7 @@ with a declared output schema, plus the same JSON as text.
 | `playlist_create` | Create an empty playlist. There is no visibility option: curatune always requests private, Spotify makes it public, and the result says so. | | | | ✓ |
 | `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. Reads the playlist back: names each added track and reports `verified`. | | | | ✓ |
 
-| `plan_remove` | Plan removing tracks by number. Builds a plan file; changes nothing on Spotify. | ✓¹ | | | ✓ |
+| `plan_remove` | Plan removing tracks by number. Every plan tool requires a `reason` (shown in the dialog, below). Builds a plan file; changes nothing on Spotify. | ✓¹ | | | ✓ |
 | `plan_reorder` | Plan a new order: exactly one of `sort_by` (title, artist, album, released, duration, recorded; optional `descending`), `order` (every current number, in the new order), or `move_from` + `move_to`. | ✓¹ | | | ✓ |
 | `plan_details` | Plan a rename and/or a new description. Never visibility. | ✓¹ | | | ✓ |
 | `plan_show` | A plan by `plan_id`, and (with `check`) whether it still applies to the playlist as it is now. | ✓ | | | ✓ |
@@ -86,7 +86,7 @@ sequenceDiagram
     participant Server as curatune-mcp
     participant Spotify
     User->>Model: "remove the duplicate Ko-Ko"
-    Model->>Server: plan_remove(playlist, numbers=[7])
+    Model->>Server: plan_remove(playlist, numbers=[7], reason)
     Server->>Spotify: read the playlist
     Server-->>Model: plan (numbers, titles), nothing changed
     Model->>User: explains the plan
@@ -94,7 +94,7 @@ sequenceDiagram
     Client->>Server: tools/call plan_apply
     Server-->>Client: question built from the plan file
     Note over Client,Server: 2026-07-28: an InputRequiredResult the client answers on a retry.<br/>2025-11-25: an elicitation/create request mid-call.
-    Client->>User: dialog: summary + "Apply this plan"
+    Client->>User: dialog: summary, the labelled reason, "Apply this plan"
     User->>Client: accept (checked) / decline / close
     Client->>Server: the user's answer
     alt accepted with "Apply this plan" checked
@@ -107,7 +107,12 @@ sequenceDiagram
 
 - **The question comes from the plan file**, not from the model: what leaves or moves, by number, title,
   and artists, or the old and new name and description. Third-party text in it is cleaned (no line breaks,
-  no bidirectional-text tricks, length capped). The plan's `reason`, which the model wrote, is not shown.
+  no bidirectional-text tricks, length capped).
+- **The model's reason is shown apart, and labelled.** Every plan tool requires a `reason` (at most 300
+  characters): why, including the model's judgment calls, such as keeping one edition over another. The
+  dialog shows it after the server's summary, set apart and labelled as the assistant's explanation, not
+  checked by curatune, cleaned the same way. So the criterion is visible where the person decides, even
+  when the model writes nothing in the chat, and it is never mistaken for what the server verified.
 - **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
   read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
 - **No dialog, no apply.** A client that doesn't declare form elicitation gets `CONFIRMATION_UNAVAILABLE`,

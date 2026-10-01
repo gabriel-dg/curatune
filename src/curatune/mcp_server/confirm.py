@@ -13,7 +13,9 @@ Routes (`CURATUNE_MCP_CONFIRM`):
 
 The summary is derived only from the plan file, never from live reads or timestamps: under multi
 round-trip requests the SDK matches a recorded answer to the exact question, so the question must be the
-same on every round.
+same on every round. The plan's `reason`, written by the model, follows the summary in a block of its own,
+labelled as the assistant's unverified explanation: the person sees the model's judgment calls where they
+decide, never mistaken for what the server checked.
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ CONFIRM_MODES = ("auto", "elicitation", "browser")
 MAX_LINES = 25
 NAME_CHARS = 80
 TEXT_CHARS = 300
+REASON_CHARS = 300
+REASON_LABEL = "The assistant's explanation (written by the AI, not checked by curatune):"
 
 
 @dataclass(frozen=True)
@@ -125,5 +129,9 @@ def render_summary(plan: dict[str, Any]) -> str:
         notes.append("Note: this removes local files, which is unverified through the API.")
     if "DUPLICATE_NAME" in codes:
         notes.append("Note: you already have another playlist with this name.")
+    explanation = []
+    reason = clean(plan.get("reason"), REASON_CHARS)
+    if reason:
+        explanation = ["", REASON_LABEL, f'"{reason}"', ""]
     footer = f"Plan {plan['plan_id']}. Nothing changes unless you accept with “Apply this plan” checked."
-    return "\n".join([head, *_capped(lines), *notes, footer])
+    return "\n".join([head, *_capped(lines), *notes, *explanation, footer])

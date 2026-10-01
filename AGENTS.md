@@ -76,7 +76,8 @@ its phases are in `PLAN-mcp.md`.
   - its confirmation is filled by resolvers, never by tool arguments (the input schema is `plan_id` only);
     don't add an argument that could stand in for the answer;
   - the question is built from the plan file alone (no live data, so it is identical on every multi
-    round-trip round), with third-party text cleaned; the model-written `reason` is not shown;
+    round-trip round), with third-party text cleaned; the model's `reason` (required by every `plan_*`
+    tool, at most 300 characters) follows it apart, labelled as the assistant's unchecked explanation;
   - no form elicitation, a forced `CURATUNE_MCP_CONFIRM=browser` (not built yet), an invalid or applied
     plan, or anything but "accept" with "Apply this plan" checked: nothing is applied;
   - it accepts plan IDs only (`plans.plan_path_for_id`), and applies through `plans.apply_plan`, which
@@ -139,7 +140,8 @@ its phases are in `PLAN-mcp.md`.
   (both verified live 2026-09-24, including a rename and description change in a single call).
 - **A description can't be cleared through the API** (verified live 2026-10-01): `PUT /playlists/{id}` with
   `description: ""` answers 200 and keeps the old text (unchanged on reads over several minutes). A
-  description can only be replaced; clearing it needs the Spotify app. `plan details` refuses an empty
+  description can only be replaced; clearing it needs the Spotify app (after which the API reads `""`, not
+  `"null"`; verified the same day). `plan details` refuses an empty
   description (`DESCRIPTION_NOT_CLEARABLE`), and agents propose a description and ask before creating a
   playlist with one, never writing one on their own.
 - A playlist created through the API without a description (no `description` key in `POST /me/playlists`)
