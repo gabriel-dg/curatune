@@ -398,7 +398,7 @@ def _build_parser() -> _Parser:
     p.add_argument("playlist", help="Playlist ID, URI, or URL.")
     p.add_argument("--name", help="New playlist name.")
     text = p.add_mutually_exclusive_group()
-    text.add_argument("--description", help="New description (an empty string clears it).")
+    text.add_argument("--description", help="New description. It can't be empty: Spotify can't clear one through the API.")
     text.add_argument("--description-file", help="Read the new description from a UTF-8 text file.")
     p.add_argument("--reason")
     p = command(pn, "show", _plan_show, "Show and validate a plan.")

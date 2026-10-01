@@ -93,7 +93,8 @@ def test_long_summaries_are_capped(tmp_path):
 
 def test_details_summary_shows_old_and_new_values(tmp_path):
     fake = FakeSpotify([track_uri(1)])
-    built = plans.build_details_plan(fake, PLAYLIST_ID, tmp_path, name="Bebop\nfor real", description="")
+    fake.description = "Kept"
+    built = plans.build_details_plan(fake, PLAYLIST_ID, tmp_path, name="Bebop\nfor real", description="Kept")
     text = confirm.render_summary(plans.load_plan(tmp_path / f"{built['plan_id']}.json"))
     assert 'Name: "Test" → "Bebop for real"' in text
     assert "Description" not in text  # unchanged fields are not in the plan

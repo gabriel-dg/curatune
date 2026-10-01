@@ -618,6 +618,13 @@ def build_details_plan(
             raise PlanError("The new name cannot be empty.")
         requested["name"] = name.strip()
     if description is not None:
+        if not description.strip():
+            # PUT with description "" answers 200 and changes nothing (verified live 2026-10-01).
+            raise PlanError(
+                "Spotify can't clear a description through the API: it accepts an empty one but keeps the old "
+                "text. A description can only be replaced; to remove it, clear it in the Spotify app.",
+                code="DESCRIPTION_NOT_CLEARABLE",
+            )
         requested["description"] = description.strip()
     if not requested:
         raise PlanError("Provide a new name, a new description, or both.")

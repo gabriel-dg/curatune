@@ -590,6 +590,12 @@ To be evaluated by the web project; this repository does not change it.
     string `"null"` as its description. curatune now reports it as `""` (`models.normalize_playlist`,
     phase 2a); the web should check how it shows and compares descriptions (details plans would
     otherwise show `from "null"`).
+  - 2026-10-01: a description can't be cleared through the API. `PUT /playlists/{id}` with
+    `description: ""` answers 200 and keeps the old text; it can only be replaced, and clearing it needs
+    the Spotify app. curatune's `plan details` now refuses an empty description
+    (`DESCRIPTION_NOT_CLEARABLE`), and its MCP `playlist_create` and instructions tell the model to propose
+    a description and ask before creating, never writing one on its own. The web should check any path
+    that offers to clear a description, and its create prompt.
 - **Name:** the library's rename to curatune changes every reference the web makes to spotikit (module
   headers, the "Relationship to spotikit" section). The web's own name is decided there.
 

@@ -52,11 +52,17 @@ def test_description_is_compared_unescaped(fake, tmp_path):
     assert exc.value.code == "NO_CHANGES"
 
 
+@pytest.mark.parametrize("empty", ["", "   "])
+def test_an_empty_description_is_refused(fake, tmp_path, empty):
+    # Spotify answers 200 to an empty description and keeps the old text: it can only be replaced.
+    with pytest.raises(PlanError) as exc:
+        build(fake, tmp_path, name="New name", description=empty)
+    assert exc.value.code == "DESCRIPTION_NOT_CLEARABLE" and "Spotify app" in exc.value.message
+    assert list(tmp_path.iterdir()) == [] and fake.mutations == []
+
+
 def test_literal_null_description_reads_as_empty(fake, tmp_path):
     fake.description = "null"  # what Spotify returns for a playlist created without a description
-    with pytest.raises(PlanError) as exc:
-        build(fake, tmp_path, description="")
-    assert exc.value.code == "NO_CHANGES"
     built, _ = build(fake, tmp_path, description="Set")
     assert built["changes"] == {"description": {"from": "", "to": "Set"}}
 

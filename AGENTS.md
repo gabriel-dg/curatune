@@ -137,6 +137,11 @@ its phases are in `PLAN-mcp.md`.
   200 without effect (confirmed in the app too). `create_playlist` re-reads and reports real visibility.
 - `PUT /playlists/{id}` with `name` and/or `description` **is** applied, and visible on the first read-back
   (both verified live 2026-09-24, including a rename and description change in a single call).
+- **A description can't be cleared through the API** (verified live 2026-10-01): `PUT /playlists/{id}` with
+  `description: ""` answers 200 and keeps the old text (unchanged on reads over several minutes). A
+  description can only be replaced; clearing it needs the Spotify app. `plan details` refuses an empty
+  description (`DESCRIPTION_NOT_CLEARABLE`), and agents propose a description and ask before creating a
+  playlist with one, never writing one on their own.
 - A playlist created through the API without a description (no `description` key in `POST /me/playlists`)
   reads back with the **literal string `"null"`** as its description (verified live 2026-10-01; the
   user's other playlists without a description read back `""`). `models.normalize_playlist` reports it

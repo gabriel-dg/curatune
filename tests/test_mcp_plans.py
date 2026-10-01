@@ -308,6 +308,15 @@ async def test_reorder_and_rename_through_the_dialog(settings, account, era):
     assert acc.playlists[ids["test"]].name == "Bebop, sorted"
 
 
+@pytest.mark.anyio
+async def test_an_empty_description_is_refused_with_the_app_as_the_way_out(settings, account, era):
+    acc, ids = account
+    async with connect(settings, acc, era, User("accept")) as client:
+        status, error = await call(client, "plan_details", {"playlist": ids["test"], "description": ""})
+    assert status == "error" and error["error"]["code"] == "DESCRIPTION_NOT_CLEARABLE"
+    assert "Spotify app" in error["next_step"] and writes(acc) == []
+
+
 def test_errors_never_carry_local_paths():
     exc = VerificationFailed("mismatch", details={"backup_path": "/home/me/x.json", "plan_dir": "/p", "verified": False})
     payload = json.loads(error_result(exc).content[0].text)
