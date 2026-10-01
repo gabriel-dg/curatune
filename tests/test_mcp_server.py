@@ -38,6 +38,11 @@ EXPECTED_TOOLS = [
     "recordings_update",
     "playlist_create",
     "playlist_add",
+    "plan_remove",
+    "plan_reorder",
+    "plan_details",
+    "plan_show",
+    "plan_apply",
 ]
 
 # (readOnlyHint, destructiveHint, idempotentHint, openWorldHint); None = not set (meaningless when read-only).
@@ -54,6 +59,12 @@ EXPECTED_HINTS = {
     "recordings_update": (False, True, True, False),
     "playlist_create": (False, False, False, True),
     "playlist_add": (False, False, False, True),
+    # Plan builders only write a local plan file that does nothing by itself.
+    "plan_remove": (True, None, None, True),
+    "plan_reorder": (True, None, None, True),
+    "plan_details": (True, None, None, True),
+    "plan_show": (True, None, None, True),
+    "plan_apply": (False, True, True, True),
 }
 
 OUTPUTS = {
@@ -69,6 +80,11 @@ OUTPUTS = {
     "recordings_update": schemas.RecordingsUpdate,
     "playlist_create": schemas.PlaylistCreate,
     "playlist_add": schemas.PlaylistAdd,
+    "plan_remove": schemas.Plan,
+    "plan_reorder": schemas.Plan,
+    "plan_details": schemas.Plan,
+    "plan_show": schemas.PlanShow,
+    "plan_apply": schemas.PlanApply,
 }
 
 
@@ -189,6 +205,21 @@ async def test_descriptions_carry_the_rules(client):
     assert "Additive only" in tools["recordings_set"]
     assert "Only when the user asks" in tools["recordings_update"]
     assert "not the recording date" in tools["playlist_show"]
+    for name in ("plan_remove", "plan_reorder", "plan_details"):
+        assert "changes nothing on Spotify" in tools[name] and "after the user confirms" in tools[name], name
+        assert "Only when the user asks" in tools[name], name
+    assert "never as a side effect" in tools["plan_details"] and "Visibility can't be changed" in tools["plan_details"]
+    assert "instead of computing an order yourself" in tools["plan_reorder"]
+    apply = tools["plan_apply"]
+    assert "you cannot answer it for them" in apply and "nothing changes" in apply
+    assert "Only for a plan built in this conversation" in apply and 'Never say a plan was applied' in apply
+
+
+@pytest.mark.anyio
+async def test_plan_apply_takes_only_a_plan_id_and_always_wants_a_person(client):
+    [tool] = [t for t in (await client.list_tools()).tools if t.name == "plan_apply"]
+    assert list(tool.input_schema["properties"]) == ["plan_id"]  # the confirmation is not an argument
+    assert tool.meta == {"anthropic/requiresUserInteraction": True}
 
 
 def test_instructions_carry_the_rules():
@@ -202,6 +233,8 @@ def test_instructions_carry_the_rules():
         "never the recording date",
         "never overwrite a stored date unless the user asks",
         "Create a playlist or add tracks only when the user asks",
+        "only when the user asks, through plans",
+        "confirm in a dialog you can't answer",
     ):
         assert rule in INSTRUCTIONS, rule
 

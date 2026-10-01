@@ -23,6 +23,7 @@ from ..config import Settings, load_settings
 from ..errors import CuratuneError
 from ..http import SpotifyClient
 from ..writelog import WriteLog
+from . import confirm
 from .instructions import INSTRUCTIONS
 from .numbering import numbered
 
@@ -48,6 +49,21 @@ NEXT_STEPS = {
     "CONCURRENT_MODIFICATION": "The playlist changed while it was being read; try again.",
     "NETWORK_ERROR": "Spotify could not be reached; try again later.",
     "API_ERROR": "Spotify returned an error; try again later, and tell the user if it persists.",
+    # Plans
+    "PLAN_INVALID": "Check the numbers and arguments against playlist_show, then build the plan again.",
+    "PLAN_NOT_FOUND": "Use a plan_id from a plan_* result; build a new plan if needed.",
+    "PLAN_CHECKSUM_MISMATCH": "The plan file was changed after it was built, so it can't be applied. Build a new plan.",
+    "PLAN_INCONSISTENT": "The plan file doesn't match what it would do, so it can't be applied. Build a new plan.",
+    "PLAN_ALREADY_APPLIED": "This plan was applied before; nothing changed now. Read the playlist to see its state.",
+    "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
+    "RECORDING_DATES_MISSING": "Store dates for the listed tracks with recordings_set (with source and confidence; "
+    "say when unsure), then build the plan again.",
+    "SNAPSHOT_MISMATCH": "Nothing changed: the playlist changed since the plan was built. Build a new plan and show "
+    "it to the user again.",
+    "APPLY_FAILED": "Applying stopped partway: the playlist may be partly changed (a backup was saved first). Tell "
+    "the user, read the playlist, and don't retry blindly.",
+    "VERIFICATION_FAILED": "The plan was applied, but the playlist doesn't match the expected result. Tell the user, "
+    "read the playlist, and don't retry blindly.",
 }
 
 
@@ -60,10 +76,20 @@ def ok_result(data: dict[str, Any]) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=_json(data))], structured_content=data)
 
 
-def error_result(exc: CuratuneError) -> CallToolResult:
-    payload: dict[str, Any] = {"error": numbered(exc.to_dict())}
-    if exc.code in NEXT_STEPS:
-        payload["next_step"] = NEXT_STEPS[exc.code]
+def _without_local_paths(value: Any) -> Any:
+    """Drop `*_path` and `*_dir` keys (backups, plan files, the token): local paths never reach the model."""
+    if isinstance(value, dict):
+        return {k: _without_local_paths(v) for k, v in value.items() if not k.endswith(("_path", "_dir"))}
+    if isinstance(value, list):
+        return [_without_local_paths(v) for v in value]
+    return value
+
+
+def error_result(exc: CuratuneError, next_step: str | None = None) -> CallToolResult:
+    payload: dict[str, Any] = {"error": numbered(_without_local_paths(exc.to_dict()))}
+    step = next_step or NEXT_STEPS.get(exc.code)
+    if step:
+        payload["next_step"] = step
     return CallToolResult(content=[TextContent(type="text", text=_json(payload))], is_error=True)
 
 
@@ -76,10 +102,12 @@ class Runtime:
         settings: Settings | None = None,
         client_factory: Callable[[], Any] | None = None,
         tokens: Any = None,
+        confirm_mode: str | None = None,
     ):
         self._settings = settings
         self._client_factory = client_factory
         self._tokens = tokens
+        self._confirm_mode = confirm_mode
         self._init_lock = threading.Lock()
         self.write_lock = threading.Lock()
         self._seen_clients: set[tuple[Any, ...]] = set()
@@ -96,6 +124,13 @@ class Runtime:
             if self._tokens is None:
                 self._tokens = TokenManager(settings)
             return self._tokens
+
+    def confirm_mode(self) -> str:
+        """`CURATUNE_MCP_CONFIRM` (read after the settings, so `.env` counts), unless set explicitly."""
+        if self._confirm_mode is not None:
+            return self._confirm_mode
+        self.settings()
+        return confirm.confirm_mode()
 
     def client(self) -> Any:
         if self._client_factory is not None:
@@ -158,10 +193,12 @@ def build_server(
     settings: Settings | None = None,
     client_factory: Callable[[], Any] | None = None,
     tokens: Any = None,
+    confirm_mode: str | None = None,
 ) -> MCPServer:
-    """The curatune MCP server. Tests pass a fake `client_factory` (and `tokens` for auth_status)."""
+    """The curatune MCP server. Tests pass a fake `client_factory` (and `tokens` for auth_status, and
+    `confirm_mode` instead of CURATUNE_MCP_CONFIRM)."""
     from . import tools
 
     server = MCPServer("curatune", instructions=INSTRUCTIONS, version=__version__)
-    tools.register(server, Runtime(settings, client_factory, tokens))
+    tools.register(server, Runtime(settings, client_factory, tokens, confirm_mode))
     return server

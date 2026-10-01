@@ -89,6 +89,11 @@ def normalize_playlist(playlist: dict[str, Any], current_user_id: str | None) ->
     owner = playlist.get("owner") or {}
     items_ref = playlist.get("items") or playlist.get("tracks") or {}
     description = playlist.get("description")
+    if description == "null":
+        # A playlist created through the API without a description reads back as the literal string
+        # "null" (verified live 2026-10-01). Treat it as empty; a description that really is "null"
+        # reads as empty too.
+        description = ""
     return {
         "id": playlist.get("id"),
         "uri": playlist.get("uri"),

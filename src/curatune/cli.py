@@ -230,14 +230,17 @@ def _plan_remove(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _plan_reorder(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    sort_by = "recorded" if args.by_recording_date else args.sort_by
     return plans.build_reorder_plan(
         _client(s),
         args.playlist,
         s.plans_dir,
         new_order=_read_order(args),
         move=_parse_move(args.move),
-        recordings=RecordingStore(s.recordings_path) if args.by_recording_date else None,
+        recordings=RecordingStore(s.recordings_path) if sort_by == "recorded" else None,
         reason=args.reason,
+        sort_by=sort_by,
+        descending=args.descending,
     )
 
 
@@ -376,10 +379,18 @@ def _build_parser() -> _Parser:
     order.add_argument("--order-file", help='JSON array of positions, or {"new_order": [...]}.')
     order.add_argument("--move", help="FROM:TO, 0-based; moves a single item.")
     order.add_argument(
+        "--sort-by",
+        choices=plans.REORDER_SORT_KEYS,
+        help="Sort by title, artist (first), album, released (edition date), duration, or recorded "
+        "(the local recording store). Case, accents, leading punctuation, and a leading 'The' are ignored; "
+        "ties keep their current order.",
+    )
+    order.add_argument(
         "--by-recording-date",
         action="store_true",
-        help="Order by the recording dates in the local store; ties keep their current order.",
+        help="Same as --sort-by recorded.",
     )
+    p.add_argument("--descending", action="store_true", help="With --sort-by: Z to A, newest or longest first.")
     p.add_argument("--reason")
     p = command(
         pn, "details", _plan_details, "Plan a rename and/or description change (does not modify Spotify)."

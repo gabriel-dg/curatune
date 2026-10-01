@@ -49,6 +49,13 @@ class RecordingEntry(_In):
     isrc: str | None = Field(None, description="Optional ISRC: also matches the same recording on another edition.")
 
 
+class ApplyAnswer(BaseModel):
+    """The form the user answers in plan_apply's confirmation dialog: flat and primitive, as elicitation
+    requires. Filled by the person through the client, never a tool argument."""
+
+    apply: bool = Field(title="Apply this plan", description="Change the playlist on Spotify as described above.")
+
+
 # --- Shared output pieces -------------------------------------------------------------------------
 
 
@@ -269,3 +276,68 @@ class PlaylistAdd(_Out):
     item_count: int
     verified: bool
     warnings: list[ResultWarning]
+
+
+# --- Plans --------------------------------------------------------------------------------------------
+
+
+class PlanTrack(_Out):
+    number: int
+    was: int | None = None  # reorders: the number the track had before
+    uri: str | None
+    name: str | None
+    artists: list[str | None]
+
+
+class DetailChange(_Out):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+
+
+class PlanApplied(_Out):
+    applied_at: str | None
+    verified: bool | None
+
+
+class Plan(_Out):
+    plan_id: str
+    kind: Literal["remove", "reorder", "details"]
+    playlist: PlaylistRef
+    created_at: str | None
+    reason: str | None
+    operations: int = Field(description="Low-level operations the plan runs on Spotify.")
+    tracks_before: int | None = None
+    tracks_after: int | None = None
+    remove: list[PlanTrack] | None = None
+    moved: int | None = Field(None, description="Reorders: tracks whose number changes.")
+    new_order: list[PlanTrack] | None = Field(None, description="Reorders: every track in its new place.")
+    new_order_truncated: bool | None = None
+    changes: dict[str, DetailChange] | None = Field(None, description="Renames and descriptions: field: from → to.")
+    applied: PlanApplied | None
+    warnings: list[ResultWarning]
+    next_step: str
+
+
+class PlanCheck(_Out):
+    applicable: bool = Field(description="The plan can still be applied to the playlist as it is now.")
+    same_snapshot: bool | None = None
+    same_items: bool | None = None
+    same_values: bool | None = None
+    current: dict[str, str] | None = None
+
+
+class PlanShow(_Out):
+    plan: Plan
+    check: PlanCheck | None
+
+
+class PlanApply(_Out):
+    status: Literal["applied", "declined", "cancelled"]
+    plan_id: str
+    verified: bool | None = None
+    operations_done: int | None = None
+    current: dict[str, str] | None = None
+    warnings: list[ResultWarning] = []
+    next_step: str | None = None

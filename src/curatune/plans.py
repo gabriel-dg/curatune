@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import time
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ from . import _writes
 from .errors import ApplyFailed, PlanError, SnapshotMismatch, CuratuneError, VerificationFailed
 from .http import SpotifyClient
 from .models import compact_item
+from .ordering import SORT_KEYS, sorted_order
 from .playlists import (
     MAX_URIS_PER_REQUEST,
     chunks,
@@ -33,6 +35,9 @@ from .recordings import RecordingStore, chronological_order
 
 PLAN_SCHEMA_VERSION = 1
 PLAN_KINDS = ("remove", "reorder", "details")
+# "<UTC timestamp>-<kind>-<first 8 chars of the playlist ID>-<4 hex>", as `_finalize` builds it.
+PLAN_ID_RE = re.compile(r"^\d{8}T\d{6}Z-(?:remove|reorder|details)-[A-Za-z0-9]{1,8}-[0-9a-f]{4}$")
+REORDER_SORT_KEYS = (*SORT_KEYS, "recorded")
 MAX_RANGE_LENGTH = 100
 
 
@@ -251,14 +256,24 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def plan_path_for_id(plan_id: str, plans_dir: Path) -> Path:
+    """The plan file for a plan_id, never anything else: the ID must have the plan-ID shape, so it can't
+    point outside `plans_dir` (the MCP server accepts only IDs)."""
+    if not isinstance(plan_id, str) or not PLAN_ID_RE.match(plan_id):
+        raise PlanError("Not a plan ID.", code="PLAN_NOT_FOUND", details={"ref": plan_id})
+    path = plans_dir / f"{plan_id}.json"
+    if not path.exists():
+        raise PlanError("Plan not found.", code="PLAN_NOT_FOUND", details={"ref": plan_id})
+    return path
+
+
 def resolve_plan_path(ref: str, plans_dir: Path) -> Path:
-    """Accept a path to a plan file or a bare plan_id."""
+    """Accept a path to a plan file (the CLI user's own choice) or a bare plan_id."""
     candidate = Path(ref)
     if candidate.suffix == ".json" and candidate.exists():
         return candidate
-    by_id = plans_dir / f"{ref}.json"
-    if by_id.exists():
-        return by_id
+    if PLAN_ID_RE.match(ref) and (plans_dir / f"{ref}.json").exists():
+        return plans_dir / f"{ref}.json"
     raise PlanError("Plan not found.", code="PLAN_NOT_FOUND", details={"ref": ref, "plans_dir": str(plans_dir)})
 
 
@@ -381,18 +396,37 @@ def build_reorder_plan(
     move: tuple[int, int] | None = None,
     recordings: RecordingStore | None = None,
     reason: str | None = None,
+    sort_by: str | None = None,
+    descending: bool = False,
 ) -> dict[str, Any]:
-    """Exactly one of `new_order`, `move`, or `recordings` (order by recording date) must be given."""
+    """Exactly one of `new_order`, `move`, or `sort_by` must be given.
+
+    `sort_by` is one of REORDER_SORT_KEYS (rules in `ordering.py`); "recorded" orders by the recording
+    store, which must be passed as `recordings`. Passing `recordings` alone means `sort_by="recorded"`.
+    `descending` applies to `sort_by` only; ties keep their current order either way.
+    """
+    if recordings is not None and sort_by is None:
+        sort_by = "recorded"
+    if sum(x is not None for x in (new_order, move, sort_by)) != 1:
+        raise PlanError("Provide exactly one of new_order, move, or sort_by.")
+    if descending and sort_by is None:
+        raise PlanError("descending only applies to sort_by.")
+    if sort_by is not None and sort_by not in REORDER_SORT_KEYS:
+        raise PlanError("Unknown sort key.", details={"sort_by": sort_by, "allowed": list(REORDER_SORT_KEYS)})
+    if sort_by == "recorded" and recordings is None:
+        raise PlanError("Ordering by recording date needs the recording store.")
+
     state = get_playlist(client, playlist_ref)  # no market: plans need the stored URIs
     require_editable(state["playlist"])
     count = len(state["items"])
 
-    if sum(x is not None for x in (new_order, move, recordings)) != 1:
-        raise PlanError("Provide exactly one of new_order, move, or recordings.")
     if move is not None:
         new_order = order_from_move(count, *move)
-    if recordings is not None:
-        new_order = chronological_order(state["items"], recordings.load())
+    elif sort_by == "recorded":
+        assert recordings is not None
+        new_order = chronological_order(state["items"], recordings.load(), descending=descending)
+    elif sort_by is not None:
+        new_order = sorted_order(state["items"], sort_by, descending=descending)
     assert new_order is not None
     if sorted(new_order) != list(range(count)):
         raise PlanError(

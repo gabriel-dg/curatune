@@ -71,8 +71,20 @@ its phases are in `PLAN-mcp.md`.
 - No tool takes a visibility option or a file path. `playlist_create` always requests private.
 - The tool descriptions and `mcp_server/instructions.py` carry the skill's rules (tests check them). When a
   rule changes in the skill, change it there too.
-- Removals, reorders, and renames are not exposed yet. They come in phase 2 of `PLAN-mcp.md`, as plans
-  that a human confirms outside the model's reach (elicitation, or a local page and a one-time code).
+- Removals, reorders, and renames are plans (`plan_*` build them; changing nothing). **`plan_apply` applies
+  one only after the person answers the client's dialog** (MCP form elicitation; `mcp_server/confirm.py`):
+  - its confirmation is filled by resolvers, never by tool arguments (the input schema is `plan_id` only);
+    don't add an argument that could stand in for the answer;
+  - the question is built from the plan file alone (no live data, so it is identical on every multi
+    round-trip round), with third-party text cleaned; the model-written `reason` is not shown;
+  - no form elicitation, a forced `CURATUNE_MCP_CONFIRM=browser` (not built yet), an invalid or applied
+    plan, or anything but "accept" with "Apply this plan" checked: nothing is applied;
+  - it accepts plan IDs only (`plans.plan_path_for_id`), and applies through `plans.apply_plan`, which
+    keeps every CLI check (snapshot, items, backup, verification);
+  - results and errors never carry local paths (`*_path`, `*_dir` keys are dropped).
+  The tests (`tests/test_mcp_plans.py`) play the user in both protocol eras; keep them passing.
+- Server instructions must stay under 2048 characters (Claude Code truncates there; a test checks it).
+  Rules that matter for one tool go in that tool's description.
 - stdout belongs to the protocol; logs go to stderr. Writes (create, add, recording dates) take a
   process-wide lock; each call gets its own `SpotifyClient`; one `TokenManager` serves them all.
 
@@ -125,6 +137,10 @@ its phases are in `PLAN-mcp.md`.
   200 without effect (confirmed in the app too). `create_playlist` re-reads and reports real visibility.
 - `PUT /playlists/{id}` with `name` and/or `description` **is** applied, and visible on the first read-back
   (both verified live 2026-09-24, including a rename and description change in a single call).
+- A playlist created through the API without a description (no `description` key in `POST /me/playlists`)
+  reads back with the **literal string `"null"`** as its description (verified live 2026-10-01; the
+  user's other playlists without a description read back `""`). `models.normalize_playlist` reports it
+  as `""`. Whether sending `"description": ""` on create avoids it is unverified.
 - Batch fetch endpoints (`GET /tracks?ids=` etc.) were removed; only single-item fetches remain.
 - `GET /search`: max `limit` 10; paginate with `offset`. Batch search runs ≤4 requests concurrently.
 - `DELETE …/items` takes URIs only and removes **every** occurrence of a URI (verified live); plans

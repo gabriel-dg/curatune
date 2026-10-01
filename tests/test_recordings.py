@@ -122,3 +122,10 @@ def test_playlist_recordings_reports_missing_and_chronology(store):
     assert [m["position"] for m in result["missing"]] == [1]
     assert result["chronological"] is False
     assert result["items"][0]["matched_by"] == "uri"
+
+
+def test_chronological_order_descending_keeps_ties_in_current_order(store):
+    items = [{"position": i, "uri": track_uri(i), "name": "x"} for i in range(4)]
+    store.upsert([entry(0, "1947"), entry(1, "1945-11-26"), entry(2, "1945-11-26"), entry(3, "1939")])
+    assert recordings.chronological_order(items, store.load(), descending=True) == [0, 1, 2, 3]
+    assert recordings.chronological_order(items, store.load()) == [3, 1, 2, 0]
