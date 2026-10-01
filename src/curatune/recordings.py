@@ -84,16 +84,32 @@ class RecordingStore:
         tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8")
         tmp.replace(self.path)
 
-    def upsert(self, raw_entries: list[dict[str, Any]]) -> dict[str, Any]:
+    def upsert(self, raw_entries: list[dict[str, Any]], overwrite: bool = True) -> dict[str, Any]:
+        """Store entries. With `overwrite=False`, entries already stored are left as they are and listed
+        in `skipped` (stored dates may be hand-curated)."""
         if not isinstance(raw_entries, list) or not raw_entries:
             raise InvalidArgument("Expected a non-empty JSON array of recording entries.")
-        validated = [validate_entry(raw) for raw in raw_entries]  # all-or-nothing
+        validated = dict(validate_entry(raw) for raw in raw_entries)  # all-or-nothing; a repeated uri: last wins
         data = self.load()
-        created = [uri for uri, _ in validated if uri not in data]
-        for uri, entry in validated:
+        created, updated, skipped = [], [], []
+        for uri, entry in validated.items():
+            if uri not in data:
+                created.append(uri)
+            elif not overwrite:
+                skipped.append(uri)
+                continue
+            else:
+                updated.append(uri)
             data[uri] = entry
-        self.save(data)
-        return {"created": len(created), "updated": len(validated) - len(created), "total": len(data), "path": str(self.path)}
+        if created or updated:
+            self.save(data)
+        return {
+            "created": len(created),
+            "updated": len(updated),
+            "skipped": skipped,
+            "total": len(data),
+            "path": str(self.path),
+        }
 
 
 def _lookup(data: dict[str, dict[str, Any]], uri: str | None, isrc: str | None) -> tuple[dict[str, Any] | None, str | None]:

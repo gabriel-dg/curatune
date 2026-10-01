@@ -4,8 +4,9 @@ Formerly spotikit. curatune is not affiliated with, endorsed by, or sponsored by
 trademark of Spotify AB.
 
 Work with your own Spotify playlists by asking an AI agent in plain language. curatune is the deterministic
-part: a Python library (`src/curatune`) plus a thin CLI that prints one JSON document per call. The
-judgment (what to add, what counts as a duplicate, how to rank) comes from the agent, not from this code.
+part: a Python library (`src/curatune`) plus a thin CLI that prints one JSON document per call, and an
+optional local MCP server for MCP clients such as Claude Desktop. The judgment (what to add, what counts as
+a duplicate, how to rank) comes from the agent, not from this code.
 
 ## What you can do
 
@@ -51,6 +52,14 @@ The skill uses the open [Agent Skills](https://agentskills.io) format. Agents th
 allow curatune network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
 outside the repository (see `CURATUNE_TOKEN_DIR` below). Personal preferences, such as your language or
 per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the repository root.
+
+### Through MCP
+
+Clients that speak the [Model Context Protocol](https://modelcontextprotocol.io), such as Claude Desktop,
+Claude Code, or LM Studio, can use curatune without the repository's skill: install the `mcp` extra and add
+`curatune-mcp` as a local server. Its tools carry the same rules. This version reads, searches, creates,
+adds, and keeps recording dates; removals, reorders, and renames still go through the CLI. Setup, tools, and
+the differences from the CLI are in **[docs/mcp.md](docs/mcp.md)**.
 
 ## How changes stay safe
 
@@ -164,14 +173,18 @@ src/curatune/
   models.py      normalization to the documented JSON shapes (full and brief)
   metrics.py     per-command HTTP timing
   cli.py         thin argparse layer emitting the JSON envelope
+  mcp_server/    thin MCP server (stdio) over the same library; optional extra `curatune[mcp]`
 .agents/skills/curatune/SKILL.md   how an AI agent uses curatune (shared skill)
 docs/reference.md                  CLI contract and API notes
+docs/mcp.md                        MCP server: setup, tools, differences from the CLI
 ```
 
 ```bash
-.venv/Scripts/python -m pytest   # .venv/bin/python on macOS/Linux
+.venv/Scripts/python -m pip install -e ".[dev,mcp]"   # .venv/bin/python on macOS/Linux
+.venv/Scripts/python -m pytest
 ```
 
 Plan logic runs against an in-memory fake of the playlist API (including snapshot read lag), the HTTP
-client against a scripted session, and the OAuth callback against a real local server. No test calls
-Spotify.
+client against a scripted session, the OAuth callback against a real local server, and the MCP server
+through an in-memory MCP client in both protocol eras (skipped without the `mcp` extra). No test calls
+Spotify. CI runs the suite on Windows and Linux, with and without the extra.

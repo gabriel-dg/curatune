@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import _writes
-from .errors import ApiError, DuplicateName, Forbidden, InvalidArgument
+from .errors import ApiError, CuratuneError, DuplicateName, Forbidden, InvalidArgument
 from .http import SpotifyClient
 from .models import normalize_playlist, normalize_playlist_item
 from .refs import normalize_item_uri, parse_id
@@ -228,14 +228,56 @@ def add_items(
             insert_at += len(chunk)
 
     start = position if position is not None else count
+    expected = [item["uri"] for item in state["items"]]
+    expected[start:start] = to_add
     if to_add and client.write_log is not None:
-        expected = [item["uri"] for item in state["items"]]
-        expected[start:start] = to_add
         client.write_log.record(playlist["id"], snapshot_id, expected)
+
+    # Read back: confirms the result and names what was added, so a wrong ID shows up at once. The tracks
+    # are already added at this point, so a failed read is reported as unverified, never as a failure.
+    read_error = None
+    try:
+        final = get_playlist(client, playlist["id"])["items"] if to_add else state["items"]
+    except CuratuneError as exc:
+        final, read_error = [], exc.code
+    verified = read_error is None and [item["uri"] for item in final] == expected
+    added = []
+    for i, uri in enumerate(to_add):
+        pos = start + i
+        item = final[pos] if pos < len(final) and final[pos]["uri"] == uri else None
+        added.append(
+            {
+                "uri": uri,
+                "position": pos,
+                "name": item["name"] if item else None,
+                "artists": [a["name"] for a in item["artists"]] if item else [],
+            }
+        )
+    warnings = []
+    if read_error is not None:
+        warnings.append(
+            {
+                "code": "ADD_NOT_VERIFIED",
+                "message": "Spotify accepted the addition, but reading the playlist back failed. Check the playlist.",
+                "read_error": read_error,
+            }
+        )
+    elif not verified:
+        warnings.append(
+            {
+                "code": "ADD_NOT_VERIFIED",
+                "message": "Spotify accepted the addition, but reading the playlist back shows a different item "
+                "list (another change may have happened at the same time). Check the playlist.",
+                "expected_item_count": len(expected),
+                "read_item_count": len(final),
+            }
+        )
     return {
         "playlist_id": playlist["id"],
-        "added": [{"uri": uri, "position": start + i} for i, uri in enumerate(to_add)],
+        "added": added,
         "skipped": skipped,
         "item_count": count + len(to_add),
         "snapshot_id": snapshot_id,
+        "verified": verified,
+        "warnings": warnings,
     }

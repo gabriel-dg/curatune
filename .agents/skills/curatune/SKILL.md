@@ -109,7 +109,7 @@ authorization. Do not try to work around it.
 | `playlists list [--owned-only]` | The user's playlists. |
 | `playlist show <playlist> [--market CC] [--brief]` | Metadata and all items (position, name, artists, album, duration, ISRC, URI; the full output adds `added_at` and more). |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** See the visibility note below. |
-| `playlist add <playlist> [refs…] [--from-file F] [--position N] [--allow-duplicates]` | **Executes.** Appends by default. Skips URIs already present. |
+| `playlist add <playlist> [refs…] [--from-file F] [--position N] [--allow-duplicates]` | **Executes.** Appends by default. Skips URIs already present. Reads the playlist back: each added item has its `name` and `artists`, and `verified` confirms the result. |
 | `search tracks [q] [--track --artist --album --year] [--limit ≤10] [--offset N] [--brief]` | One search, 10 results at most. |
 | `search tracks --from-file queries.json [--workers 1-4] [--brief]` | **Batch**: many searches concurrently, results in input order. Prefer it whenever there is more than one search. |
 | `track show <track>` | One track, with ISRC. |
@@ -155,7 +155,8 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
 **Add tracks.**
 1. Pick the tracks.
 2. Run one `playlist add` with all URIs.
-3. Report what was added and why, plus any doubts.
+3. Report what was added (names from the result, which come from reading the playlist back) and why, plus
+   any doubts. A name that isn't the track you meant means a wrong URI: say so.
 4. If the playlist is kept in an order (for example chronological): store the new tracks' recording dates
    with `recordings set`, then propose `plan reorder --by-recording-date` and wait for the OK.
 
@@ -232,6 +233,7 @@ To set a description when creating a playlist, use `playlist create --descriptio
 | `DUPLICATE_NAME` | On create (error): ask whether to reuse the existing playlist or create another one (`--allow-duplicate-name`). On `plan details` (warning): tell the user another playlist already has that name before asking for the OK. |
 | `RECORDING_DATES_MISSING` | Research and `recordings set` the listed items, then retry. |
 | `NO_CHANGES` | The playlist is already in the requested order, or already has that name or description. |
+| `ADD_NOT_VERIFIED` (warning) | The tracks were added, but the playlist read back differs from what was expected (someone may have changed it at the same time), or the read failed (`read_error`). Run `playlist show --brief` and tell the user what it holds. Don't add again blindly. |
 | `DETAILS_NOT_CONFIRMED` (warning) | The rename or description change was accepted, but reads still show the old values. Tell the user it may be read lag or an ignored change, and to check in the Spotify app. |
 | `SNAPSHOT_MISMATCH` | Nothing changed. Regenerate the plan and ask for approval again. |
 | `APPLY_FAILED` / `VERIFICATION_FAILED` | Report it with `backup_path`. Do not retry blindly. |
