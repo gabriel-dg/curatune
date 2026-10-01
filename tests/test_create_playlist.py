@@ -2,8 +2,8 @@
 
 import pytest
 
-from spotikit import playlists
-from spotikit.errors import DuplicateName
+from curatune import playlists
+from curatune.errors import DuplicateName
 
 NEW_ID = "NeWpLaYlIsTiD000000000"  # synthetic, 22 chars
 

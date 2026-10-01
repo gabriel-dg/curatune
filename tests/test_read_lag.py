@@ -2,9 +2,9 @@
 
 import pytest
 
-from spotikit import plans, playlists
-from spotikit.errors import SnapshotMismatch
-from spotikit.writelog import WriteLog
+from curatune import plans, playlists
+from curatune.errors import SnapshotMismatch
+from curatune.writelog import WriteLog
 
 from .fakes import PLAYLIST_ID, FakeSpotify, track_uri
 

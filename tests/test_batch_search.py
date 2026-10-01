@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from spotikit import catalog
-from spotikit.errors import InvalidArgument, NotFound
+from curatune import catalog
+from curatune.errors import InvalidArgument, NotFound
 
 
 class Tokens:

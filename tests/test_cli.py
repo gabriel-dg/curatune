@@ -2,16 +2,16 @@ import json
 
 import pytest
 
-from spotikit import catalog, cli
+from curatune import catalog, cli
 
 from .fakes import PLAYLIST_ID, FakeSpotify, track_uri
 
 
 @pytest.fixture
 def offline_settings(monkeypatch, tmp_path):
-    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path / "repo"))
-    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
-    monkeypatch.delenv("SPOTIKIT_MARKET", raising=False)
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.delenv("CURATUNE_MARKET", raising=False)
 
 
 BRIEF_KEYS = {"uri", "name", "artists", "album", "released", "duration", "isrc", "playable"}
@@ -59,16 +59,16 @@ def test_usage_error_is_json(capsys):
 
 
 def test_plan_show_missing_plan_is_json_error(capsys, monkeypatch, tmp_path):
-    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path / "repo"))
-    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
     code, out = _run(capsys, ["plan", "show", "nope"])
     assert code == 1
     assert out["error"]["code"] == "PLAN_NOT_FOUND"
 
 
 def test_auth_status_logged_out(capsys, monkeypatch, tmp_path):
-    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path / "repo"))
-    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
     code, out = _run(capsys, ["auth", "status"])
     assert code == 0
     meta = out.pop("meta")

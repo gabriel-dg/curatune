@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from spotikit import plans, recordings
-from spotikit.errors import InvalidArgument, PlanError
-from spotikit.recordings import RecordingStore
+from curatune import plans, recordings
+from curatune.errors import InvalidArgument, PlanError
+from curatune.recordings import RecordingStore
 
 from .fakes import PLAYLIST_ID, FakeSpotify, track_uri
 

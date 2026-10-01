@@ -1,14 +1,14 @@
 ---
-name: spotikit
-description: Work with the user's own Spotify playlists through the spotikit CLI in this repository. List and read playlists, search the catalog, create playlists, add tracks, plan and apply removals or reorders, and keep recording-date metadata. Use for any request about the user's Spotify playlists, such as curating, completing, de-duplicating, ranking, analyzing, or reordering them.
+name: curatune
+description: Work with the user's own Spotify playlists through the curatune CLI in this repository. List and read playlists, search the catalog, create playlists, add tracks, plan and apply removals or reorders, and keep recording-date metadata. Use for any request about the user's Spotify playlists, such as curating, completing, de-duplicating, ranking, analyzing, or reordering them.
 ---
 
-# spotikit: working with the user's Spotify playlists
+# curatune: working with the user's Spotify playlists
 
-The user asks in natural language. You fulfil the request by combining spotikit commands. The user
+The user asks in natural language. You fulfil the request by combining curatune commands. The user
 never runs commands by hand.
 
-- **spotikit is the execution layer.** It runs deterministic API operations and returns JSON. It
+- **curatune is the execution layer.** It runs deterministic API operations and returns JSON. It
   contains no judgment.
 - **You are the judgment layer.** You interpret the request, apply domain knowledge (and web search
   when needed), choose recordings, and explain every decision, including your confidence in it.
@@ -22,13 +22,13 @@ The working directory is already the repository root. Use the prefix for your sh
 
 | Shell | OS | Command prefix |
 |---|---|---|
-| PowerShell | Windows | `.\.venv\Scripts\spotikit.exe` |
-| Bash (Git Bash) | Windows | `.venv/Scripts/spotikit.exe` |
-| Bash | macOS, Linux | `.venv/bin/spotikit` |
+| PowerShell | Windows | `.\.venv\Scripts\curatune.exe` |
+| Bash (Git Bash) | Windows | `.venv/Scripts/curatune.exe` |
+| Bash | macOS, Linux | `.venv/bin/curatune` |
 
-**One spotikit command per tool call, exactly as `<prefix> <command> <args>`.** Do not add `cd`, loops,
+**One curatune command per tool call, exactly as `<prefix> <command> <args>`.** Do not add `cd`, loops,
 pipes, `&&`, or inline scripts. Agents that pre-approve the read-only commands (Claude Code does, through
-`.claude/skills/spotikit/SKILL.md`) only match that exact shape, and one command per call keeps failures
+`.claude/skills/curatune/SKILL.md`) only match that exact shape, and one command per call keeps failures
 isolated.
 
 Every call prints one JSON envelope:
@@ -94,8 +94,8 @@ authorization. Do not try to work around it.
 - Rename or change a description **only when the user asks for it**. Never propose it as a side effect of
   another task.
 - If `plan apply` returns `SNAPSHOT_MISMATCH`, nothing was changed. Regenerate the plan and ask again.
-- **Never change a playlist's visibility.** spotikit has no command for it, on purpose.
-- If the user asks for something spotikit leaves out on purpose (see "What spotikit won't do" in
+- **Never change a playlist's visibility.** curatune has no command for it, on purpose.
+- If the user asks for something curatune leaves out on purpose (see "What curatune won't do" in
   `README.md`), explain that it is a deliberate protection, not a missing feature, and say how to do it in
   the Spotify app. Examples: deleting a playlist, changing visibility, touching liked songs or playback.
   Never work around it with other tools or scripts.
@@ -160,7 +160,7 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
    with `recordings set`, then propose `plan reorder --by-recording-date` and wait for the OK.
 
 **Create a playlist.**
-- Spotify currently ignores `public: false`, and spotikit reports `VISIBILITY_NOT_APPLIED`.
+- Spotify currently ignores `public: false`, and curatune reports `VISIBILITY_NOT_APPLIED`.
 - Tell the user the playlist is public and that they can make it private in the Spotify app.
 - Never claim it is private.
 - If the new playlist must be in an order (for example chronological), decide the order first and add
@@ -224,7 +224,7 @@ To set a description when creating a playlist, use `playlist create --descriptio
 | Code | Action |
 |---|---|
 | `SNAPSHOT_READ_LAG` (warning) | Normal right after a write. Nothing to do. |
-| `ITEM_COUNT_READ_LAG` (warning) | Normal right after a write: the listed counts were stale and the ones spotikit's writes left are shown. Nothing to do; `playlist show` gives the exact items. |
+| `ITEM_COUNT_READ_LAG` (warning) | Normal right after a write: the listed counts were stale and the ones curatune's writes left are shown. Nothing to do; `playlist show` gives the exact items. |
 | `YEAR_IS_RELEASE_YEAR` (warning) | `--year` matches the edition's release year. Don't use it to find period recordings on later compilations. |
 | `VISIBILITY_NOT_APPLIED` / `VISIBILITY_UNVERIFIED` | Tell the user the playlist is or may be public. |
 | `LOCAL_FILES`, `UNAVAILABLE_ITEMS` | Mention them. Items without a URI cannot be removed through the API. |

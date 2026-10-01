@@ -109,9 +109,9 @@ def _wait_for_callback(port: int, expected_state: str, timeout: float) -> str:
             state_ok = hmac.compare_digest(result["state"] or "", expected_state)
             ok = state_ok and result["code"] and not result["error"]
             message = (
-                "spotikit: authorization received. You can close this tab."
+                "curatune: authorization received. You can close this tab."
                 if ok
-                else "spotikit: authorization failed. Check the terminal output."
+                else "curatune: authorization failed. Check the terminal output."
             )
             body = f"<html><body><p>{message}</p></body></html>".encode("utf-8")
             self.send_response(200)
@@ -165,7 +165,7 @@ class TokenStore:
             return json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             raise AuthRequired(
-                "The stored token file is unreadable. Run `spotikit auth login`.",
+                "The stored token file is unreadable. Run `curatune auth login`.",
                 details={"token_path": str(self.path)},
             ) from None
 
@@ -219,7 +219,7 @@ class TokenManager:
         url = build_authorize_url(client_id, redirect_uri, code_challenge_for(verifier), state)
 
         # stderr only: stdout is reserved for the JSON result.
-        print(f"Open this URL to authorize spotikit:\n{url}", file=sys.stderr, flush=True)
+        print(f"Open this URL to authorize curatune:\n{url}", file=sys.stderr, flush=True)
         if open_browser:
             webbrowser.open(url)
 
@@ -291,10 +291,10 @@ class TokenManager:
     def _load_required(self) -> dict[str, Any]:
         token = self.store.load()
         if not token:
-            raise AuthRequired("Not logged in. Run `spotikit auth login`.")
+            raise AuthRequired("Not logged in. Run `curatune auth login`.")
         if self.settings.client_id and token.get("client_id") != self.settings.client_id:
             raise AuthRequired(
-                "The stored token belongs to a different client ID. Run `spotikit auth login`.",
+                "The stored token belongs to a different client ID. Run `curatune auth login`.",
                 details={"token_path": str(self.store.path)},
             )
         return token
@@ -313,7 +313,7 @@ class TokenManager:
             authorized_at = token.get("authorized_at")
             raise AuthExpired(
                 "The refresh token is expired or revoked (Spotify refresh tokens last 6 months from the "
-                "original authorization). The stored token was discarded; run `spotikit auth login`.",
+                "original authorization). The stored token was discarded; run `curatune auth login`.",
                 details={
                     "authorized_at": authorized_at,
                     "refresh_expires_approx": (

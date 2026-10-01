@@ -18,10 +18,10 @@ SCOPES = ("playlist-read-private", "playlist-modify-public", "playlist-modify-pr
 
 
 def _project_root() -> Path:
-    override = os.environ.get("SPOTIKIT_PROJECT_DIR")
+    override = os.environ.get("CURATUNE_PROJECT_DIR")
     if override:
         return Path(override).expanduser().resolve()
-    # Editable install (src layout): src/spotikit/config.py -> project root is two levels up from src.
+    # Editable install (src layout): src/curatune/config.py -> project root is two levels up from src.
     candidate = Path(__file__).resolve().parents[2]
     if (candidate / "pyproject.toml").exists():
         return candidate
@@ -31,9 +31,9 @@ def _project_root() -> Path:
 def _default_token_dir() -> Path:
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-        return Path(base) / "spotikit"
+        return Path(base) / "curatune"
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "spotikit"
+    return Path(base) / "curatune"
 
 
 @dataclass(frozen=True)
@@ -100,14 +100,14 @@ def _parse_port(raw: str | None) -> int:
 def load_settings() -> Settings:
     root = _project_root()
     load_dotenv(root / ".env", override=False)
-    token_dir_raw = os.environ.get("SPOTIKIT_TOKEN_DIR")
+    token_dir_raw = os.environ.get("CURATUNE_TOKEN_DIR")
     token_dir = Path(token_dir_raw).expanduser().resolve() if token_dir_raw else _default_token_dir()
     if token_dir.resolve().is_relative_to(root):
         raise ConfigError(
             "The token directory must be outside the project repository.",
             details={"token_dir": str(token_dir), "project_root": str(root)},
         )
-    market = (os.environ.get("SPOTIKIT_MARKET") or "").strip().upper() or None
+    market = (os.environ.get("CURATUNE_MARKET") or "").strip().upper() or None
     return Settings(
         project_root=root,
         client_id=(os.environ.get("SPOTIFY_CLIENT_ID") or "").strip() or None,

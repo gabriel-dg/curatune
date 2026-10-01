@@ -1,8 +1,8 @@
 import pytest
 
-from spotikit.errors import InvalidReference
-from spotikit.models import format_duration, normalize_playlist_item
-from spotikit.refs import normalize_item_uri, parse_id
+from curatune.errors import InvalidReference
+from curatune.models import format_duration, normalize_playlist_item
+from curatune.refs import normalize_item_uri, parse_id
 
 PID = "AbCdEfGhIjKlMnOpQrStUv"  # synthetic
 

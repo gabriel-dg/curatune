@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
-class SpotikitError(Exception):
+class CuratuneError(Exception):
     code = "ERROR"
 
     def __init__(self, message: str, *, details: dict[str, Any] | None = None, code: str | None = None):
@@ -19,63 +19,63 @@ class SpotikitError(Exception):
         return {"code": self.code, "message": self.message, "details": self.details}
 
 
-class ConfigError(SpotikitError):
+class ConfigError(CuratuneError):
     code = "CONFIG_ERROR"
 
 
-class AuthRequired(SpotikitError):
+class AuthRequired(CuratuneError):
     code = "AUTH_REQUIRED"
 
 
-class AuthExpired(SpotikitError):
+class AuthExpired(CuratuneError):
     """The refresh token expired (6-month limit) or was revoked. A new login is required."""
 
     code = "AUTH_EXPIRED"
 
 
-class AuthError(SpotikitError):
+class AuthError(CuratuneError):
     code = "AUTH_ERROR"
 
 
-class InvalidReference(SpotikitError):
+class InvalidReference(CuratuneError):
     code = "INVALID_REFERENCE"
 
 
-class InvalidArgument(SpotikitError):
+class InvalidArgument(CuratuneError):
     code = "INVALID_ARGUMENT"
 
 
-class NotFound(SpotikitError):
+class NotFound(CuratuneError):
     code = "NOT_FOUND"
 
 
-class Forbidden(SpotikitError):
+class Forbidden(CuratuneError):
     code = "FORBIDDEN"
 
 
-class RateLimited(SpotikitError):
+class RateLimited(CuratuneError):
     code = "RATE_LIMITED"
 
 
-class ApiError(SpotikitError):
+class ApiError(CuratuneError):
     code = "API_ERROR"
 
 
-class DuplicateName(SpotikitError):
+class DuplicateName(CuratuneError):
     code = "DUPLICATE_NAME"
 
 
-class PlanError(SpotikitError):
+class PlanError(CuratuneError):
     code = "PLAN_INVALID"
 
 
-class SnapshotMismatch(SpotikitError):
+class SnapshotMismatch(CuratuneError):
     code = "SNAPSHOT_MISMATCH"
 
 
-class ApplyFailed(SpotikitError):
+class ApplyFailed(CuratuneError):
     code = "APPLY_FAILED"
 
 
-class VerificationFailed(SpotikitError):
+class VerificationFailed(CuratuneError):
     code = "VERIFICATION_FAILED"

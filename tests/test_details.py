@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from spotikit import _writes, plans
-from spotikit.errors import PlanError, SnapshotMismatch
+from curatune import _writes, plans
+from curatune.errors import PlanError, SnapshotMismatch
 
 from .fakes import PLAYLIST_ID, FakeSpotify, track_uri
 

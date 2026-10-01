@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _writes
-from .errors import ApplyFailed, PlanError, SnapshotMismatch, SpotikitError, VerificationFailed
+from .errors import ApplyFailed, PlanError, SnapshotMismatch, CuratuneError, VerificationFailed
 from .http import SpotifyClient
 from .models import compact_item
 from .playlists import (
@@ -492,7 +492,7 @@ def apply_plan(client: SpotifyClient, path: Path, backups_dir: Path) -> dict[str
     for op in plan["operations"]:
         try:
             snapshot_id = _execute(client, playlist_id, op, snapshot_id)
-        except SpotikitError as exc:
+        except CuratuneError as exc:
             if client.write_log is not None:
                 client.write_log.forget(playlist_id)  # state is unknown now; do not vouch for it
             raise ApplyFailed(
@@ -674,7 +674,7 @@ def _apply_details(client: SpotifyClient, path: Path, plan: dict[str, Any], back
 
     try:
         _writes.set_details(client, playlist_id, plan["after"])
-    except SpotikitError as exc:
+    except CuratuneError as exc:
         raise ApplyFailed(
             "Changing the playlist details failed; nothing was changed.",
             details={"operations_done": 0, "error": exc.to_dict(), "backup_path": str(backup_path)},

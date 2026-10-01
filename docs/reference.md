@@ -1,7 +1,7 @@
-# spotikit reference
+# curatune reference
 
-Details of the CLI's JSON contract, the plan mechanism, and the known Spotify API quirks spotikit handles.
-For what spotikit does and how to set it up, see the [README](../README.md).
+Details of the CLI's JSON contract, the plan mechanism, and the known Spotify API quirks curatune handles.
+For what curatune does and how to set it up, see the [README](../README.md).
 
 ## Authorization
 
@@ -10,7 +10,7 @@ OAuth 2.0 Authorization Code with PKCE (S256). `state` is random per login and v
 before any other callback parameter is used. The token file lives outside the repository. Spotify refresh
 tokens expire 6 months after the original authorization; refreshing does not extend that. When Spotify
 answers `invalid_grant`, the stored token is deleted and commands fail with `AUTH_EXPIRED`: run
-`spotikit auth login` again. `auth status` shows the estimated expiry.
+`curatune auth login` again. `auth status` shows the estimated expiry.
 
 ## Output contract
 
@@ -18,7 +18,7 @@ answers `invalid_grant`, the stored token is deleted and commands fail with `AUT
 ```jsonc
 // success (exit 0)
 {"schema_version": 1, "ok": true, "command": "playlist show", "data": { ... }, "warnings": [ ... ]}
-// failure (exit 1 = spotikit error, 2 = usage, 3 = internal, 130 = interrupted)
+// failure (exit 1 = curatune error, 2 = usage, 3 = internal, 130 = interrupted)
 {"schema_version": 1, "ok": false, "command": "plan apply", "error": {"code": "SNAPSHOT_MISMATCH", "message": "...", "details": { ... }}}
 ```
 
@@ -204,16 +204,16 @@ Spotify only knows an edition's release date. Recording dates are researched els
 
 Spotify ignores `public: false` when creating a playlist through the API, while its response echoes
 the requested value (a long-standing issue, confirmed live on 2026-09-23). A later
-`PUT /playlists/{id}` with `public: false` was also accepted (200) without effect. spotikit therefore
+`PUT /playlists/{id}` with `public: false` was also accepted (200) without effect. curatune therefore
 re-reads visibility after creating a playlist and warns with `VISIBILITY_NOT_APPLIED` (or
 `VISIBILITY_UNVERIFIED` if the read says private). Make a playlist private from the Spotify app.
-spotikit never changes the visibility of existing playlists.
+curatune never changes the visibility of existing playlists.
 
 ## Snapshot read lag
 
 
 After a write, Spotify keeps returning the previous `snapshot_id` on reads for a few minutes, while the
-item list is already current. spotikit records the snapshot returned by each of its own writes (create,
+item list is already current. curatune records the snapshot returned by each of its own writes (create,
 add, apply) together with the expected URI list in `data/write_log.json`. A market-less read whose items
 match that record exactly, within 15 minutes of the write, uses the recorded snapshot and emits
 `SNAPSHOT_READ_LAG`. Any other difference is treated as a real change. The URI list check in `plan apply`
@@ -240,8 +240,8 @@ Warning codes (in `warnings`; the command still succeeded):
 
 | Code | Meaning |
 |---|---|
-| `SNAPSHOT_READ_LAG` | The read returned a stale `snapshot_id`; the one from spotikit's last write is used. |
-| `ITEM_COUNT_READ_LAG` | The playlist list returned stale item counts; the counts left by spotikit's recent writes are used (`playlists`: `playlist_id`, `listed_item_count`, `item_count`). |
+| `SNAPSHOT_READ_LAG` | The read returned a stale `snapshot_id`; the one from curatune's last write is used. |
+| `ITEM_COUNT_READ_LAG` | The playlist list returned stale item counts; the counts left by curatune's recent writes are used (`playlists`: `playlist_id`, `listed_item_count`, `item_count`). |
 | `LOCAL_FILES` | The playlist contains local files. |
 | `UNAVAILABLE_ITEMS` | Some items have no track object and no URI. |
 | `YEAR_IS_RELEASE_YEAR` | `--year` filters on the edition's release year, not the recording year. |

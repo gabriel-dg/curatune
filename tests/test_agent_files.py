@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SHARED_SKILL = ROOT / ".agents" / "skills" / "spotikit" / "SKILL.md"
-CLAUDE_SKILL = ROOT / ".claude" / "skills" / "spotikit" / "SKILL.md"
+SHARED_SKILL = ROOT / ".agents" / "skills" / "curatune" / "SKILL.md"
+CLAUDE_SKILL = ROOT / ".claude" / "skills" / "curatune" / "SKILL.md"
 
 
 def frontmatter(path):
@@ -22,7 +22,7 @@ def frontmatter(path):
 
 def test_claude_entry_point_matches_shared_skill():
     shared, claude = frontmatter(SHARED_SKILL), frontmatter(CLAUDE_SKILL)
-    assert claude["name"] == shared["name"] == "spotikit"
+    assert claude["name"] == shared["name"] == "curatune"
     assert claude["description"] == shared["description"]
 
 
@@ -32,7 +32,7 @@ def test_shared_skill_has_only_portable_frontmatter():
 
 
 def test_claude_entry_point_defers_to_shared_skill():
-    assert ".agents/skills/spotikit/SKILL.md" in CLAUDE_SKILL.read_text(encoding="utf-8")
+    assert ".agents/skills/curatune/SKILL.md" in CLAUDE_SKILL.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("name", ["CLAUDE.md", "GEMINI.md"])
