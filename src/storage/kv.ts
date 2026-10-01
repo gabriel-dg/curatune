@@ -30,6 +30,8 @@ export class MemoryStore implements KeyValueStore {
   }
 }
 
+// The app's former name, kept on purpose: renaming the database would orphan the data already stored in
+// users' browsers (write log, plan backups, recording dates). Not shown in the UI.
 const DB_NAME = "spotikit-web";
 // Bump the version whenever a store is added: onupgradeneeded creates the missing ones.
 const DB_VERSION = 2;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildQuery } from "../src/spotify/catalog";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
 import { executeTool, MAX_RESULT_CHARS, READ_TOOLS, toolDefinitions, type Tool } from "../src/tools";
 import { validateArgs, type ObjectSchema } from "../src/tools/schema";
@@ -229,10 +229,10 @@ describe("executeTool", () => {
   it("rethrows authorization errors instead of handing them to the model", async () => {
     const spotify = new FakeSpotify(buildFixture());
     const client = new SpotifyClient(
-      { accessToken: async () => { throw new SpotikitError("AUTH_EXPIRED", "Log in again."); } },
+      { accessToken: async () => { throw new CuratuneError("AUTH_EXPIRED", "Log in again."); } },
       { fetch: spotify.fetch, sleep: noSleep },
     );
-    const err = await rejection(executeTool(READ_TOOLS, "playlists_list", "{}", { client }), SpotikitError);
+    const err = await rejection(executeTool(READ_TOOLS, "playlists_list", "{}", { client }), CuratuneError);
     expect(err.code).toBe("AUTH_EXPIRED");
   });
 

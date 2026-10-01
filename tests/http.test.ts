@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { API_BASE, resolveUrl, SpotifyClient, type TokenProvider } from "../src/spotify/http";
 import { fakeFetch, json, noSleep, rejection } from "./helpers";
 
@@ -24,7 +24,7 @@ function setup(handler: (url: URL, init: RequestInit) => Response | Promise<Resp
   return { client, tokens, requests, sleeps };
 }
 
-const fail = (promise: Promise<unknown>) => rejection(promise, SpotikitError);
+const fail = (promise: Promise<unknown>) => rejection(promise, CuratuneError);
 
 describe("resolveUrl", () => {
   it("prefixes relative paths with the API base", () => {

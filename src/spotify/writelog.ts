@@ -1,6 +1,6 @@
 // Local record of this app's own writes, used to compensate Spotify's snapshot_id read lag.
-// Follows spotikit commit 590cd87, src/spotikit/writelog.py. Difference: stored in IndexedDB through an
-// async KeyValueStore instead of a JSON file. The web app and the spotikit CLI keep separate logs, so do
+// Follows curatune commit 590cd87, src/spotikit/writelog.py. Difference: stored in IndexedDB through an
+// async KeyValueStore instead of a JSON file. The web app and the curatune CLI keep separate logs, so do
 // not write the same playlist from both within minutes.
 //
 // After a write, GET /playlists/{id} keeps returning the previous snapshot_id for a few minutes, while

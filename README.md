@@ -1,10 +1,13 @@
-# spotikit-web
+# curatune-web — curate your playlists in the browser (for Spotify)
+
+Formerly spotikit-web. curatune-web is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is
+a trademark of Spotify AB.
 
 Curate your own Spotify playlists by chatting in the browser. An LLM served through an OpenAI-compatible
 endpoint (LM Studio or Ollama) chooses the operations; they run in your browser with your own Spotify
 token, which never reaches any server but Spotify's.
 
-A zero-install sibling of spotikit, the Python CLI and agent skill.
+A zero-install sibling of curatune, the Python CLI and agent skill.
 
 **Status:** early single-user prototype. See [PLAN.md](PLAN.md).
 

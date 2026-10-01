@@ -4,7 +4,7 @@
 // module never imports applyPlan (tests/invariants.test.ts).
 
 import { buildDetailsPlan, buildRemovePlan, buildReorderPlan, SORT_KEYS, type ItemPlan, type Plan, type SortKey } from "../plans/plans";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import { parseId } from "../spotify/refs";
 import { numberedWarnings } from "./read";
 import type { Args } from "./schema";
@@ -19,7 +19,7 @@ const NEXT_STEP =
 function playlistIdFrom(args: Args, ctx: ToolContext): string {
   const id = parseId(str(args, "playlist_id")!, "playlist");
   if (ctx.isKnownId && !ctx.isKnownId(id)) {
-    throw new SpotikitError("INVALID_REFERENCE", `The playlist id ${id} did not appear in this conversation. Get it from playlists_list.`);
+    throw new CuratuneError("INVALID_REFERENCE", `The playlist id ${id} did not appear in this conversation. Get it from playlists_list.`);
   }
   return id;
 }
@@ -105,12 +105,12 @@ const planReorder: Tool = {
     const sortBy = str(args, "sort_by");
     const hasMove = from !== undefined || to !== undefined;
     if ([order !== undefined, hasMove, sortBy !== undefined].filter(Boolean).length !== 1 || (hasMove && (from === undefined || to === undefined))) {
-      throw new SpotikitError("INVALID_ARGUMENT", "Give exactly one of sort_by, order, or both move_from and move_to.");
+      throw new CuratuneError("INVALID_ARGUMENT", "Give exactly one of sort_by, order, or both move_from and move_to.");
     }
     if (sortBy !== undefined && sortBy !== "recorded" && !(SORT_KEYS as readonly string[]).includes(sortBy)) {
-      throw new SpotikitError("INVALID_ARGUMENT", `sort_by must be one of: ${[...SORT_KEYS, "recorded"].join(", ")}.`);
+      throw new CuratuneError("INVALID_ARGUMENT", `sort_by must be one of: ${[...SORT_KEYS, "recorded"].join(", ")}.`);
     }
-    if (sortBy === "recorded" && !ctx.recordings) throw new SpotikitError("INVALID_ARGUMENT", "Recording dates are not available.");
+    if (sortBy === "recorded" && !ctx.recordings) throw new CuratuneError("INVALID_ARGUMENT", "Recording dates are not available.");
     const options =
       sortBy === "recorded"
         ? { recordings: await ctx.recordings!.load() }
@@ -124,9 +124,9 @@ const planReorder: Tool = {
       plan = await buildReorderPlan(ctx.client, playlistId, options, str(args, "reason") ?? null);
     } catch (exc) {
       // Missing dates: tell the model which tracks (by number) so it can store them and retry.
-      if (exc instanceof SpotikitError && exc.code === "RECORDING_DATES_MISSING") {
+      if (exc instanceof CuratuneError && exc.code === "RECORDING_DATES_MISSING") {
         const missing = (exc.details.missing as { position: number; name: string | null }[]).map((m) => `${m.position + 1}. ${m.name}`);
-        throw new SpotikitError("RECORDING_DATES_MISSING", `No recording date for: ${missing.join("; ")}. Store them with recordings_set, then retry.`);
+        throw new CuratuneError("RECORDING_DATES_MISSING", `No recording date for: ${missing.join("; ")}. Store them with recordings_set, then retry.`);
       }
       throw exc;
     }

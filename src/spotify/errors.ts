@@ -1,4 +1,4 @@
-// Typed errors with the stable codes used by spotikit (spotikit commit b3531aa, src/spotikit/errors.py).
+// Typed errors with the stable codes used by curatune (curatune commit b3531aa, src/spotikit/errors.py).
 // Messages and details must never contain tokens, authorization codes, or PKCE verifiers.
 
 export type ErrorCode =
@@ -31,13 +31,13 @@ export type ErrorCode =
 
 export type Details = Record<string, unknown>;
 
-export class SpotikitError extends Error {
+export class CuratuneError extends Error {
   readonly code: ErrorCode;
   readonly details: Details;
 
   constructor(code: ErrorCode, message: string, details: Details = {}) {
     super(message);
-    this.name = "SpotikitError";
+    this.name = "CuratuneError";
     this.code = code;
     this.details = details;
   }

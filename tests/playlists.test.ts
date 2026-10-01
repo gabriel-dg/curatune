@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
 import { getPlaylist, listPlaylists } from "../src/spotify/playlists";
 import { fakeFetch, json, noSleep, rejection } from "./helpers";
@@ -126,13 +126,13 @@ describe("getPlaylist", () => {
 
   it("fails with CONCURRENT_MODIFICATION when it never settles", async () => {
     const { client } = fakeApi({ items: [], snapshots: ["s1", "s2", "s3", "s4", "s5", "s6", "s7"] });
-    const err = await rejection(getPlaylist(client, PLAYLIST_ID), SpotikitError);
+    const err = await rejection(getPlaylist(client, PLAYLIST_ID), CuratuneError);
     expect(err.code).toBe("CONCURRENT_MODIFICATION");
   });
 
   it("explains 403 on items", async () => {
     const { client } = fakeApi({ items: [], itemsStatus: 403 });
-    const err = await rejection(getPlaylist(client, PLAYLIST_ID), SpotikitError);
+    const err = await rejection(getPlaylist(client, PLAYLIST_ID), CuratuneError);
     expect(err.code).toBe("FORBIDDEN");
     expect(err.message).toMatch(/own or collaborate/);
     expect(err.details.playlist_id).toBe(PLAYLIST_ID);
@@ -140,7 +140,7 @@ describe("getPlaylist", () => {
 
   it("rejects bad references before any request", async () => {
     const { client, requests } = fakeApi({ items: [] });
-    const err = await rejection(getPlaylist(client, "https://evil.example/playlist/x"), SpotikitError);
+    const err = await rejection(getPlaylist(client, "https://evil.example/playlist/x"), CuratuneError);
     expect(err.code).toBe("INVALID_REFERENCE");
     expect(requests).toHaveLength(0);
   });

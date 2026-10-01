@@ -17,7 +17,7 @@ export const DEFAULT_WIDTHS: Widths = { sidebar: 264, panel: 440 };
 export const LIMITS: Record<Column, [number, number]> = { sidebar: [200, 420], panel: [360, 1400] };
 /** The chat never gets narrower than this while the panel sits beside it. */
 export const CHAT_MIN = 420;
-const STORAGE_KEY = "spotikit.layout";
+const STORAGE_KEY = "curatune-web.layout";
 const STEP = 16;
 
 /** Same breakpoints as style.css: the panel floats over the chat up to 1180 px, the sidebar is a drawer up to 780. */

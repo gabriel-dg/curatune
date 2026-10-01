@@ -4,7 +4,7 @@
 
 import type { RecordingStore } from "../recordings/recordings";
 import type { SpotifyAuth } from "../spotify/auth";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { ActivityLog } from "./activity";
 import type { ChatView } from "./chat";
@@ -27,11 +27,11 @@ function parseRoute(hash: string): Route {
 }
 
 function describeError(exc: unknown): string {
-  if (exc instanceof SpotikitError) return `${exc.message} (${exc.code})`;
+  if (exc instanceof CuratuneError) return `${exc.message} (${exc.code})`;
   return "Unexpected error. See the browser console for details.";
 }
 
-const isAuthError = (exc: unknown) => exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED");
+const isAuthError = (exc: unknown) => exc instanceof CuratuneError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED");
 
 export class App {
   private readonly root: HTMLElement;
@@ -77,7 +77,7 @@ export class App {
   }
 
   showError(exc: unknown): void {
-    if (!(exc instanceof SpotikitError)) console.error(exc);
+    if (!(exc instanceof CuratuneError)) console.error(exc);
     if (!this.notice) {
       // Not logged in yet (e.g. a failed login callback): shown on the login screen.
       this.loginError = exc;
@@ -141,7 +141,7 @@ export class App {
     this.root.replaceChildren(
       h("div", { class: "login" }, [
         h("div", { class: "login-card" }, [
-          h("div", { class: "brand large" }, [icon("logo", 38), h("span", { text: "spotikit" })]),
+          h("div", { class: "brand large" }, [icon("logo", 38), h("span", { text: "curatune" })]),
           h("p", { class: "login-lead", text: "Curate your Spotify playlists by chatting." }),
           h("ul", { class: "login-points" }, [
             h("li", {}, [icon("search", 16), h("span", { text: "Find the right recordings and build playlists" })]),
@@ -172,7 +172,7 @@ export class App {
     const toggleSidebar = () => this.shell!.classList.toggle("sidebar-open");
     const topbar = h("header", { class: "topbar" }, [
       h("button", { class: "ghost icon-button only-narrow", attrs: { "aria-label": "Show playlists" }, on: { click: toggleSidebar } }, [icon("menu", 20)]),
-      h("a", { class: "brand", attrs: { href: "#/" } }, [icon("logo", 24), h("span", { text: "spotikit" })]),
+      h("a", { class: "brand", attrs: { href: "#/" } }, [icon("logo", 24), h("span", { text: "curatune" })]),
       h("span", { class: "spacer" }),
       this.userLabel,
       h("button", { class: "ghost small", attrs: { title: "Log out" }, on: { click: () => this.logout() } }, [icon("logout", 15), h("span", { class: "hide-narrow", text: "Log out" })]),

@@ -1,9 +1,9 @@
 // Playlist reads: list the user's playlists, read one playlist with all its items, read metadata only.
-// Follows spotikit commit 590cd87, src/spotikit/playlists.py (list_playlists, get_playlist,
+// Follows curatune commit 590cd87, src/spotikit/playlists.py (list_playlists, get_playlist,
 // get_playlist_meta). Not ported: market-dependent reads (plans always read without a market). Difference:
 // the metadata fields include `images` (the cover, shown in the UI).
 
-import { SpotikitError } from "./errors";
+import { CuratuneError } from "./errors";
 import type { SpotifyClient } from "./http";
 import { normalizePlaylist, normalizePlaylistItem, type Playlist, type PlaylistItem } from "./models";
 import { parseId } from "./refs";
@@ -91,8 +91,8 @@ export async function getPlaylist(client: SpotifyClient, ref: string): Promise<P
         }),
       );
     } catch (exc) {
-      if (exc instanceof SpotikitError && exc.code === "FORBIDDEN") {
-        throw new SpotikitError(
+      if (exc instanceof CuratuneError && exc.code === "FORBIDDEN") {
+        throw new CuratuneError(
           "FORBIDDEN",
           "Playlist items are only available for playlists you own or collaborate on.",
           { ...exc.details, playlist_id: playlistId },
@@ -104,7 +104,7 @@ export async function getPlaylist(client: SpotifyClient, ref: string): Promise<P
     if (check.snapshot_id === read.snapshot_id) meta = read;
   }
   if (meta === null) {
-    throw new SpotikitError("CONCURRENT_MODIFICATION", "The playlist kept changing while it was being read.", {
+    throw new CuratuneError("CONCURRENT_MODIFICATION", "The playlist kept changing while it was being read.", {
       playlist_id: playlistId,
     });
   }

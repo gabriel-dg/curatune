@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatModel, Completion } from "../src/agent/llm";
 import { runTurn } from "../src/agent/loop";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
 import { addItems, createPlaylist } from "../src/spotify/writes";
 import { ALL_TOOLS, executeTool, WRITE_TOOLS } from "../src/tools";
@@ -16,7 +16,7 @@ function setup() {
 }
 
 const uri = (id: string) => `spotify:track:${id}`;
-const fail = (promise: Promise<unknown>) => rejection(promise, SpotikitError);
+const fail = (promise: Promise<unknown>) => rejection(promise, CuratuneError);
 
 describe("createPlaylist", () => {
   it("requests a private playlist and reports the visibility Spotify actually applied", async () => {

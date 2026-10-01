@@ -1,4 +1,4 @@
-// Evaluation scenarios for phase 2: real kinds of requests (from spotikit usage), run against the fake
+// Evaluation scenarios for phase 2: real kinds of requests (from curatune usage), run against the fake
 // Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in Spanish, the
 // operator's language; one is in English.
 

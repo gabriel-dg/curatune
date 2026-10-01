@@ -1,9 +1,9 @@
-// System prompt, adapted from spotikit's skill (spotikit commit b3531aa, .agents/skills/spotikit/SKILL.md)
+// System prompt, adapted from curatune's skill (curatune commit b3531aa, .agents/skills/spotikit/SKILL.md)
 // for a local model with read tools, direct writes (create, add), and plans (remove, reorder, rename) that
 // only the user applies. Keep it short: small models follow short prompts better, and it is sent with
 // every request.
 
-export const SYSTEM_PROMPT = `You are spotikit-web, an assistant that helps the user curate their own Spotify playlists. You work through tools that read and write Spotify and return JSON.
+export const SYSTEM_PROMPT = `You are curatune-web, an assistant that helps the user curate their own Spotify playlists. You work through tools that read and write Spotify and return JSON.
 
 What you can do
 - Read: list the user's playlists (playlists_list), show a playlist and its items (playlist_show), search the catalog (search_tracks), show one track (track_show), list an album's tracks (album_tracks).

@@ -288,7 +288,7 @@ describe("security invariant: the Spotify token never reaches the LLM", () => {
     const REFRESH = "SPOTIFY-REFRESH-SECRET";
     const storage = new MemoryStorage();
     storage.setItem(
-      "spotikit-web.token",
+      "curatune-web.token",
       JSON.stringify({ clientId: "cid", accessToken: ACCESS, refreshToken: REFRESH, expiresAt: Date.now() + 3600_000, scope: "", authorizedAt: "2026-09-28T00:00:00Z" }),
     );
     const fixture = buildFixture();

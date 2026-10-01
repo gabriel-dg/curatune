@@ -6,7 +6,7 @@ import { AgentError, type ChatMessage, type ChatModel } from "../agent/llm";
 import { runTurn, type AgentEvent } from "../agent/loop";
 import { SYSTEM_PROMPT } from "../agent/prompt";
 import type { Plan } from "../plans/plans";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type ToolExecution, type WriteReport } from "../tools";
 import type { ActivityLog } from "./activity";
@@ -85,7 +85,7 @@ function seconds(ms: number): string {
 export class ChatView {
   readonly element: HTMLElement;
   /** Called when a turn fails because the Spotify session is gone. */
-  onAuthError: (exc: SpotikitError) => void = () => {};
+  onAuthError: (exc: CuratuneError) => void = () => {};
   /** Called after every write (tool write or applied plan), e.g. to refresh the sidebar and panel. */
   onWrite: (report: WriteReport) => void = () => {};
   /** Called when the user wants to see a playlist mentioned in a write. */
@@ -487,21 +487,21 @@ export class ChatView {
       // If it already wrote to Spotify, it is kept up to its last complete step, so the model knows what it did.
       const kept = stats.wrote && stats.checkpoint !== null;
       if (kept) {
-        const code = exc instanceof AgentError || exc instanceof SpotikitError ? exc.code : "ERROR";
+        const code = exc instanceof AgentError || exc instanceof CuratuneError ? exc.code : "ERROR";
         this.history = [...stats.checkpoint!, { role: "assistant", content: `(This turn was interrupted by ${code} after the writes above.)` }];
       } else {
         // Notices not delivered with a dropped turn are delivered with the next one.
         this.notices.unshift(...notices);
       }
-      if (exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) this.onAuthError(exc);
+      if (exc instanceof CuratuneError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) this.onAuthError(exc);
       const keptNote = kept ? "The conversation keeps the writes already made." : "This message was not kept in the conversation.";
       const stopped = exc instanceof AgentError && exc.code === "CANCELLED";
       const message = stopped
         ? `Stopped. ${keptNote}`
-        : exc instanceof AgentError || exc instanceof SpotikitError
+        : exc instanceof AgentError || exc instanceof CuratuneError
           ? `${exc.message} (${exc.code}) ${keptNote}`
           : `Unexpected error; see the browser console. ${keptNote}`;
-      if (!(exc instanceof AgentError || exc instanceof SpotikitError)) console.error(exc);
+      if (!(exc instanceof AgentError || exc instanceof CuratuneError)) console.error(exc);
       this.steps = null;
       this.append(h("div", { class: `card ${stopped ? "muted-card" : "error-card"}`, text: message }));
     } finally {

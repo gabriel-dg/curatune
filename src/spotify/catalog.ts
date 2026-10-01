@@ -1,8 +1,8 @@
 // Read-only catalog lookups: track search, single track, album track listing.
-// Follows spotikit commit b3531aa, src/spotikit/catalog.py. Not ported: market-dependent reads. Batch search
+// Follows curatune commit b3531aa, src/spotikit/catalog.py. Not ported: market-dependent reads. Batch search
 // lives in the `search_many` tool (src/tools/read.ts): up to 25 searches per call, 4 at a time.
 
-import { SpotikitError } from "./errors";
+import { CuratuneError } from "./errors";
 import type { SpotifyClient } from "./http";
 import { normalizeAlbum, normalizeTrack, type Album, type Track } from "./models";
 import { parseId } from "./refs";
@@ -55,12 +55,12 @@ export async function searchTracks(
   offset = 0,
 ): Promise<SearchResult> {
   const query = buildQuery(filters);
-  if (!query) throw new SpotikitError("INVALID_ARGUMENT", "Provide a query or at least one filter.");
+  if (!query) throw new CuratuneError("INVALID_ARGUMENT", "Provide a query or at least one filter.");
   if (!Number.isInteger(limit) || limit < 1 || limit > SEARCH_MAX_LIMIT) {
-    throw new SpotikitError("INVALID_ARGUMENT", `limit must be between 1 and ${SEARCH_MAX_LIMIT}.`, { limit });
+    throw new CuratuneError("INVALID_ARGUMENT", `limit must be between 1 and ${SEARCH_MAX_LIMIT}.`, { limit });
   }
   if (!Number.isInteger(offset) || offset < 0) {
-    throw new SpotikitError("INVALID_ARGUMENT", "offset must be >= 0.", { offset });
+    throw new CuratuneError("INVALID_ARGUMENT", "offset must be >= 0.", { offset });
   }
   const data = await client.get<{ tracks?: Json }>("/search", { q: query, type: "track", limit, offset });
   const page = (data?.tracks ?? {}) as { items?: (Json | null)[]; total?: number; next?: string | null };
