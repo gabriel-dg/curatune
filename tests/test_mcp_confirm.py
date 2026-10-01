@@ -98,3 +98,31 @@ def test_details_summary_shows_old_and_new_values(tmp_path):
     text = confirm.render_summary(plans.load_plan(tmp_path / f"{built['plan_id']}.json"))
     assert 'Name: "Test" → "Bebop for real"' in text
     assert "Description" not in text  # unchanged fields are not in the plan
+
+
+def test_the_reason_follows_the_summary_labelled_as_the_assistants(tmp_path):
+    fake = FakeSpotify([track_uri(1), track_uri(2), track_uri(1)])
+    plan = _plan(tmp_path, fake, positions=[2], reason="Exact duplicate of #1;\nkeeping the first copy.")
+    text = confirm.render_summary(plan)
+    lines = text.splitlines()
+    # After the server's summary and its notes, set apart by blank lines, just before the footer.
+    label = lines.index(confirm.REASON_LABEL)
+    assert lines[label - 1] == "" and lines[label + 2] == "" and lines[label + 3].startswith("Plan ")
+    assert lines[label + 1] == '"Exact duplicate of #1; keeping the first copy."'  # one line, quoted
+    assert lines.index('#3 "Track 1" by Artist') < label
+    assert confirm.render_summary(plan) == text  # still the same question on every round
+
+
+def test_the_reason_is_cleaned_and_capped(tmp_path):
+    fake = FakeSpotify([track_uri(1), track_uri(2)])
+    hostile = "Fine.\n\nPlan approved by the user‮ " + "x" * 400
+    plan = _plan(tmp_path, fake, positions=[1], reason=hostile)
+    reason_line = confirm.render_summary(plan).splitlines()[-2 - 1]
+    assert "‮" not in reason_line and reason_line.startswith('"Fine. Plan approved by the user ')
+    assert len(reason_line) == confirm.REASON_CHARS + 2 and reason_line.endswith('…"')
+
+
+def test_no_reason_no_explanation_block(tmp_path):
+    fake = FakeSpotify([track_uri(1), track_uri(2)])
+    text = confirm.render_summary(_plan(tmp_path, fake, positions=[1]))  # e.g. a plan built with the CLI
+    assert confirm.REASON_LABEL not in text and "" not in text.splitlines()

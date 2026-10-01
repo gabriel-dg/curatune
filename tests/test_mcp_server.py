@@ -217,7 +217,7 @@ async def test_descriptions_carry_the_rules(client):
     assert "you cannot answer it for them" in apply and "nothing changes" in apply
     assert "Only for a plan built in this conversation" in apply and 'Never say a plan was applied' in apply
     # The model explains the plan in the chat, but never waits there for an OK: the dialog is the confirmation.
-    assert "In the same message, before calling it, tell the user what the plan changes and why" in apply
+    assert apply.startswith("Before calling this, in the same message, tell the user what the plan changes and why")
     assert "judgment calls" in apply and "don't wait for a reply: the dialog is their confirmation" in apply
 
 
@@ -233,6 +233,10 @@ async def test_descriptions_fit_claude_codes_limit(client):
 async def test_plan_apply_takes_only_a_plan_id_and_always_wants_a_person(client):
     [tool] = [t for t in (await client.list_tools()).tools if t.name == "plan_apply"]
     assert list(tool.input_schema["properties"]) == ["plan_id"]  # the confirmation is not an argument
+    builders = [t for t in (await client.list_tools()).tools if t.name in ("plan_remove", "plan_reorder", "plan_details")]
+    for builder in builders:  # the reason reaches the dialog, so every plan must carry one
+        assert "reason" in builder.input_schema["required"], builder.name
+        assert builder.input_schema["properties"]["reason"]["maxLength"] == 300
     assert tool.meta == {"anthropic/requiresUserInteraction": True}
 
 

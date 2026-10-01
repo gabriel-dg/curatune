@@ -18,7 +18,7 @@ from mcp.types import ElicitResult  # noqa: E402
 
 from curatune.config import Settings  # noqa: E402
 from curatune.errors import VerificationFailed  # noqa: E402
-from curatune.mcp_server import schemas  # noqa: E402
+from curatune.mcp_server import confirm, schemas  # noqa: E402
 from curatune.mcp_server.server import build_server, error_result  # noqa: E402
 
 from .fakes import jazz_account  # noqa: E402
@@ -104,23 +104,42 @@ async def test_a_removal_plan_reads_in_numbers_and_changes_nothing(settings, acc
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "tool, args",
+    [
+        ("plan_remove", {"numbers": [5]}),
+        ("plan_reorder", {"sort_by": "title"}),
+        ("plan_details", {"name": "New name"}),
+    ],
+)
+@pytest.mark.parametrize("reason", [None, "", "   ", "x" * 301])
+async def test_plans_need_a_reason(settings, account, era, tool, args, reason):
+    acc, ids = account
+    arguments = {"playlist": ids["test"], **args} | ({} if reason is None else {"reason": reason})
+    async with connect(settings, acc, era) as client:
+        result = await client.call_tool(tool, arguments)
+    assert result.is_error and "reason" in result.content[0].text
+    assert writes(acc) == [] and not any(settings.plans_dir.glob("*.json"))
+
+
+@pytest.mark.anyio
 async def test_reorder_by_title_and_its_errors_in_numbers(settings, account, era):
     acc, ids = account
     async with connect(settings, acc, era) as client:
-        status, plan = await call(client, "plan_reorder", {"playlist": ids["test"], "sort_by": "title"})
+        status, plan = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "sort_by": "title"})
         assert status == "ok"
         names = [t["name"] for t in plan["new_order"]]
         assert names == ["Ko-Ko", "Ko-Ko", "Ko-Ko", "Manteca", "'Round Midnight", "Salt Peanuts", "Un Poco Loco"]
         assert plan["new_order"][0] == {"number": 1, "was": 2, "uri": ids["koko"], "name": "Ko-Ko", "artists": ["Charlie Parker"]}
 
-        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "move_from": 1, "move_to": 9})
+        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "move_from": 1, "move_to": 9})
         assert status == "error" and error["error"]["details"] == {"move_from": 1, "move_to": 9, "item_count": 7}
         assert "from 1" in error["error"]["message"]
-        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "order": [2, 1]})
+        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "order": [2, 1]})
         assert status == "error" and "exactly once" in error["error"]["message"]
-        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "move_from": 2})
+        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "move_from": 2})
         assert status == "error" and error["error"]["code"] == "PLAN_INVALID"
-        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "order": [1], "sort_by": "title"})
+        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "order": [1], "sort_by": "title"})
         assert status == "error" and "exactly one" in error["error"]["message"]
     assert writes(acc) == []
 
@@ -129,7 +148,7 @@ async def test_reorder_by_title_and_its_errors_in_numbers(settings, account, era
 async def test_reorder_by_recording_date_names_missing_tracks_by_number(settings, account):
     acc, ids = account
     async with connect(settings, acc, "2026-07-28") as client:
-        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "sort_by": "recorded"})
+        status, error = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "sort_by": "recorded"})
     assert status == "error" and error["error"]["code"] == "RECORDING_DATES_MISSING"
     assert [m["number"] for m in error["error"]["details"]["missing"]] == [1, 2, 3, 4, 5, 6, 7]
     assert "recordings_set" in error["next_step"]
@@ -164,6 +183,9 @@ async def test_accepted_plan_is_applied_and_verified(settings, account, era):
     assert len(user.asked) == 1
     assert user.asked[0].startswith('Remove 1 of 7 tracks from the playlist "Bebop test" (7 → 6):')
     assert '#5 "Ko-Ko" by Charlie Parker' in user.asked[0]
+    # The model's reason, apart from the server's summary and labelled as the assistant's.
+    assert f'{confirm.REASON_LABEL}\n"duplicate"\n' in user.asked[0]
+    assert user.asked[0].index('#5 "Ko-Ko"') < user.asked[0].index(confirm.REASON_LABEL)
     uris = acc.playlists[ids["test"]].uris
     assert len(uris) == 6 and uris.count(ids["koko"]) == 1 and uris[1] == ids["koko"]
 
@@ -295,12 +317,12 @@ async def test_reorder_and_rename_through_the_dialog(settings, account, era):
     acc, ids = account
     user = User("accept")
     async with connect(settings, acc, era, user) as client:
-        _, plan = await call(client, "plan_reorder", {"playlist": ids["test"], "sort_by": "title", "descending": True})
+        _, plan = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "sort_by": "title", "descending": True})
         status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
         assert result["status"] == "applied" and result["verified"] is True
         assert user.asked[-1].startswith('Reorder the playlist "Bebop test":')
 
-        _, plan = await call(client, "plan_details", {"playlist": ids["test"], "name": "Bebop, sorted"})
+        _, plan = await call(client, "plan_details", {"playlist": ids["test"], "reason": "Test.", "name": "Bebop, sorted"})
         assert plan["changes"] == {"name": {"from": "Bebop test", "to": "Bebop, sorted"}}
         status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
     assert result["status"] == "applied" and result["current"] == {"name": "Bebop, sorted"}
@@ -312,7 +334,7 @@ async def test_reorder_and_rename_through_the_dialog(settings, account, era):
 async def test_an_empty_description_is_refused_with_the_app_as_the_way_out(settings, account, era):
     acc, ids = account
     async with connect(settings, acc, era, User("accept")) as client:
-        status, error = await call(client, "plan_details", {"playlist": ids["test"], "description": ""})
+        status, error = await call(client, "plan_details", {"playlist": ids["test"], "reason": "Test.", "description": ""})
     assert status == "error" and error["error"]["code"] == "DESCRIPTION_NOT_CLEARABLE"
     assert "Spotify app" in error["next_step"] and writes(acc) == []
 

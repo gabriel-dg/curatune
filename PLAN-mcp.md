@@ -1,7 +1,7 @@
 # PLAN-mcp: a local MCP server for curatune
 
 Status: approved with adjustments (2026-10-01). Phases 0 and 1 done (Claude Desktop's live check
-deferred; see section 2.2). Phase 2a implemented and tested; its live check is next.
+deferred; see section 2.2). Phase 2a implemented and tested; its live check is in progress.
 Branch: this worktree's own branch (not `main`). Merge to `main` only with the user's explicit OK.
 All sources were accessed on 2026-10-01 and are listed at the end.
 
@@ -331,9 +331,9 @@ Annotation columns: RO = `readOnlyHint`, D = `destructiveHint`, I = `idempotentH
 | `recordings_update` | v1 | same `entries`, (1–100) | `{created, updated, total}` | ✗ | ✓ | ✓ | ✗ | Overwrites stored entries (and creates missing ones). Description: only when the user asks to correct a stored date. |
 | `playlist_create` | v1 | `name`, `description=""`, `allow_duplicate_name=false` | `{playlist:{id,name,url,public}, warnings}` | ✗ | ✗ | ✗ | ✓ | No `public` option. `VISIBILITY_NOT_APPLIED` explains the playlist is public. `DUPLICATE_NAME`: ask the user first. |
 | `playlist_add` | v1 | `playlist`, `tracks:[ref]` (1–100), `at_number?` (1..count+1), `allow_duplicates=false` | `{playlist_id, added:[{number,uri,name,artists}], skipped:[{uri,reason}], item_count, verified, warnings}` | ✗ | ✗ | ✗ | ✓ | Re-reads the playlist to verify and to name the added tracks (`ADD_NOT_VERIFIED` when the read differs). |
-| `plan_remove` | v2a | `playlist`, `numbers:[int]`, `reason?` | `{plan_id, kind, playlist:{id,name}, remove:[{number,name,artists}], tracks_before, tracks_after, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | |
-| `plan_reorder` | v2a | `playlist`, exactly one of: `order:[number]` (all current numbers in the new order), `move_from`+`move_to`, `sort_by` (+`descending`); `reason?` | `{plan_id, kind, playlist, new_order:[{number,was,name,artists}] (≤300, then a count), operations, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | `sort_by` uses the rules in section 8. `RECORDING_DATES_MISSING` lists numbers. |
-| `plan_details` | v2a | `playlist`, `name?`, `description?`, `reason?` | `{plan_id, kind, playlist, changes:{field:{from,to}}, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | Only when asked. Visibility is not an option. |
+| `plan_remove` | v2a | `playlist`, `numbers:[int]`, `reason` | `{plan_id, kind, playlist:{id,name}, remove:[{number,name,artists}], tracks_before, tracks_after, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | |
+| `plan_reorder` | v2a | `playlist`, exactly one of: `order:[number]` (all current numbers in the new order), `move_from`+`move_to`, `sort_by` (+`descending`); `reason` | `{plan_id, kind, playlist, new_order:[{number,was,name,artists}] (≤300, then a count), operations, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | `sort_by` uses the rules in section 8. `RECORDING_DATES_MISSING` lists numbers. |
+| `plan_details` | v2a | `playlist`, `name?`, `description?`, `reason` | `{plan_id, kind, playlist, changes:{field:{from,to}}, warnings, next_step}` | ✓¹ | – | ✗ | ✓ | Only when asked. Visibility is not an option. |
 | `plan_show` | v2a | `plan_id`, `check=true` | `{plan: view, applied, check?:{applicable, …}}` | ✓ | – | ✓ | ✓ | Any plan in the data dir, shown 1-based, without raw operations. |
 | `plan_apply` | v2a (elicitation), v2b (`confirmation_code`) | `plan_id`, `confirmation_code?` | `{status: applied \| declined \| cancelled \| awaiting_user_confirmation, result?: {verified, operations_done, current?}, warnings, next_step}` | ✗ | ✓ | ✓² | ✓ | `_meta["anthropic/requiresUserInteraction"]: true`. The confirmation resolver parameters are not in the input schema. |
 | `auth_login` | v3 | — | `{authorized: bool}` | ✗ | ✗ | ✓ | ✓ | Idempotent: a valid token returns `authorized: true` and opens nothing. It opens the Spotify consent page and returns at once; the callback finishes in a background thread. The token is never returned. **No `auth_logout` tool.** |
@@ -730,12 +730,20 @@ phase 3).
 - [ ] Live check in **Claude Code** on the test playlist, in both eras: the default session (2026-07-28,
       MRTR elicitation) and one with `MCP_PROTOCOL_NEGOTIATION=legacy` (server-initiated
       `elicitation/create`):
-  - [ ] remove the exact duplicate;
+  - [x] remove the exact duplicate (2026-10-01, 2026-07-28 era: declined, then accepted: `verified: true`;
+        restored with `playlist add`);
   - [ ] reorder by recording date (dates stored with `recordings_set`);
   - [ ] `sort_by` title;
   - [ ] rename and restore;
   - [ ] restore the recorded state at the end.
-**Status (2026-10-01).** Implemented and tested; the live check is next, run by the user in Claude Code.
+**Status (2026-10-01).** Implemented and tested; the live check is in progress, run by the user in Claude
+Code.
+- Live so far: a prompt-injection description on the test playlist was flagged by the model and never
+  applied; removing duplicates was declined and then accepted through the dialog (`verified: true`).
+  The model never explained its plan in the chat before `plan_apply`, so every `plan_*` tool now requires
+  a `reason`, which the dialog shows apart from the summary, labelled as the assistant's explanation.
+- Found live: a description can't be cleared through the API (`DESCRIPTION_NOT_CLEARABLE`), and an
+  API-created playlist without one reads back `"null"` (now read as `""`).
 - 490 tests pass with the extra, in both protocol eras; 399 without it (the MCP modules skip).
   `tests/test_mcp_plans.py` plays the user through the client's elicitation callback.
 - The confirmation is two resolvers on `plan_apply`: `prepare` (load and validate the plan, choose the
