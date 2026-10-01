@@ -2,6 +2,8 @@
 
 Details of the CLI's JSON contract, the plan mechanism, and the known Spotify API quirks curatune handles.
 For what curatune does and how to set it up, see the [README](../README.md).
+The MCP server's tools follow this contract with a few deliberate differences (1-based track numbers among
+them); see [mcp.md](mcp.md).
 
 ## Authorization
 
@@ -77,7 +79,7 @@ about a third of the size, with every key always present:
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` + warning `ITEM_COUNT_READ_LAG` |
 | `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
-| `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position}], skipped: [{uri, reason}], item_count, snapshot_id}`. Skips URIs already present unless `--allow-duplicates`. |
+| `playlist add <playlist> [refs...] [--from-file F] [--position N] [--allow-duplicates]` | `{playlist_id, added: [{uri, position, name, artists}], skipped: [{uri, reason}], item_count, snapshot_id, verified}` + warning `ADD_NOT_VERIFIED`. Skips URIs already present unless `--allow-duplicates`. After adding, it reads the playlist back: `verified` says the items are exactly the expected ones, and `name`/`artists` come from that read (`null`/`[]` for an item not where it was put). |
 | `search tracks [query] [--track T] [--artist A] [--album B] [--year Y\|Y-Y] [--limit ≤10] [--offset N] [--market CC] [--brief]` | `{query, market, limit, offset, total, next_offset, results: [Track \| Brief track]}` + warning `YEAR_IS_RELEASE_YEAR` when `--year` is used |
 | `search tracks --from-file F [--workers 1-4] [--market CC] [--brief]` | Batch: `{count, failed, searches: [{id, ok, …single-search fields \| error}]}`, in input order. `F` is a JSON array (max 50) of `{"id", "query", "track", "artist", "album", "year", "limit", "offset", "market"}`; unknown keys are rejected. One failed search does not fail the batch. |
 | `track show <track> [--market CC]` | `{track: Track}` |
@@ -86,7 +88,7 @@ about a third of the size, with every key always present:
 | `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --by-recording-date) [--reason R]` | plan summary. `--by-recording-date` sorts by the local recording store (ties keep current order); fails with `RECORDING_DATES_MISSING` listing undated items. |
 | `plan details <playlist> [--name N] [--description D \| --description-file F] [--reason R]` | Plan summary with `summary: {fields}` and `changes: {field: {from, to}}`. At least one field is required; unchanged fields are left out (`NO_CHANGES` if nothing differs). Warns `DUPLICATE_NAME` if you own another playlist with the new name. Visibility is never part of a plan. |
 | `recordings show <playlist> [--brief]` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}`; with `--brief`, items are `{position, uri, name, artists, recorded, confidence}` |
-| `recordings set --from-file F` | `{created, updated, total, path}`. Validates every entry before writing anything. |
+| `recordings set --from-file F` | `{created, updated, skipped, total, path}`. Validates every entry before writing anything. Overwrites stored entries (`skipped` is always empty here; the MCP server's additive `recordings_set` fills it). A URI repeated in the input: the last entry wins. |
 | `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?}`. For item plans, `check` is `{applicable, same_snapshot, same_items, current_snapshot_id}`; for details plans, `{applicable, same_values, current}`. |
 | `plan apply <plan>` | Item plans: `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}`. Details plans: `{applied, plan_id, playlist_id, operations_done, verified, current, backup_path}` + warning `DETAILS_NOT_CONFIRMED` when `verified` is false. |
 
@@ -251,3 +253,4 @@ Warning codes (in `warnings`; the command still succeeded):
 | `LOCAL_FILE_REMOVAL` | A removal plan touches local files; removing them through the API is unverified. |
 | `DUPLICATE_NAME` | A details plan renames the playlist to a name you already use for another playlist. |
 | `DETAILS_NOT_CONFIRMED` | A details plan was sent and accepted (HTTP 200), but reads still show other values. |
+| `ADD_NOT_VERIFIED` | Spotify accepted the addition, but reading the playlist back shows a different item list, for example after a simultaneous change elsewhere (`expected_item_count`, `read_item_count`), or the read itself failed (`read_error`: the error code). The tracks were added either way. |

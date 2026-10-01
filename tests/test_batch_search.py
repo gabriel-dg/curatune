@@ -20,7 +20,7 @@ class Tokens:
 
 
 class FakeThreadClient:
-    """Stands in for the per-thread SpotifyClient created inside the batch."""
+    """Stands in for the per-thread client the batch gets from `thread_client()`."""
 
     instances = []
     active = 0
@@ -45,14 +45,16 @@ class FakeThreadClient:
 
 
 @pytest.fixture(autouse=True)
-def fake_client(monkeypatch):
+def reset_fake_clients():
     FakeThreadClient.instances, FakeThreadClient.active, FakeThreadClient.peak = [], 0, 0
-    monkeypatch.setattr(catalog, "SpotifyClient", FakeThreadClient)
 
 
 class Parent:
     def __init__(self):
         self.tokens = Tokens()
+
+    def thread_client(self):
+        return FakeThreadClient(self.tokens)
 
 
 def test_results_keep_input_order_and_ids():

@@ -111,6 +111,13 @@ class SpotifyClient:
     def delete(self, path: str, body: Any) -> Any:
         return self.request("DELETE", path, json=body)
 
+    def thread_client(self) -> SpotifyClient:
+        """A client for another worker thread: same tokens, its own HTTP session.
+
+        `requests.Session` is not meant to be shared between threads (batch search runs several).
+        """
+        return SpotifyClient(self.tokens, max_retries=self.max_retries, timeout=self.timeout)
+
     def paginate(self, path: str, **params: Any) -> Iterator[dict[str, Any]]:
         """Yield every element of a paging object, following `next` links."""
         page = self.get(path, **params)

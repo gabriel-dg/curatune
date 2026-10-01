@@ -47,7 +47,30 @@ def test_upsert_creates_and_updates(store):
     assert store.upsert([entry(1, "1945")])["created"] == 1
     result = store.upsert([entry(1, "1945-11-26", note="master"), entry(2, "1946")])
     assert (result["created"], result["updated"], result["total"]) == (1, 1, 2)
+    assert result["skipped"] == []
     assert json.loads(store.path.read_text())[track_uri(1)]["note"] == "master"
+
+
+def test_upsert_without_overwrite_keeps_stored_entries(store):
+    store.upsert([entry(1, "1945-11-26", source="discography")])
+    result = store.upsert([entry(1, "1950"), entry(2, "1946")], overwrite=False)
+    assert (result["created"], result["updated"], result["skipped"], result["total"]) == (1, 0, [track_uri(1)], 2)
+    stored = store.load()
+    assert stored[track_uri(1)]["recorded"] == "1945-11-26" and stored[track_uri(1)]["source"] == "discography"
+
+
+def test_upsert_without_overwrite_and_nothing_new_leaves_the_file_alone(store):
+    store.upsert([entry(1, "1945")])
+    before = store.path.stat().st_mtime_ns
+    result = store.upsert([entry(1, "1950")], overwrite=False)
+    assert (result["created"], result["skipped"]) == (0, [track_uri(1)])
+    assert store.path.stat().st_mtime_ns == before
+
+
+def test_upsert_repeated_uri_in_input_last_wins(store):
+    result = store.upsert([entry(1, "1945"), entry(1, "1946")])
+    assert (result["created"], result["updated"]) == (1, 0)
+    assert store.load()[track_uri(1)]["recorded"] == "1946"
 
 
 def test_chronological_order_is_stable_for_ties(store):

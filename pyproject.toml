@@ -17,9 +17,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# The MCP server (curatune-mcp). Optional: the library and the CLI never import it.
+mcp = ["mcp>=2.2,<3"]
 
 [project.scripts]
 curatune = "curatune.cli:main"
+curatune-mcp = "curatune.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

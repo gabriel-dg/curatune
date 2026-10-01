@@ -176,3 +176,13 @@ def test_metrics_count_every_http_attempt():
     c, _ = client(Resp(429, headers={"Retry-After": "0"}), Resp(200, {"ok": 1}))
     c.get("/x")
     assert metrics.snapshot()["api"]["calls"] == 2
+
+
+def test_thread_client_shares_tokens_but_not_the_session():
+    tokens = Tokens()
+    parent = http.SpotifyClient(tokens, session=Session(), max_retries=5, timeout=7)
+    child = parent.thread_client()
+    assert child.tokens is tokens
+    assert child.session is not parent.session
+    assert (child.max_retries, child.timeout) == (5, 7)
+    assert child.write_log is None  # searches never write

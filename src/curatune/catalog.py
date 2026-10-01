@@ -109,9 +109,9 @@ def search_tracks_batch(
     local = threading.local()
 
     def thread_client() -> SpotifyClient:
-        # One HTTP session per worker thread (requests.Session is not meant to be shared).
+        # One client (and HTTP session) per worker thread.
         if not hasattr(local, "client"):
-            local.client = SpotifyClient(client.tokens)
+            local.client = client.thread_client()
         return local.client
 
     def run(index: int, q: dict[str, Any]) -> dict[str, Any]:

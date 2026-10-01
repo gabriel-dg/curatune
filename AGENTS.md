@@ -40,9 +40,11 @@ Cursor, Gemini CLI, and GitHub Copilot, as well as Claude Code. Keep a single so
 - **Judgment layer (the agent):** interprets requests, combines commands, applies domain knowledge (and web
   search), explains decisions and confidence.
 
-Architecture: library package `src/curatune/` with all logic; thin CLI (`cli.py`) on top. Keep the library
-usable on its own so it can be wrapped as an MCP server later without rewriting anything. Any new CLI
-command must be documented in `docs/reference.md` (and listed in README.md) and in the skill.
+Architecture: library package `src/curatune/` with all logic; two thin entry points on top: the CLI
+(`cli.py`) and a local MCP server (`mcp_server/`, optional extra `curatune[mcp]`, script `curatune-mcp`).
+Keep the library usable on its own. Any new CLI command must be documented in `docs/reference.md` (and
+listed in README.md) and in the skill; any new MCP tool in `docs/mcp.md`. The MCP plan, its decisions, and
+its phases are in `PLAN-mcp.md`.
 
 ## Confirmation rules (enforced in code — keep them that way)
 
@@ -58,6 +60,21 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
 - Never bypass these rules with ad-hoc scripts or private functions that mutate Spotify.
 - `validate_plan` also checks that a plan's human-readable parts (`after` positions, `changes`) match its
   operations, so an edited plan file cannot show one change and apply another (`PLAN_INCONSISTENT`).
+
+## MCP server (keep these rules; each has tests)
+
+- Thin: tools validate arguments, convert numbers, call the same library functions as the CLI (in a worker
+  thread), and return a view. No Spotify logic in `mcp_server/`; it never imports `_writes` or `requests`,
+  and the library and the CLI never import `mcp` or `mcp_server` (`tests/test_mcp_invariants.py`).
+- The model sees **1-based** `number`s. Only `mcp_server/numbering.py` converts positions; output models
+  are strict, and the tests fail if a `position` key reaches any result.
+- No tool takes a visibility option or a file path. `playlist_create` always requests private.
+- The tool descriptions and `mcp_server/instructions.py` carry the skill's rules (tests check them). When a
+  rule changes in the skill, change it there too.
+- Removals, reorders, and renames are not exposed yet. They come in phase 2 of `PLAN-mcp.md`, as plans
+  that a human confirms outside the model's reach (elicitation, or a local page and a one-time code).
+- stdout belongs to the protocol; logs go to stderr. Writes (create, add, recording dates) take a
+  process-wide lock; each call gets its own `SpotifyClient`; one `TokenManager` serves them all.
 
 ## Security invariants (keep them; each has tests)
 
@@ -135,7 +152,11 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
   **live**. A half-finished edit breaks their commands (seen 2026-09-24: `NameError` in `cli.py` mid-edit).
   When another session may be using curatune, develop in a separate git worktree, or make every save
   leave the package importable (define helpers before the code that calls them).
-- Positions in JSON are **0-based** (same as the API).
-- Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`. Plan logic is tested
-  against an in-memory fake of the playlist API (`tests/fakes.py`); HTTP behaviour against a scripted
-  session (`tests/test_http.py`).
+- Positions in JSON are **0-based** (same as the API). The MCP server alone shows 1-based `number`s (above).
+- Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`, after installing
+  `-e ".[dev,mcp]"`. Plan logic is tested against an in-memory fake of the playlist API
+  (`tests/fakes.py:FakeSpotify`); the MCP server through an in-memory MCP client in both protocol eras
+  against a fake account (`FakeAccount`, `jazz_account()`: synthetic IDs, public track names); HTTP
+  behaviour against a scripted session (`tests/test_http.py`). MCP tests are skipped without the extra.
+- CI (`.github/workflows/tests.yml`): Windows and Linux, Python 3.10 and 3.14, with and without the extra.
+  Actions are pinned to commit SHAs; the workflow has read-only permissions and needs no secrets.
