@@ -179,3 +179,59 @@ def test_plans_refuse_playlists_not_owned(tmp_path):
     with pytest.raises(Exception) as exc:
         plans.build_remove_plan(fake, PLAYLIST_ID, [0], tmp_path)
     assert getattr(exc.value, "code", None) == "FORBIDDEN"
+
+
+# --- Sort keys and plan IDs -------------------------------------------------------------------
+
+
+def _numbered(*numbers):
+    # FakeSpotify names each track "Track <n>" from its URI.
+    return FakeSpotify([track_uri(n) for n in numbers])
+
+
+def test_reorder_by_title_uses_the_sort_rules(tmp_path):
+    fake = _numbered(3, 1, 10, 2)  # "Track 3", "Track 1", "Track 10", "Track 2"
+    built = plans.build_reorder_plan(fake, PLAYLIST_ID, tmp_path, sort_by="title")
+    assert built["changes"]["new_order"] == [1, 3, 0, 2]  # digit runs compare as numbers
+    built = plans.build_reorder_plan(fake, PLAYLIST_ID, tmp_path, sort_by="title", descending=True)
+    assert built["changes"]["new_order"] == [2, 0, 3, 1]
+    result = plans.apply_plan(fake, tmp_path / f"{built['plan_id']}.json", tmp_path / "backups")
+    assert result["verified"] and fake.uris == [track_uri(n) for n in (10, 3, 2, 1)]
+
+
+def test_already_sorted_is_no_changes(tmp_path):
+    with pytest.raises(PlanError) as exc:
+        plans.build_reorder_plan(_numbered(1, 2, 3), PLAYLIST_ID, tmp_path, sort_by="title")
+    assert exc.value.code == "NO_CHANGES"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},
+        {"sort_by": "title", "move": (0, 1)},
+        {"new_order": [1, 0], "descending": True},
+        {"sort_by": "popularity"},
+        {"sort_by": "recorded"},  # needs the recording store
+    ],
+)
+def test_reorder_arguments_are_checked_before_reading(tmp_path, kwargs):
+    fake = _numbered(2, 1)
+    with pytest.raises(PlanError):
+        plans.build_reorder_plan(fake, PLAYLIST_ID, tmp_path, **kwargs)
+    assert fake.mutations == []
+
+
+def test_plan_ids_never_reach_outside_the_plans_dir(tmp_path):
+    plans_dir = tmp_path / "plans"
+    built = plans.build_reorder_plan(_numbered(2, 1), PLAYLIST_ID, plans_dir, sort_by="title")
+    assert plans.plan_path_for_id(built["plan_id"], plans_dir) == plans_dir / f"{built['plan_id']}.json"
+    (tmp_path / "secret.json").write_text("{}")
+    for ref in ("../secret", r"..\secret", str(tmp_path / "secret.json"), "20260101T000000Z-remove-x-zzzz", ""):
+        with pytest.raises(PlanError) as exc:
+            plans.plan_path_for_id(ref, plans_dir)
+        assert exc.value.code == "PLAN_NOT_FOUND"
+    with pytest.raises(PlanError):
+        plans.resolve_plan_path("../secret", plans_dir)  # a bare ref must be a plan ID
+    # The CLI still accepts a plan file path the user typed.
+    assert plans.resolve_plan_path(str(plans_dir / f"{built['plan_id']}.json"), plans_dir).exists()

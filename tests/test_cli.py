@@ -80,3 +80,15 @@ def test_auth_status_logged_out(capsys, monkeypatch, tmp_path):
         "data": {"logged_in": False, "token_path": str(tmp_path / "tokens" / "token.json")},
         "warnings": [],
     }
+
+
+def test_plan_reorder_sort_by(capsys, monkeypatch, offline_settings):
+    fake = FakeSpotify([track_uri(3), track_uri(1), track_uri(2)])
+    monkeypatch.setattr(cli, "_client", lambda s: fake)
+    code, out = _run(capsys, ["plan", "reorder", PLAYLIST_ID, "--sort-by", "title", "--descending"])
+    assert code == 0
+    assert out["data"]["changes"]["new_order"] == [0, 2, 1]
+    code, out = _run(capsys, ["plan", "reorder", PLAYLIST_ID, "--order", "1,0,2", "--descending"])
+    assert code == 1 and out["error"]["code"] == "PLAN_INVALID"
+    code, out = _run(capsys, ["plan", "reorder", PLAYLIST_ID, "--sort-by", "popularity"])
+    assert code == 2 and out["error"]["code"] == "USAGE_ERROR"

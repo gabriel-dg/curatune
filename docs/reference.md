@@ -85,7 +85,7 @@ about a third of the size, with every key always present:
 | `track show <track> [--market CC]` | `{track: Track}` |
 | `album tracks <album> [--market CC] [--brief]` | `{album: {…, id, total_tracks, url}, tracks: [Track \| Brief track]}` |
 | `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | plan summary (below) |
-| `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --by-recording-date) [--reason R]` | plan summary. `--by-recording-date` sorts by the local recording store (ties keep current order); fails with `RECORDING_DATES_MISSING` listing undated items. |
+| `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --sort-by KEY \| --by-recording-date) [--descending] [--reason R]` | plan summary. `--sort-by` is `title`, `artist`, `album`, `released`, `duration`, or `recorded` (the local recording store; `--by-recording-date` is the same); the rules are in [Sort orders](#sort-orders). `--descending` reverses the sort (only with `--sort-by`); ties keep their current order either way. `recorded` fails with `RECORDING_DATES_MISSING` listing undated items. |
 | `plan details <playlist> [--name N] [--description D \| --description-file F] [--reason R]` | Plan summary with `summary: {fields}` and `changes: {field: {from, to}}`. At least one field is required; unchanged fields are left out (`NO_CHANGES` if nothing differs). Warns `DUPLICATE_NAME` if you own another playlist with the new name. Visibility is never part of a plan. |
 | `recordings show <playlist> [--brief]` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}`; with `--brief`, items are `{position, uri, name, artists, recorded, confidence}` |
 | `recordings set --from-file F` | `{created, updated, skipped, total, path}`. Validates every entry before writing anything. Overwrites stored entries (`skipped` is always empty here; the MCP server's additive `recordings_set` fills it). A URI repeated in the input: the last entry wins. |
@@ -93,8 +93,9 @@ about a third of the size, with every key always present:
 | `plan apply <plan>` | Item plans: `{applied, plan_id, playlist_id, operations_done, snapshot_id, verified, backup_path}`. Details plans: `{applied, plan_id, playlist_id, operations_done, verified, current, backup_path}` + warning `DETAILS_NOT_CONFIRMED` when `verified` is false. |
 
 `<playlist>`, `<track>`, `<album>` accept a bare ID, a `spotify:` URI, or an `open.spotify.com` URL.
-`<plan>` accepts a plan file path or a `plan_id`. `--from-file` accepts a JSON array (strings or
-objects with `uri`) or one reference per line.
+`<plan>` accepts a plan file path or a `plan_id`; a bare `plan_id` must have the plan-ID shape
+(`<UTC timestamp>-<kind>-<playlist ID prefix>-<4 hex>`), so it can never point outside `plans/`.
+`--from-file` accepts a JSON array (strings or objects with `uri`) or one reference per line.
 
 Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, items_after, operations}, changes}`.
 
@@ -171,8 +172,31 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
   visibility), so `verified: false` plus the warning `DETAILS_NOT_CONFIRMED` means reads still show other
   values. That can be read lag or an ignored change; check in the Spotify app.
 - Descriptions are exposed unescaped (Spotify returns them HTML-escaped, e.g. `&#x27;`).
+- A playlist created through the API without a description reads back as the literal string `"null"`.
+  curatune reports it as `""` everywhere (lists, `playlist show`, plans). The cost: a description that
+  really is the text `null` also shows as empty, and a plan that sets it to `null` ends with
+  `verified: false` (the read-back shows `""`).
 - A details write returns no `snapshot_id`. The next item plan on that playlist may therefore hit a
   one-off `SNAPSHOT_MISMATCH` while reads catch up; regenerate the plan.
+
+### Sort orders
+
+`plan reorder --sort-by` computes the order in code (`ordering.py`), with the same rules as spotikit-web:
+
+- Text keys are the title, the **first** artist, and the album name.
+- Leading characters that are neither letters nor digits are ignored (`'Round Midnight` sorts as
+  `Round Midnight`), then one leading English article `The ` (any case). No other article, in any
+  language, is ignored.
+- Case and accents are ignored: `Á` equals `a`.
+- Runs of digits compare as numbers (`Track 2` before `Track 10`), and before letters.
+- `released` compares the edition's release date as text (`1945` before `1945-11-26`); `duration`
+  compares milliseconds; `recorded` uses the recording store.
+- Items without a value go last, in both directions.
+- Ties keep their current order, in both directions: `--descending` reverses the comparison, not the
+  tie-break.
+
+The order of punctuation and symbols inside names, and of non-Latin scripts, can differ from the web's
+ICU collation.
 
 ## Recording dates
 

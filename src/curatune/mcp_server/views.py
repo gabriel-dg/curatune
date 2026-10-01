@@ -133,3 +133,54 @@ def playlist_add(data: dict[str, Any]) -> dict[str, Any]:
             "warnings": data["warnings"],
         }
     )
+
+
+# --- Plans --------------------------------------------------------------------------------------------
+
+PLAN_LIST_CAP = 300  # items listed in a plan view; past that, counts only (client result-size limits)
+
+
+def _plan_track(item: dict[str, Any], *keys: str) -> dict[str, Any]:
+    return {k: item.get(k) for k in (*keys, "uri", "name", "artists")}
+
+
+def plan(p: dict[str, Any], next_step: str) -> dict[str, Any]:
+    """A plan as the model sees it: what changes, by number, title, and artists; no raw operations."""
+    view: dict[str, Any] = {
+        "plan_id": p["plan_id"],
+        "kind": p["kind"],
+        "playlist": {"id": p["playlist"]["id"], "name": p["playlist"].get("name")},
+        "created_at": p.get("created_at"),
+        "reason": p.get("reason"),
+        "operations": len(p["operations"]),
+    }
+    if p["kind"] == "remove":
+        view["tracks_before"], view["tracks_after"] = len(p["before"]), len(p["after"])
+        view["remove"] = [_plan_track(r, "position") for r in p["changes"]["remove"]]
+    elif p["kind"] == "reorder":
+        after = p["after"]
+        view["tracks_before"], view["tracks_after"] = len(p["before"]), len(after)
+        view["moved"] = sum(a["position"] != a["from_position"] for a in after)
+        view["new_order"] = [_plan_track(a, "position", "from_position") for a in after[:PLAN_LIST_CAP]]
+        view["new_order_truncated"] = len(after) > PLAN_LIST_CAP
+    else:
+        view["changes"] = p["changes"]
+    applied = p.get("applied")
+    view["applied"] = {k: applied.get(k) for k in ("applied_at", "verified")} if applied else None
+    view["warnings"] = p.get("warnings") or []
+    view["next_step"] = next_step
+    return numbered(view)
+
+
+def plan_applied(result: dict[str, Any]) -> dict[str, Any]:
+    """The outcome of applying a plan, without local paths (backups stay on the user's machine)."""
+    view: dict[str, Any] = {
+        "status": "applied",
+        "plan_id": result["plan_id"],
+        "verified": result["verified"],
+        "operations_done": result["operations_done"],
+        "warnings": numbered(result.get("warnings") or []),
+    }
+    if "current" in result:  # details plans: the name and description as read back
+        view["current"] = result["current"]
+    return view

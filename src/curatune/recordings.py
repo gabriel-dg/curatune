@@ -151,8 +151,11 @@ def playlist_recordings(client: SpotifyClient, store: RecordingStore, ref: str) 
     }
 
 
-def chronological_order(items: list[dict[str, Any]], data: dict[str, dict[str, Any]]) -> list[int]:
-    """New order (as current positions) sorted by recording date; ties keep their current order."""
+def chronological_order(
+    items: list[dict[str, Any]], data: dict[str, dict[str, Any]], descending: bool = False
+) -> list[int]:
+    """New order (as current positions) sorted by recording date, oldest first unless `descending`.
+    Ties keep their current order in both directions."""
     keyed = []
     missing = []
     for item in items:
@@ -167,4 +170,6 @@ def chronological_order(items: list[dict[str, Any]], data: dict[str, dict[str, A
             code="RECORDING_DATES_MISSING",
             details={"missing": missing},
         )
-    return [position for _, position in sorted(keyed)]
+    keyed.sort(key=lambda kp: kp[1])  # current order first, so the stable sort keeps it for ties
+    keyed.sort(key=lambda kp: kp[0], reverse=descending)
+    return [position for _, position in keyed]

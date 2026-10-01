@@ -117,7 +117,7 @@ authorization. Do not try to work around it.
 | `recordings show <playlist> [--brief]` | Join items with the local recording-date store. Reports `missing` and `chronological`. |
 | `recordings set --from-file F` | Add or update recording dates. Validated all-or-nothing. |
 | `plan remove <playlist> --positions "3,17,20-22"` | Plan only. |
-| `plan reorder <playlist> (--order … \| --order-file F \| --move FROM:TO \| --by-recording-date)` | Plan only. |
+| `plan reorder <playlist> (--order … \| --order-file F \| --move FROM:TO \| --sort-by KEY \| --by-recording-date) [--descending]` | Plan only. `--sort-by` title, artist, album, released, duration, or recorded (= `--by-recording-date`). |
 | `plan details <playlist> [--name N] [--description D \| --description-file F]` | Plan only: rename and/or change the description. `--description ""` clears it. |
 | `plan show <plan> [--check]` | Validate and show a plan. `--check` compares it with the live playlist. |
 | `plan apply <plan>` | Only after the user's OK. Checks the playlist is unchanged, backs up, applies, verifies. |
@@ -189,6 +189,12 @@ To set a description when creating a playlist, use `playlist create --descriptio
 4. Run `plan reorder --by-recording-date`. Ties keep their current order.
 5. Show the plan. Point out anything surprising, such as earlier misplacements or low-confidence dates.
 6. Apply only after the OK.
+
+**Reorder by title, artist, album, release date, or duration.** Use `plan reorder --sort-by KEY`
+(`--descending` to reverse); never compute such an order yourself. Case, accents, leading punctuation, and
+a leading "The" are ignored, numbers sort as numbers, and ties keep their current order (rules in
+`docs/reference.md`, "Sort orders"). `released` is the edition's date: for "by when it was recorded", use
+the chronological workflow above.
 
 **Duplicates and repeated versions.**
 - Detect them from `playlist show --brief`: the same ISRC, the same composition under another title, or

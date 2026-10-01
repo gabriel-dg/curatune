@@ -52,6 +52,15 @@ def test_description_is_compared_unescaped(fake, tmp_path):
     assert exc.value.code == "NO_CHANGES"
 
 
+def test_literal_null_description_reads_as_empty(fake, tmp_path):
+    fake.description = "null"  # what Spotify returns for a playlist created without a description
+    with pytest.raises(PlanError) as exc:
+        build(fake, tmp_path, description="")
+    assert exc.value.code == "NO_CHANGES"
+    built, _ = build(fake, tmp_path, description="Set")
+    assert built["changes"] == {"description": {"from": "", "to": "Set"}}
+
+
 def test_apply_refuses_if_the_field_changed_meanwhile(fake, tmp_path):
     _, path = build(fake, tmp_path, description="Planned")
     fake.description = "Edited in the app"

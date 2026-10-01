@@ -1,7 +1,7 @@
 # PLAN-mcp: a local MCP server for curatune
 
 Status: approved with adjustments (2026-10-01). Phases 0 and 1 done (Claude Desktop's live check
-deferred; see section 2.2). Next: phase 2a.
+deferred; see section 2.2). Phase 2a implemented and tested; its live check is next.
 Branch: this worktree's own branch (not `main`). Merge to `main` only with the user's explicit OK.
 All sources were accessed on 2026-10-01 and are listed at the end.
 
@@ -584,8 +584,12 @@ To be evaluated by the web project; this repository does not change it.
 - **Applying plans:** the web has no apply tool (UI button). curatune MCP has `plan_apply`, gated by
   elicitation, the page code, or the MCP App. With the App, the model learns the outcome like the web's
   `[App notice]`. Document this as a deliberate difference on both sides.
-- **API facts:** none newly verified yet. Anything found during live MCP tests goes to both `AGENTS.md`
-  files, per the web's rule.
+- **API facts:** anything found during live MCP tests goes to both `AGENTS.md` files, per the web's rule.
+  This repository records them in its own `AGENTS.md`; the web adds them to its file.
+  - 2026-10-01: a playlist created through the API without a description reads back with the literal
+    string `"null"` as its description. curatune now reports it as `""` (`models.normalize_playlist`,
+    phase 2a); the web should check how it shows and compares descriptions (details plans would
+    otherwise show `from "null"`).
 - **Name:** the library's rename to curatune changes every reference the web makes to spotikit (module
   headers, the "Relationship to spotikit" section). The web's own name is decided there.
 
@@ -699,23 +703,24 @@ phase 3).
 
 ### Phase 2a (v2, first part): plans and the elicitation route
 
-- [ ] `ordering.py` and `--sort-by` (library item 7), with the rule-table tests and documentation.
-- [ ] `resolve_plan_path` hardening (library item 3).
-- [ ] `plan_remove`, `plan_reorder`, `plan_details`, `plan_show`, and `plan_apply` with the elicitation
+- [x] `ordering.py` and `--sort-by` (library item 7), with the rule-table tests and documentation.
+- [x] `resolve_plan_path` hardening (library item 3).
+- [x] `plan_remove`, `plan_reorder`, `plan_details`, `plan_show`, and `plan_apply` with the elicitation
       route. Without elicitation, `plan_apply` fails closed with `CONFIRMATION_UNAVAILABLE` and the CLI
       alternative until phase 2b.
-- [ ] `confirm.py`: route selection and resolvers.
-- [ ] Tests:
-  - [ ] elicitation accept, accept with `apply=false`, decline, and cancel in **both eras**, through an
+- [x] `confirm.py`: route selection and resolvers.
+- [x] Tests:
+  - [x] elicitation accept, accept with `apply=false`, decline, and cancel in **both eras**, through an
         `elicitation_callback`;
-  - [ ] a client without elicitation → `CONFIRMATION_UNAVAILABLE`, nothing applied;
-  - [ ] `CURATUNE_MCP_CONFIRM` values;
-  - [ ] the model cannot supply route or answer (sending them is ignored);
-  - [ ] the summary is sanitized and deterministic (the same plan gives the same text);
-  - [ ] `SNAPSHOT_MISMATCH` after approval changes nothing;
-  - [ ] tampered plan files are still rejected.
-- [ ] Docs: the confirmation model and a sequence diagram for the elicitation route, in README and
-      `AGENTS.md`; invariants added to `AGENTS.md`.
+  - [x] a client without elicitation → `CONFIRMATION_UNAVAILABLE`, nothing applied;
+  - [x] `CURATUNE_MCP_CONFIRM` values;
+  - [x] the model cannot supply route or answer (sending them is ignored);
+  - [x] the summary is sanitized and deterministic (the same plan gives the same text);
+  - [x] `SNAPSHOT_MISMATCH` after approval changes nothing;
+  - [x] tampered plan files are still rejected.
+- [x] Docs: the confirmation model and a sequence diagram for the elicitation route in `docs/mcp.md`
+      ("Confirming plans", linked from the README); invariants added to `AGENTS.md`; `--sort-by` and its
+      rules in `docs/reference.md` and the skill.
 - [ ] Live check in **Claude Code** on the test playlist, in both eras: the default session (2026-07-28,
       MRTR elicitation) and one with `MCP_PROTOCOL_NEGOTIATION=legacy` (server-initiated
       `elicitation/create`):
@@ -724,6 +729,20 @@ phase 3).
   - [ ] `sort_by` title;
   - [ ] rename and restore;
   - [ ] restore the recorded state at the end.
+**Status (2026-10-01).** Implemented and tested; the live check is next, run by the user in Claude Code.
+- 490 tests pass with the extra, in both protocol eras; 399 without it (the MCP modules skip).
+  `tests/test_mcp_plans.py` plays the user through the client's elicitation callback.
+- The confirmation is two resolvers on `plan_apply`: `prepare` (load and validate the plan, choose the
+  route, build the question) and `ask` (return `Elicit` only on the elicitation route). Neither is a tool
+  argument; the input schema is `plan_id` alone. In-memory tests confirmed the SDK's behaviour on both eras:
+  a question returned as an `InputRequiredResult` on 2026-07-28 and a server-initiated `elicitation/create`
+  on 2025-11-25.
+- Found while building: `confirm.py` had to stay free of pydantic (moved `ApplyAnswer` to `schemas.py`) so
+  its tests run without the extra; `tools.py` drops `from __future__ import annotations` because the
+  resolvers are local functions named in `plan_apply`'s annotations; errors from moves and orders that
+  carry 0-based positions under other keys are restated in numbers at the boundary.
+- The instructions are 1,866 characters with the plan rule (limit 2048).
+
 - **Done when:**
   - in **Claude Code**, a reorder of 12 or more tracks shows a legible summary in the elicitation
     dialog; accept applies with `verified: true`; decline and cancel apply nothing;

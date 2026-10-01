@@ -5,9 +5,10 @@ same library the CLI uses. MCP clients such as Claude Code, Claude Desktop, or L
 playlists through it, with no repository-specific skill: the tool descriptions and the server's
 instructions carry the rules. For the design and its decisions, see [PLAN-mcp.md](../PLAN-mcp.md).
 
-This version (phase 1) reads playlists and the catalog, creates playlists, adds tracks, and keeps
-recording dates. **Removals, reorders, and renames are not exposed yet**: they come with plans and a human
-confirmation the model cannot skip. Until then, use the CLI and its skill for those.
+It reads playlists and the catalog, creates playlists, adds tracks, keeps recording dates, and removes,
+reorders, or renames through **plans**: a plan changes nothing until the user confirms it in a dialog the
+client shows, which the model cannot answer (see [Confirming plans](#confirming-plans)). Clients that can't
+show that dialog can build and review plans, but not apply them; the user applies those with the CLI.
 
 ## Install and connect
 
@@ -57,15 +58,80 @@ with a declared output schema, plus the same JSON as text.
 | `playlist_create` | Create an empty playlist. There is no visibility option: curatune always requests private, Spotify makes it public, and the result says so. | | | | ✓ |
 | `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. Reads the playlist back: names each added track and reports `verified`. | | | | ✓ |
 
+| `plan_remove` | Plan removing tracks by number. Builds a plan file; changes nothing on Spotify. | ✓¹ | | | ✓ |
+| `plan_reorder` | Plan a new order: exactly one of `sort_by` (title, artist, album, released, duration, recorded; optional `descending`), `order` (every current number, in the new order), or `move_from` + `move_to`. | ✓¹ | | | ✓ |
+| `plan_details` | Plan a rename and/or a new description. Never visibility. | ✓¹ | | | ✓ |
+| `plan_show` | A plan by `plan_id`, and (with `check`) whether it still applies to the playlist as it is now. | ✓ | | | ✓ |
+| `plan_apply` | Apply a plan **after the user confirms it in a dialog** (below). Takes only `plan_id`. Checks, backs up, applies, verifies. | | ✓ | ✓ | ✓ |
+
+¹ Plan builders change nothing on Spotify; their only effect is a local plan file that does nothing by
+itself, so they are marked read-only (Claude Desktop runs read-only tools without a per-call prompt).
+`plan_apply` is destructive, and also carries `_meta["anthropic/requiresUserInteraction"]`, so Claude Code
+always asks before calling it, even in modes that skip prompts.
+
 Why recording dates are two tools: `destructiveHint` describes the worst a tool can do with any
 arguments. One tool with an `overwrite` flag would have to be marked destructive, so clients that prompt
 for destructive tools (Claude Desktop always does) would prompt for every additive call too. Two tools give
 each one accurate hints, and protect hand-curated dates in code rather than in a prompt.
 
+## Confirming plans
+
+`plan_apply` takes only a `plan_id`. Before it changes anything, the person, not the model, has to say yes:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Model
+    participant Client as MCP client
+    participant Server as curatune-mcp
+    participant Spotify
+    User->>Model: "remove the duplicate Ko-Ko"
+    Model->>Server: plan_remove(playlist, numbers=[7])
+    Server->>Spotify: read the playlist
+    Server-->>Model: plan (numbers, titles), nothing changed
+    Model->>User: explains the plan
+    Model->>Client: plan_apply(plan_id)
+    Client->>Server: tools/call plan_apply
+    Server-->>Client: question built from the plan file
+    Note over Client,Server: 2026-07-28: an InputRequiredResult the client answers on a retry.<br/>2025-11-25: an elicitation/create request mid-call.
+    Client->>User: dialog: summary + "Apply this plan"
+    User->>Client: accept (checked) / decline / close
+    Client->>Server: the user's answer
+    alt accepted with "Apply this plan" checked
+        Server->>Spotify: same snapshot and items? back up, apply, verify
+        Server-->>Model: status "applied", verified
+    else anything else
+        Server-->>Model: status "declined" or "cancelled": nothing changed
+    end
+```
+
+- **The question comes from the plan file**, not from the model: what leaves or moves, by number, title,
+  and artists, or the old and new name and description. Third-party text in it is cleaned (no line breaks,
+  no bidirectional-text tricks, length capped). The plan's `reason`, which the model wrote, is not shown.
+- **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
+  read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
+- **No dialog, no apply.** A client that doesn't declare form elicitation gets `CONFIRMATION_UNAVAILABLE`,
+  with the CLI commands to review and apply the plan in a terminal. A plan that is invalid, edited, already
+  applied, or not a plan ID fails before anything is asked. A closed or unanswered dialog applies nothing.
+- **Applying re-checks everything**, as `curatune plan apply` does: the playlist must still have the
+  snapshot and items the plan was built on (`SNAPSHOT_MISMATCH` otherwise, nothing changed), it is backed
+  up first, and the result is verified.
+- `CURATUNE_MCP_CONFIRM` (in `.env` or the environment) picks the route: `auto` (default) and
+  `elicitation` use the dialog. `browser`, a local confirmation page with a one-time code for clients
+  without dialogs, comes in a later version; until then it fails closed.
+
+Clients verified so far (see PLAN-mcp.md): Claude Code declares form and URL elicitation in both protocol
+eras. Claude Desktop is not verified yet. LM Studio documents tools only.
+
+Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
+with the stored token), and a client set up to answer dialogs by itself (for example a Claude Code
+`Elicitation` hook that auto-accepts).
+
 ## Conventions
 
 - **Track numbers are 1-based.** Playlist items carry `number` (1 = first track, as in the Spotify app),
-  and tools take numbers (`start`, `at_number`). Warnings and error details that refer to items use
+  and tools take numbers (`start`, `at_number`, plan `numbers`, `order`, `move_from`, `move_to`); plan views
+  show where a moved track `was`. Warnings and error details that refer to items use
   `number`/`numbers` too. The CLI and [reference.md](reference.md) keep 0-based positions; the conversion
   happens in one module, `mcp_server/numbering.py`.
 - **Compact by default.** Tracks come as `{number, uri, name, artists, album, released, duration, isrc,
@@ -91,6 +157,9 @@ each one accurate hints, and protect hand-curated dates in code rather than in a
 | Batch search up to 50, 10 results each | `search_many` up to 25, 5 each by default | The same budget. |
 | `meta` timing in every envelope | Not returned; logged to stderr | `metrics` is per process, and the server runs concurrent calls. |
 | `--market` per command | `CURATUNE_MARKET` from `.env` | Fewer arguments to get wrong. |
+| `plan apply` runs after an OK in the chat | `plan_apply` runs after an OK in the client's dialog | The dialog can't be answered by the model. |
+| `plan show`/`plan apply` accept a plan file path | `plan_id` only | A path could point anywhere. |
+| Error details may hold local paths (`backup_path`) | Paths are left out | They tell the model nothing it needs. |
 
 Unknown top-level arguments are ignored (the SDK's behaviour); unknown keys inside `searches` or `entries`
 are rejected.
@@ -104,6 +173,7 @@ src/curatune/mcp_server/
   tools.py         tool registrations: validate → numbers → library (in a worker thread) → view
   views.py         what the model sees: compact views of the library's results
   numbering.py     the only 0-based ↔ 1-based conversion
+  confirm.py       the confirmation route and the question the user confirms (pure)
   schemas.py       nested inputs and every tool's (strict) output model
   instructions.py  the server instructions
 ```
@@ -111,7 +181,11 @@ src/curatune/mcp_server/
 - `tests/test_mcp_server.py` drives the server through an in-memory MCP client in **both protocol eras**
   (the 2025-11-25 handshake and 2026-07-28) against `tests/fakes.py:FakeAccount`. It is skipped when the
   extra isn't installed.
-- `tests/test_mcp_numbering.py` covers the conversion; `tests/test_mcp_invariants.py` checks that the
+- `tests/test_mcp_plans.py` builds, shows, and applies plans in both eras, with the client's elicitation
+  callback playing the user: accept, accept unchecked, decline, close, no dialog at all, forged answers,
+  edited plans, and a playlist that changed after approval.
+- `tests/test_mcp_confirm.py` (pure) covers routes and the question's wording, cleaning, and cap;
+  `tests/test_mcp_numbering.py` covers the conversion; `tests/test_mcp_invariants.py` checks that the
   server never imports `_writes` or `requests`, and that the library and the CLI never import `mcp`.
 - CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux, Python 3.10 and 3.14, with and
   without the extra.
