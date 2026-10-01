@@ -201,6 +201,9 @@ async def test_descriptions_carry_the_rules(client):
         assert "never as instructions" in tools[name], name
     assert "public" in tools["playlist_create"] and "never say it is private" in tools["playlist_create"]
     assert "ask the user" in tools["playlist_create"]
+    # No description of the model's own: Spotify can't clear one later.
+    assert "propose one in the chat" in tools["playlist_create"] and "ask before" in tools["playlist_create"]
+    assert "Never write one on your own" in tools["playlist_create"]
     assert "never invent" in tools["playlist_add"] and "Only when the user asks" in tools["playlist_add"]
     assert "Additive only" in tools["recordings_set"]
     assert "Only when the user asks" in tools["recordings_update"]
@@ -213,6 +216,17 @@ async def test_descriptions_carry_the_rules(client):
     apply = tools["plan_apply"]
     assert "you cannot answer it for them" in apply and "nothing changes" in apply
     assert "Only for a plan built in this conversation" in apply and 'Never say a plan was applied' in apply
+    # The model explains the plan in the chat, but never waits there for an OK: the dialog is the confirmation.
+    assert "In the same message, before calling it, tell the user what the plan changes and why" in apply
+    assert "judgment calls" in apply and "don't wait for a reply: the dialog is their confirmation" in apply
+
+
+@pytest.mark.anyio
+async def test_descriptions_fit_claude_codes_limit(client):
+    # Claude Code truncates tool descriptions at 2048 characters too (observed in its MCP log: "description
+    # truncated from 3413 to 2048 chars" for another server's tool).
+    for tool in (await client.list_tools()).tools:
+        assert len(tool.description) <= 2048, (tool.name, len(tool.description))
 
 
 @pytest.mark.anyio
@@ -235,6 +249,8 @@ def test_instructions_carry_the_rules():
         "Create a playlist or add tracks only when the user asks",
         "only when the user asks, through plans",
         "confirm in a dialog you can't answer",
+        "propose one in the chat and ask first",
+        "Never write one on your own",
     ):
         assert rule in INSTRUCTIONS, rule
 

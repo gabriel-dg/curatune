@@ -56,6 +56,8 @@ NEXT_STEPS = {
     "PLAN_INCONSISTENT": "The plan file doesn't match what it would do, so it can't be applied. Build a new plan.",
     "PLAN_ALREADY_APPLIED": "This plan was applied before; nothing changed now. Read the playlist to see its state.",
     "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
+    "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "
+    "they can clear it in the Spotify app.",
     "RECORDING_DATES_MISSING": "Store dates for the listed tracks with recordings_set (with source and confidence; "
     "say when unsure), then build the plan again.",
     "SNAPSHOT_MISMATCH": "Nothing changed: the playlist changed since the plan was built. Build a new plan and show "

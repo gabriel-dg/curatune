@@ -86,7 +86,7 @@ about a third of the size, with every key always present:
 | `album tracks <album> [--market CC] [--brief]` | `{album: {…, id, total_tracks, url}, tracks: [Track \| Brief track]}` |
 | `plan remove <playlist> --positions "3,17,20-22" [--reason R]` | plan summary (below) |
 | `plan reorder <playlist> (--order "…" \| --order-file F \| --move FROM:TO \| --sort-by KEY \| --by-recording-date) [--descending] [--reason R]` | plan summary. `--sort-by` is `title`, `artist`, `album`, `released`, `duration`, or `recorded` (the local recording store; `--by-recording-date` is the same); the rules are in [Sort orders](#sort-orders). `--descending` reverses the sort (only with `--sort-by`); ties keep their current order either way. `recorded` fails with `RECORDING_DATES_MISSING` listing undated items. |
-| `plan details <playlist> [--name N] [--description D \| --description-file F] [--reason R]` | Plan summary with `summary: {fields}` and `changes: {field: {from, to}}`. At least one field is required; unchanged fields are left out (`NO_CHANGES` if nothing differs). Warns `DUPLICATE_NAME` if you own another playlist with the new name. Visibility is never part of a plan. |
+| `plan details <playlist> [--name N] [--description D \| --description-file F] [--reason R]` | Plan summary with `summary: {fields}` and `changes: {field: {from, to}}`. At least one field is required; unchanged fields are left out (`NO_CHANGES` if nothing differs). Warns `DUPLICATE_NAME` if you own another playlist with the new name. An empty description fails with `DESCRIPTION_NOT_CLEARABLE`: the API can't clear one (see below). Visibility is never part of a plan. |
 | `recordings show <playlist> [--brief]` | `{playlist, items: [{position, uri, name, artists, isrc, recording, matched_by}], missing: [{position, uri, name}], chronological}`; with `--brief`, items are `{position, uri, name, artists, recorded, confidence}` |
 | `recordings set --from-file F` | `{created, updated, skipped, total, path}`. Validates every entry before writing anything. Overwrites stored entries (`skipped` is always empty here; the MCP server's additive `recordings_set` fills it). A URI repeated in the input: the last entry wins. |
 | `plan show <plan> [--check]` | `{plan_path, valid, applied, plan, check?}`. For item plans, `check` is `{applicable, same_snapshot, same_items, current_snapshot_id}`; for details plans, `{applicable, same_values, current}`. |
@@ -172,6 +172,9 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
   visibility), so `verified: false` plus the warning `DETAILS_NOT_CONFIRMED` means reads still show other
   values. That can be read lag or an ignored change; check in the Spotify app.
 - Descriptions are exposed unescaped (Spotify returns them HTML-escaped, e.g. `&#x27;`).
+- **A description can't be cleared through the API**: `PUT /playlists/{id}` with `description: ""`
+  answers 200 and keeps the old text (verified live 2026-10-01). A description can only be replaced, so
+  `plan details` refuses an empty one (`DESCRIPTION_NOT_CLEARABLE`); clear it in the Spotify app.
 - A playlist created through the API without a description reads back as the literal string `"null"`.
   curatune reports it as `""` everywhere (lists, `playlist show`, plans). The cost: a description that
   really is the text `null` also shows as empty, and a plan that sets it to `null` ends with
@@ -256,7 +259,7 @@ The playlist list lags too: `GET /me/playlists` keeps the old `items.total` for 
 `CONFIG_ERROR`, `AUTH_REQUIRED`, `AUTH_EXPIRED`, `AUTH_ERROR`, `AUTH_STATE_MISMATCH`, `INVALID_REFERENCE`,
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,
 `CONCURRENT_MODIFICATION`, `DUPLICATE_NAME`, `PLAN_INVALID`, `PLAN_NOT_FOUND`, `PLAN_CHECKSUM_MISMATCH`,
-`PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
+`PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `DESCRIPTION_NOT_CLEARABLE`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
 `VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
 
 `UNTRUSTED_URL`: a response pointed to a URL (such as a pagination `next` link) outside

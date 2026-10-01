@@ -118,7 +118,7 @@ authorization. Do not try to work around it.
 | `recordings set --from-file F` | Add or update recording dates. Validated all-or-nothing. |
 | `plan remove <playlist> --positions "3,17,20-22"` | Plan only. |
 | `plan reorder <playlist> (--order … \| --order-file F \| --move FROM:TO \| --sort-by KEY \| --by-recording-date) [--descending]` | Plan only. `--sort-by` title, artist, album, released, duration, or recorded (= `--by-recording-date`). |
-| `plan details <playlist> [--name N] [--description D \| --description-file F]` | Plan only: rename and/or change the description. `--description ""` clears it. |
+| `plan details <playlist> [--name N] [--description D \| --description-file F]` | Plan only: rename and/or replace the description. It can't be emptied: Spotify can't clear a description through the API (`DESCRIPTION_NOT_CLEARABLE`); the user clears it in the Spotify app. |
 | `plan show <plan> [--check]` | Validate and show a plan. `--check` compares it with the live playlist. |
 | `plan apply <plan>` | Only after the user's OK. Checks the playlist is unchanged, backs up, applies, verifies. |
 
@@ -161,6 +161,10 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
    with `recordings set`, then propose `plan reorder --by-recording-date` and wait for the OK.
 
 **Create a playlist.**
+- If the request brings no description, propose one in the chat, based on the request's criterion, and ask
+  before creating. If the user accepts, pass it to that same `playlist create --description`; otherwise
+  create it without one. Never write a description on your own: through the API it can't be cleared
+  later, only replaced.
 - Spotify currently ignores `public: false`, and curatune reports `VISIBILITY_NOT_APPLIED`.
 - Tell the user the playlist is public and that they can make it private in the Spotify app.
 - Never claim it is private.
@@ -180,6 +184,8 @@ importance, relationships between tunes) on your knowledge or on sources, and sa
    name, suggest updating it.
 
 To set a description when creating a playlist, use `playlist create --description`. It needs no plan.
+A description can be replaced but not cleared through the API: to remove one, the user clears it in the
+Spotify app.
 
 **Reorder chronologically.**
 1. Run `recordings show --brief`.
@@ -239,6 +245,7 @@ the chronological workflow above.
 | `DUPLICATE_NAME` | On create (error): ask whether to reuse the existing playlist or create another one (`--allow-duplicate-name`). On `plan details` (warning): tell the user another playlist already has that name before asking for the OK. |
 | `RECORDING_DATES_MISSING` | Research and `recordings set` the listed items, then retry. |
 | `NO_CHANGES` | The playlist is already in the requested order, or already has that name or description. |
+| `DESCRIPTION_NOT_CLEARABLE` | An empty description was requested. Tell the user the API can only replace a description; they can clear it in the Spotify app. |
 | `ADD_NOT_VERIFIED` (warning) | The tracks were added, but the playlist read back differs from what was expected (someone may have changed it at the same time), or the read failed (`read_error`). Run `playlist show --brief` and tell the user what it holds. Don't add again blindly. |
 | `DETAILS_NOT_CONFIRMED` (warning) | The rename or description change was accepted, but reads still show the old values. Tell the user it may be read lag or an ignored change, and to check in the Spotify app. |
 | `SNAPSHOT_MISMATCH` | Nothing changed. Regenerate the plan and ask for approval again. |

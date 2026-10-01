@@ -227,13 +227,16 @@ def register(server: MCPServer, rt: Runtime) -> None:
         title="Create a playlist",
         description="Create a new, empty playlist. Only when the user asks for one. Spotify makes it public even "
         "though curatune requests private: tell the user, and never say it is private. Fails with DUPLICATE_NAME "
-        "if the user already owns a playlist with that name; then ask the user before using allow_duplicate_name.",
+        "if the user already owns a playlist with that name; then ask the user before using allow_duplicate_name. "
+        "If the request brings no description, propose one in the chat from the request's criterion and ask before "
+        "creating: pass it here if the user accepts, otherwise leave it out. Never write one on your own: the API "
+        "can't clear a description later, only replace it.",
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True),
     )
     def playlist_create(
         ctx: Context,
         name: Annotated[str, Field(min_length=1, description="Playlist name.")],
-        description: Annotated[str, Field(description="Optional description.")] = "",
+        description: Annotated[str, Field(description="Description: the user's, or one they accepted.")] = "",
         allow_duplicate_name: Annotated[
             bool, Field(description="Create it even if the user owns one with this name. Only after the user agreed.")
         ] = False,
@@ -281,8 +284,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
     # --- Plans: removals, reorders, renames ------------------------------------------------------
 
     built_next = (
-        "Nothing has changed yet. Show the user what this plan does (numbers, titles, artists: what leaves or "
-        "moves) and why. When they want it applied, call plan_apply; the user confirms it in a dialog."
+        "Nothing has changed yet. Tell the user what this plan does (numbers, titles, artists: what leaves or "
+        "moves) and why, then call plan_apply in the same message; the user confirms it in a dialog."
     )
     builds = "Builds a plan and changes nothing on Spotify; plan_apply applies it after the user confirms. "
 
@@ -382,7 +385,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
         ctx: Context,
         playlist: PlaylistRef,
         name: Annotated[str | None, Field(description="New name.")] = None,
-        description: Annotated[str | None, Field(description="New description; an empty string clears it.")] = None,
+        description: Annotated[str | None, Field(description="New description. Can't be empty: Spotify can't clear one through the API (only in its app).")] = None,
         reason: Reason = None,
     ) -> Annotated[CallToolResult, schemas.Plan]:
         return rt.call(
@@ -459,7 +462,9 @@ def register(server: MCPServer, rt: Runtime) -> None:
         "changes. Only for a plan built in this conversation at the user's request, or one the user asked to apply "
         "after reviewing it with plan_show. Before changing anything it checks that the playlist hasn't changed "
         "since the plan was built and backs it up; afterwards it verifies the result. Never say a plan was applied "
-        'unless this returns status "applied".',
+        'unless this returns status "applied". In the same message, before calling it, tell the user what the plan '
+        "changes and why, above all your judgment calls (such as removing another edition of the same recording); "
+        "don't wait for a reply: the dialog is their confirmation.",
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=True),
         meta={"anthropic/requiresUserInteraction": True},
     )
