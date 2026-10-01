@@ -1,9 +1,9 @@
-"""Thin CLI over the spotikit library. Every invocation prints exactly one JSON envelope to stdout.
+"""Thin CLI over the curatune library. Every invocation prints exactly one JSON envelope to stdout.
 
 Success: {"schema_version": 1, "ok": true, "command": "...", "data": {...}, "warnings": [...], "meta": {...}}
 Failure: {"schema_version": 1, "ok": false, "command": "...", "error": {"code", "message", "details"}, "meta": {...}}
 meta: {"elapsed_ms": <command time, excluding interpreter start-up>, "http": {"api"|"auth": {"calls", "ms"}}}
-Exit codes: 0 ok, 1 spotikit error, 2 usage error, 3 internal error, 130 interrupted.
+Exit codes: 0 ok, 1 curatune error, 2 usage error, 3 internal error, 130 interrupted.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Any, Callable
 from . import catalog, connect, metrics, playlists, plans, recordings
 from .auth import TokenManager
 from .config import Settings, load_settings
-from .errors import InvalidArgument, PlanError, SpotikitError
+from .errors import InvalidArgument, PlanError, CuratuneError
 from .http import SpotifyClient
 from .models import brief_track
 from .recordings import RecordingStore
@@ -271,7 +271,7 @@ def _plan_apply(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _build_parser() -> _Parser:
-    parser = _Parser(prog="spotikit", description="Spotify playlist toolkit. Outputs JSON.")
+    parser = _Parser(prog="curatune", description="A playlist toolkit for Spotify. Outputs JSON.")
     groups = parser.add_subparsers(dest="group", required=True, parser_class=_Parser)
 
     def command(group: argparse._SubParsersAction, name: str, handler: Callable, help_text: str) -> _Parser:
@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return 0
-    except SpotikitError as exc:
+    except CuratuneError as exc:
         _emit({"schema_version": OUTPUT_SCHEMA_VERSION, "ok": False, "command": command_name, "error": exc.to_dict()})
         return 1
     except KeyboardInterrupt:

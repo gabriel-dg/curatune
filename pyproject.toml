@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spotikit"
+name = "curatune"
 version = "0.1.0"
-description = "Deterministic Spotify playlist toolkit: a library plus a thin JSON CLI."
+description = "A playlist toolkit for Spotify: a deterministic library plus a thin JSON CLI."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -19,7 +19,7 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-spotikit = "spotikit.cli:main"
+curatune = "curatune.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

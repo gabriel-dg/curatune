@@ -1,7 +1,10 @@
-# spotikit
+# curatune — a playlist toolkit for Spotify
 
-Work with your own Spotify playlists by asking an AI agent in plain language. spotikit is the deterministic
-part: a Python library (`src/spotikit`) plus a thin CLI that prints one JSON document per call. The
+Formerly spotikit. curatune is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is a
+trademark of Spotify AB.
+
+Work with your own Spotify playlists by asking an AI agent in plain language. curatune is the deterministic
+part: a Python library (`src/curatune`) plus a thin CLI that prints one JSON document per call. The
 judgment (what to add, what counts as a duplicate, how to rank) comes from the agent, not from this code.
 
 ## What you can do
@@ -27,7 +30,7 @@ Ask in plain language. Some examples:
 Research such as recording dates (with source and confidence) is kept locally, so later additions and
 reorders reuse it. You can also **rename a playlist or change its description** ("rename X to Y", "give X
 a description"); the change is shown as a plan and applied after your OK. Some things are left out on
-purpose, for safety; see [What spotikit won't do](#what-spotikit-wont-do).
+purpose, for safety; see [What curatune won't do](#what-curatune-wont-do).
 
 ## Using it with an AI agent
 
@@ -37,16 +40,16 @@ create the Spotify app, fill in `.env`, and approve the browser login.
 
 | Agent | Reads |
 |---|---|
-| Claude Code | `CLAUDE.md` (imports `AGENTS.md`) and `.claude/skills/spotikit/` (points to the shared skill) |
-| Gemini CLI | `GEMINI.md` (imports `AGENTS.md`; Gemini CLI does not read `AGENTS.md` by default) and `.agents/skills/spotikit/` |
-| Codex CLI, Cursor, GitHub Copilot (VS Code), and other agents that support Agent Skills | `AGENTS.md` and `.agents/skills/spotikit/` |
+| Claude Code | `CLAUDE.md` (imports `AGENTS.md`) and `.claude/skills/curatune/` (points to the shared skill) |
+| Gemini CLI | `GEMINI.md` (imports `AGENTS.md`; Gemini CLI does not read `AGENTS.md` by default) and `.agents/skills/curatune/` |
+| Codex CLI, Cursor, GitHub Copilot (VS Code), and other agents that support Agent Skills | `AGENTS.md` and `.agents/skills/curatune/` |
 
-GitHub Copilot also scans `.claude/skills/`, so it lists two `spotikit` skills. Either one works: the
+GitHub Copilot also scans `.claude/skills/`, so it lists two `curatune` skills. Either one works: the
 `.claude/skills/` entry only points to the shared skill.
 
 The skill uses the open [Agent Skills](https://agentskills.io) format. Agents that sandbox commands must
-allow spotikit network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
-outside the repository (see `SPOTIKIT_TOKEN_DIR` below). Personal preferences, such as your language or
+allow curatune network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
+outside the repository (see `CURATUNE_TOKEN_DIR` below). Personal preferences, such as your language or
 per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the repository root.
 
 ## How changes stay safe
@@ -59,20 +62,20 @@ per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the 
 - Spotify currently makes every playlist created through the API **public**, whatever is requested.
   Make it private from the Spotify app if needed.
 
-## What spotikit won't do
+## What curatune won't do
 
 ### Left out on purpose
 
-These are **deliberate protections, not gaps**. Spotify's API allows some of them; spotikit leaves them
+These are **deliberate protections, not gaps**. Spotify's API allows some of them; curatune leaves them
 out so that a mistake, a misunderstood request, or text planted in a track or playlist name can't cause
 damage that is hard to undo.
 
 - **Delete a playlist.** The API can remove a playlist from your library, which is what "delete" does in
-  the app. spotikit has no command for it: a playlist only disappears if you delete it yourself in Spotify.
+  the app. curatune has no command for it: a playlist only disappears if you delete it yourself in Spotify.
 - **Change a playlist's visibility or make it collaborative.** Only the name and description can change.
   Visibility would decide who can see your playlist, and Spotify ignores it through the API anyway.
 - **Touch anything outside your playlists:** your liked songs and saved albums, followed artists,
-  playback, or listening history. spotikit only requests the three playlist permissions, so it has no
+  playback, or listening history. curatune only requests the three playlist permissions, so it has no
   access to the rest.
 - **Remove, reorder, rename, or change a description without your OK.** Every one of these goes through a
   plan you see first. There is no option to skip the confirmation.
@@ -114,11 +117,11 @@ Development Mode requirement). Development Mode apps allow up to 5 authorized us
    ```bash
    python -m venv .venv
    .venv/Scripts/python -m pip install -e ".[dev]"   # .venv/bin/python on macOS/Linux
-   .venv/Scripts/spotikit auth login                  # .venv/bin/spotikit on macOS/Linux
+   .venv/Scripts/curatune auth login                  # .venv/bin/curatune on macOS/Linux
    ```
 
 The token is stored outside the repository. Spotify refresh tokens expire 6 months after the original
-authorization; after that, run `spotikit auth login` again.
+authorization; after that, run `curatune auth login` again.
 
 ### Configuration (`.env`)
 
@@ -126,8 +129,8 @@ authorization; after that, run `spotikit auth login` again.
 |---|---|---|
 | `SPOTIFY_CLIENT_ID` | — (required) | App client ID. |
 | `SPOTIFY_REDIRECT_PORT` | `8888` | Callback port; URI is always `http://127.0.0.1:<port>/callback` and must be registered in the dashboard. `auth login --port` overrides it. |
-| `SPOTIKIT_MARKET` | none | Default market for `playlist show`, `search`, `track`, `album`. |
-| `SPOTIKIT_TOKEN_DIR` | `%LOCALAPPDATA%\spotikit` / `~/.config/spotikit` | Token location. Must be outside the repo (enforced). |
+| `CURATUNE_MARKET` | none | Default market for `playlist show`, `search`, `track`, `album`. |
+| `CURATUNE_TOKEN_DIR` | `%LOCALAPPDATA%\curatune` / `~/.config/curatune` | Token location. Must be outside the repo (enforced). |
 
 ## Commands
 
@@ -144,12 +147,12 @@ authorization; after that, run `spotikit auth login` again.
 | `plan show` / `plan apply` | Inspect a plan; apply it after approval. |
 
 Arguments, JSON output shapes, error and warning codes, the plan format, and the Spotify API quirks
-spotikit works around are in **[docs/reference.md](docs/reference.md)**.
+curatune works around are in **[docs/reference.md](docs/reference.md)**.
 
 ## Development
 
 ```
-src/spotikit/
+src/curatune/
   auth.py        OAuth PKCE flow, token storage outside the repo, refresh/expiry handling
   http.py        Web API client: retries (429/5xx/network), 401 refresh, error mapping, pagination
   playlists.py   list, read (consistent snapshot), create, add
@@ -161,7 +164,7 @@ src/spotikit/
   models.py      normalization to the documented JSON shapes (full and brief)
   metrics.py     per-command HTTP timing
   cli.py         thin argparse layer emitting the JSON envelope
-.agents/skills/spotikit/SKILL.md   how an AI agent uses spotikit (shared skill)
+.agents/skills/curatune/SKILL.md   how an AI agent uses curatune (shared skill)
 docs/reference.md                  CLI contract and API notes
 ```
 

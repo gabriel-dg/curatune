@@ -44,7 +44,7 @@ def list_playlists(client: SpotifyClient, owned_only: bool = False) -> dict[str,
                 {
                     "code": "ITEM_COUNT_READ_LAG",
                     "message": "Spotify's playlist list returned stale item counts; using the counts left by "
-                    "spotikit's recent writes. `playlist show` counts the items it reads.",
+                    "curatune's recent writes. `playlist show` counts the items it reads.",
                     "playlists": corrected,
                 }
             )
@@ -103,7 +103,7 @@ def get_playlist(client: SpotifyClient, ref: str, market: str | None = None) -> 
             warnings.append(
                 {
                     "code": "SNAPSHOT_READ_LAG",
-                    "message": "Spotify returned a stale snapshot_id; using the one returned by spotikit's "
+                    "message": "Spotify returned a stale snapshot_id; using the one returned by curatune's "
                     "last write to this playlist (items match exactly).",
                     "read_snapshot_id": read_snapshot,
                     "effective_snapshot_id": effective,

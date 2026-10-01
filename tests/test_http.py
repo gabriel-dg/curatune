@@ -5,8 +5,8 @@ import json
 import pytest
 import requests
 
-from spotikit import http, metrics
-from spotikit.errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
+from curatune import http, metrics
+from curatune.errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
 
 
 class Resp:

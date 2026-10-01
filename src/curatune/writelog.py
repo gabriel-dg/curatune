@@ -1,4 +1,4 @@
-"""Local record of spotikit's own writes, used to compensate Spotify's snapshot_id read lag.
+"""Local record of curatune's own writes, used to compensate Spotify's snapshot_id read lag.
 
 After a write, `GET /playlists/{id}` keeps returning the previous snapshot_id for a few minutes,
 while the item list is already current. The snapshot returned by the write itself is the one
@@ -45,7 +45,7 @@ class WriteLog:
             self._save(data)
 
     def expected_counts(self) -> dict[str, int]:
-        """Item counts expected after spotikit's recent writes, by playlist id.
+        """Item counts expected after curatune's recent writes, by playlist id.
 
         The playlist list lags behind writes too: `GET /me/playlists` keeps the old `items.total` for a
         while. `playlists list` prefers these counts while they differ. Entries are not dropped here;

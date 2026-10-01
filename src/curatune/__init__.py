@@ -1,8 +1,8 @@
-"""spotikit: deterministic Spotify playlist operations (library + thin CLI).
+"""curatune: deterministic Spotify playlist operations (library + thin CLI).
 
 Public library surface, intended to be wrapped later (e.g. by an MCP server):
 
-    from spotikit import load_settings, connect
+    from curatune import load_settings, connect
     client = connect(load_settings())
     playlists.get_playlist(client, "<playlist id, URI, or URL>")
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 from . import catalog, playlists, plans, recordings
 from .auth import TokenManager
 from .config import Settings, load_settings
-from .errors import SpotikitError
+from .errors import CuratuneError
 from .http import SpotifyClient
 from .writelog import WriteLog
 
@@ -29,7 +29,7 @@ def connect(settings: Settings | None = None) -> SpotifyClient:
 __all__ = [
     "Settings",
     "SpotifyClient",
-    "SpotikitError",
+    "CuratuneError",
     "TokenManager",
     "catalog",
     "connect",

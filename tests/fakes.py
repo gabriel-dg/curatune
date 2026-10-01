@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from typing import Any
 
-from spotikit.plans import simulate
+from curatune.plans import simulate
 
 PLAYLIST_ID = "AbCdEfGhIjKlMnOpQrStUv"  # synthetic
 

@@ -1,15 +1,15 @@
-# spotikit — Spotify Playlist Toolkit
+# curatune — a playlist toolkit for Spotify
 
 ## Goal
 
 A Python toolkit for working with the user's own Spotify playlists through the Spotify Web API. The user
 asks an AI agent in natural language ("add 10 landmark bebop tracks", "reorder by recording date", "find
-duplicates"), and the agent fulfils it with spotikit. Scope: **playlists only** (create, read, edit, analyze);
+duplicates"), and the agent fulfils it with curatune. Scope: **playlists only** (create, read, edit, analyze);
 no playback, library, or listening history.
 
-**Using spotikit** (commands, workflows, rules, error handling) is covered by the project skill
-`.agents/skills/spotikit/SKILL.md`, which loads when a request is about the user's playlists. This file
-covers **developing** spotikit.
+**Using curatune** (commands, workflows, rules, error handling) is covered by the project skill
+`.agents/skills/curatune/SKILL.md`, which loads when a request is about the user's playlists. This file
+covers **developing** curatune.
 
 Personal context (conversation language, reference playlists, curation criteria) lives in the gitignored
 `AGENTS.local.md` at the repository root; read it when present. Never put personal data (user IDs, playlist IDs, names, emails, local paths) in
@@ -27,8 +27,8 @@ Cursor, Gemini CLI, and GitHub Copilot, as well as Claude Code. Keep a single so
     sessions can't (older versions, some sessions right after an upgrade). It never reads `AGENTS.local.md`.
     Keep `CLAUDE.md` as the import: it covers those sessions, loads the personal file, and never makes
     `AGENTS.md` load twice.
-- `.agents/skills/spotikit/SKILL.md` is the skill. Claude Code only discovers `.claude/skills/`, so
-  `.claude/skills/spotikit/SKILL.md` is a thin entry point that points to it and pre-approves the read-only
+- `.agents/skills/curatune/SKILL.md` is the skill. Claude Code only discovers `.claude/skills/`, so
+  `.claude/skills/curatune/SKILL.md` is a thin entry point that points to it and pre-approves the read-only
   commands (`allowed-tools`). Its `name` and `description` must match the shared skill
   (`tests/test_agent_files.py`).
 - Keep agent-neutral wording in shared files: "the agent", not a product name.
@@ -40,7 +40,7 @@ Cursor, Gemini CLI, and GitHub Copilot, as well as Claude Code. Keep a single so
 - **Judgment layer (the agent):** interprets requests, combines commands, applies domain knowledge (and web
   search), explains decisions and confidence.
 
-Architecture: library package `src/spotikit/` with all logic; thin CLI (`cli.py`) on top. Keep the library
+Architecture: library package `src/curatune/` with all logic; thin CLI (`cli.py`) on top. Keep the library
 usable on its own so it can be wrapped as an MCP server later without rewriting anything. Any new CLI
 command must be documented in `docs/reference.md` (and listed in README.md) and in the skill.
 
@@ -77,7 +77,7 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
 - OAuth Authorization Code **with PKCE**; no client secret. The Client ID lives only in `.env` (the user
   fills it in; never ask for credentials in chat). Never print or log credentials or tokens.
 - `state` is validated on the callback. The token is stored **outside the repo** (default
-  `%LOCALAPPDATA%\spotikit\token.json` or `~/.config/spotikit/token.json`; `SPOTIKIT_TOKEN_DIR` overrides;
+  `%LOCALAPPDATA%\curatune\token.json` or `~/.config/curatune/token.json`; `CURATUNE_TOKEN_DIR` overrides;
   a path inside the repo is rejected).
 - Callback port: `SPOTIFY_REDIRECT_PORT` (default 8888) or `auth login --port`; the exact
   `http://127.0.0.1:<port>/callback` must be registered in the dashboard (portless URIs are rejected).
@@ -117,10 +117,10 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
   by `writelog.py` (`data/write_log.json`, `SNAPSHOT_READ_LAG`).
 - The playlist list lags too (observed 2026-09-29 by spotikit-web): right after creating a playlist and
   adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
-  all 20. `playlists list` reports the count left by spotikit's own writes of the last 15 minutes when
+  all 20. `playlists list` reports the count left by curatune's own writes of the last 15 minutes when
   the list disagrees (`writelog.py`, `ITEM_COUNT_READ_LAG`); `playlist show` counts the items it reads.
 - `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; `plan apply` checks itself.
-- `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; spotikit only uses moves.
+- `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; curatune only uses moves.
 - Refresh tokens expire 6 months after the original authorization (not extended by refreshing); on
   `invalid_grant` the token is discarded and `AUTH_EXPIRED` is raised.
 - Scopes: `playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`.
@@ -128,9 +128,12 @@ command must be documented in `docs/reference.md` (and listed in README.md) and 
 ## Development
 
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
-- The package is installed in editable mode: other sessions using spotikit run this working tree
+- Naming: Spotify's developer guidelines forbid "Spotify", or anything similar in sound or spelling, in a
+  product's name, but allow "for Spotify". The project is curatune (renamed from spotikit for this
+  reason); describe it as "a playlist toolkit for Spotify", never "Spotify playlist toolkit".
+- The package is installed in editable mode: other sessions using curatune run this working tree
   **live**. A half-finished edit breaks their commands (seen 2026-09-24: `NameError` in `cli.py` mid-edit).
-  When another session may be using spotikit, develop in a separate git worktree, or make every save
+  When another session may be using curatune, develop in a separate git worktree, or make every save
   leave the package importable (define helpers before the code that calls them).
 - Positions in JSON are **0-based** (same as the API).
 - Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`. Plan logic is tested

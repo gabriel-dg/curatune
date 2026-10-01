@@ -7,9 +7,9 @@ import urllib.request
 
 import pytest
 
-from spotikit import auth
-from spotikit.config import Settings, load_settings
-from spotikit.errors import AuthError, AuthExpired, ConfigError
+from curatune import auth, config
+from curatune.config import Settings, load_settings
+from curatune.errors import AuthError, AuthExpired, ConfigError
 
 
 def test_pkce_challenge_matches_rfc7636_vector():
@@ -182,14 +182,33 @@ def test_add_months_clamps_day():
 
 
 def test_token_dir_inside_repo_is_rejected(monkeypatch, tmp_path):
-    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path))
-    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
     with pytest.raises(ConfigError):
         load_settings()
 
 
 def test_redirect_port_is_configurable(monkeypatch, tmp_path):
-    monkeypatch.setenv("SPOTIKIT_PROJECT_DIR", str(tmp_path / "repo"))
-    monkeypatch.setenv("SPOTIKIT_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
     monkeypatch.setenv("SPOTIFY_REDIRECT_PORT", "9090")
     assert load_settings().redirect_uri == "http://127.0.0.1:9090/callback"
+
+
+def test_settings_read_the_product_variables(monkeypatch, tmp_path):
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_MARKET", "ar")
+    settings = load_settings()
+    assert settings.project_root == (tmp_path / "repo").resolve()
+    assert settings.token_dir == (tmp_path / "tokens").resolve()
+    assert settings.market == "AR"
+
+
+@pytest.mark.parametrize(("platform", "base_var"), [("win32", "LOCALAPPDATA"), ("linux", "XDG_CONFIG_HOME")])
+def test_default_token_dir_is_named_after_the_product(monkeypatch, tmp_path, platform, base_var):
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
+    monkeypatch.delenv("CURATUNE_TOKEN_DIR", raising=False)
+    monkeypatch.setattr(config.sys, "platform", platform)
+    monkeypatch.setenv(base_var, str(tmp_path / "base"))
+    assert load_settings().token_dir == tmp_path / "base" / "curatune"

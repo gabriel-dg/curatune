@@ -6,7 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from .errors import InvalidArgument, SpotikitError
+from .errors import InvalidArgument, CuratuneError
 from .http import SpotifyClient
 from .models import normalize_album, normalize_track
 from .refs import parse_id
@@ -129,7 +129,7 @@ def search_tracks_batch(
                 market=q.get("market", market),
             )
             return {"id": search_id, "ok": True, **result}
-        except SpotikitError as exc:
+        except CuratuneError as exc:
             return {"id": search_id, "ok": False, "error": exc.to_dict()}
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
