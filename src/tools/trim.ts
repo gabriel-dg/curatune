@@ -1,7 +1,7 @@
-// What the model sees of Spotify objects: compact, flat shapes (after spotikit's `brief_track`). Nothing
+// What the model sees of Spotify objects: compact, flat shapes (after curatune's `brief_track`). Nothing
 // else from the API reaches the LLM, and never anything about the session (tokens, snapshot IDs, URLs).
 //
-// Deliberate difference from spotikit: playlist items carry `number`, 1-based as in the Spotify app,
+// Deliberate difference from curatune: playlist items carry `number`, 1-based as in the Spotify app,
 // instead of the 0-based `position`. The evaluation showed a small model mixing the two up ("track 3"
 // read as position 3) even when told to convert. Below the tool layer everything stays 0-based.
 

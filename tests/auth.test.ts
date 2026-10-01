@@ -11,7 +11,7 @@ import {
   takeCallbackParams,
   TOKEN_URL,
 } from "../src/spotify/auth";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { fakeFetch, json, MemoryStorage, rejection } from "./helpers";
 
 const CLIENT_ID = "client123";
@@ -44,7 +44,7 @@ async function login(ctx: Ctx): Promise<void> {
   await ctx.auth.completeLogin(new URLSearchParams({ code: CODE, state: url.searchParams.get("state")! }));
 }
 
-const fail = (promise: Promise<unknown>) => rejection(promise, SpotikitError);
+const fail = (promise: Promise<unknown>) => rejection(promise, CuratuneError);
 
 describe("PKCE helpers", () => {
   it("generates an 86-char base64url verifier", () => {
@@ -137,7 +137,7 @@ describe("login", () => {
   it("removes the pending verifier and state after the exchange", async () => {
     const ctx = setup();
     await login(ctx);
-    expect([...ctx.storage.data.keys()]).toEqual(["spotikit-web.token"]);
+    expect([...ctx.storage.data.keys()]).toEqual(["curatune-web.token"]);
   });
 
   it("rejects a state mismatch without contacting Spotify, and consumes the pending login", async () => {
@@ -308,7 +308,7 @@ describe("tokens", () => {
 
   it("discards an unreadable stored token", async () => {
     const ctx = setup();
-    ctx.storage.setItem("spotikit-web.token", "{not json");
+    ctx.storage.setItem("curatune-web.token", "{not json");
     expect((await fail(ctx.auth.accessToken())).code).toBe("AUTH_REQUIRED");
     expect(ctx.storage.data.size).toBe(0);
   });
@@ -323,6 +323,6 @@ describe("tokens", () => {
   it("requires a client ID", () => {
     const create = () =>
       new SpotifyAuth({ clientId: "", redirectUri: REDIRECT, storage: new MemoryStorage(), fetch: async () => json({}) });
-    expect(create).toThrow(SpotikitError);
+    expect(create).toThrow(CuratuneError);
   });
 });

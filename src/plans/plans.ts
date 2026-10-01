@@ -1,8 +1,8 @@
 // Plans for destructive or order-changing operations: remove, reorder, and details (name, description).
-// Follows spotikit commit b3531aa, src/spotikit/plans.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/spotikit/plans.py. Differences, all deliberate:
 // - Plans live in memory (a PlanRegistry in the app), not in files; backups go to an async KeyValueStore
 //   (IndexedDB in the app).
-// - Besides spotikit's explicit order, move, and order by recording date (from the recordings store), a
+// - Besides curatune's explicit order, move, and order by recording date (from the recordings store), a
 //   deterministic sort by title, artist, album, edition date, or duration (sortedOrder).
 // - Checksums use SHA-256 from Web Crypto over the same canonical JSON (sorted keys, no spaces).
 //
@@ -12,7 +12,7 @@
 // URIs, then executes the operations, verifies the result, and records the outcome in the plan.
 // Only the UI applies plans; tools and the agent never import applyPlan (tests/invariants.test.ts).
 
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { PlaylistItem } from "../spotify/models";
 import { getPlaylist, getPlaylistMeta, listPlaylists, type PlaylistState, type Warning } from "../spotify/playlists";
@@ -111,7 +111,7 @@ export interface ApplyResult {
 }
 
 const planError = (message: string, details: Record<string, unknown> = {}, code: "PLAN_INVALID" | "PLAN_INCONSISTENT" | "PLAN_CHECKSUM_MISMATCH" | "PLAN_ALREADY_APPLIED" | "NO_CHANGES" = "PLAN_INVALID") =>
-  new SpotikitError(code, message, details);
+  new CuratuneError(code, message, details);
 
 function isoNow(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -407,7 +407,7 @@ export async function buildRemovePlan(client: SpotifyClient, playlistRef: string
 
 /**
  * Sort keys computed here, not by the model (small models sort lists unreliably). A web-only addition:
- * spotikit only sorts by recording date, which v1 excludes. `released` is the edition's date.
+ * curatune only sorts by recording date, which v1 excludes. `released` is the edition's date.
  */
 export const SORT_KEYS = ["title", "artist", "album", "released", "duration"] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
@@ -582,7 +582,7 @@ export async function applyPlan(client: SpotifyClient, plan: Plan, backups: KeyV
   // The URI list must always match. The snapshot (already corrected by getPlaylist for read lag after our
   // own writes) must match too.
   if (state.playlist.snapshot_id !== plan.playlist.snapshot_id || itemsChanged) {
-    throw new SpotikitError("SNAPSHOT_MISMATCH", "The playlist changed since the plan was generated. Nothing was modified; ask for a new plan.", {
+    throw new CuratuneError("SNAPSHOT_MISMATCH", "The playlist changed since the plan was generated. Nothing was modified; ask for a new plan.", {
       plan_snapshot_id: plan.playlist.snapshot_id,
       current_snapshot_id: state.playlist.snapshot_id,
       items_changed: itemsChanged,
@@ -599,9 +599,9 @@ export async function applyPlan(client: SpotifyClient, plan: Plan, backups: KeyV
     try {
       snapshotId = await execute(client, playlistId, op, snapshotId);
     } catch (exc) {
-      if (!(exc instanceof SpotikitError)) throw exc;
+      if (!(exc instanceof CuratuneError)) throw exc;
       await client.writeLog?.forget(playlistId); // state is unknown now; do not vouch for it
-      throw new SpotikitError("APPLY_FAILED", "Applying the plan failed partway; the playlist may be partially modified.", {
+      throw new CuratuneError("APPLY_FAILED", "Applying the plan failed partway; the playlist may be partially modified.", {
         operations_done: done,
         operations_total: plan.operations.length,
         failed_operation: op,
@@ -620,7 +620,7 @@ export async function applyPlan(client: SpotifyClient, plan: Plan, backups: KeyV
   // The last write's snapshot is authoritative; reads may still return an older one.
   plan.applied = { applied_at: isoNow(), verified, snapshot_id: snapshotId, backup_key: backupKey };
   if (!verified) {
-    throw new SpotikitError("VERIFICATION_FAILED", "The plan was applied but the resulting playlist does not match the expected state.", {
+    throw new CuratuneError("VERIFICATION_FAILED", "The plan was applied but the resulting playlist does not match the expected state.", {
       plan_id: plan.plan_id,
       operations_done: done,
       expected_uris: expectedAfter,
@@ -639,7 +639,7 @@ async function applyDetails(client: SpotifyClient, plan: DetailsPlan, backups: K
   const now = currentDetails(playlist, fieldsBefore);
   if (!sameJson(now, plan.before)) {
     // Only the fields being changed matter here; item changes don't affect a rename or description.
-    throw new SpotikitError("SNAPSHOT_MISMATCH", "The playlist's name or description changed since the plan was generated. Nothing was modified; ask for a new plan.", {
+    throw new CuratuneError("SNAPSHOT_MISMATCH", "The playlist's name or description changed since the plan was generated. Nothing was modified; ask for a new plan.", {
       expected: plan.before,
       current: now,
     });
@@ -650,8 +650,8 @@ async function applyDetails(client: SpotifyClient, plan: DetailsPlan, backups: K
   try {
     await setDetails(client, playlistId, plan.after);
   } catch (exc) {
-    if (!(exc instanceof SpotikitError)) throw exc;
-    throw new SpotikitError("APPLY_FAILED", "Changing the playlist details failed; nothing was changed.", {
+    if (!(exc instanceof CuratuneError)) throw exc;
+    throw new CuratuneError("APPLY_FAILED", "Changing the playlist details failed; nothing was changed.", {
       operations_done: 0,
       error: exc.toJSON(),
       backup_key: backupKey,

@@ -1,8 +1,8 @@
-// Write tools (phase 3): create a playlist, add tracks. Both run directly, as in spotikit, and the UI
+// Write tools (phase 3): create a playlist, add tracks. Both run directly, as in curatune, and the UI
 // shows every write. Removing, reordering, and renaming go only through plans (phase 4); visibility is
 // never changeable. IDs must come from the conversation: the model cannot write invented ones.
 
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import { normalizeItemUri, parseId } from "../spotify/refs";
 import { addItems, createPlaylist, MAX_URIS_PER_REQUEST } from "../spotify/writes";
 import type { Args } from "./schema";
@@ -14,7 +14,7 @@ export function requireKnownIds(ctx: ToolContext, ids: string[]): void {
   if (!ctx.isKnownId) return;
   const unknown = [...new Set(ids.filter((id) => !ctx.isKnownId!(id)))];
   if (unknown.length) {
-    throw new SpotikitError(
+    throw new CuratuneError(
       "INVALID_REFERENCE",
       `These IDs did not appear in this conversation: ${unknown.join(", ")}. Use ids and URIs taken from tool ` +
         "results (for example search_tracks) or from the user's messages; never write invented ones.",

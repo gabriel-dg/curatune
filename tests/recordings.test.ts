@@ -1,10 +1,10 @@
-// Port of spotikit's tests/test_recordings.py (spotikit commit b3531aa), plus the web-only import/export and
+// Port of curatune's tests/test_recordings.py (curatune commit b3531aa), plus the web-only import/export and
 // the recording tools, against the in-memory fake Spotify.
 
 import { describe, expect, it } from "vitest";
 import { applyPlan, buildReorderPlan } from "../src/plans/plans";
 import { chronologicalOrder, playlistRecordings, RecordingStore, validateEntry, validateRecorded } from "../src/recordings/recordings";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
 import type { PlaylistItem } from "../src/spotify/models";
 import { MemoryStore } from "../src/storage/kv";
@@ -15,7 +15,7 @@ import { noSleep, rejection } from "./helpers";
 const trackUri = (n: number) => `spotify:track:${fakeId(`rec:${n}`)}`;
 const entry = (n: number, recorded: string, extra: Record<string, unknown> = {}) => ({ uri: trackUri(n), recorded, confidence: "high", source: "test", ...extra });
 const item = (position: number, uri: string, isrc: string | null = null) => ({ position, uri, name: `T${position}`, isrc }) as PlaylistItem;
-const fail = (promise: Promise<unknown>) => rejection(promise, SpotikitError);
+const fail = (promise: Promise<unknown>) => rejection(promise, CuratuneError);
 
 describe("validation", () => {
   it.each(["1947", "1947-12", "1947-12-05"])("accepts %s", (value) => {
@@ -27,9 +27,9 @@ describe("validation", () => {
   });
 
   it("requires a valid confidence and a source", () => {
-    expect(() => validateEntry({ uri: trackUri(1), recorded: "1947", confidence: "sure", source: "x" })).toThrow(SpotikitError);
-    expect(() => validateEntry({ uri: trackUri(1), recorded: "1947", confidence: "high", source: " " })).toThrow(SpotikitError);
-    expect(() => validateEntry({ recorded: "1947" })).toThrow(SpotikitError);
+    expect(() => validateEntry({ uri: trackUri(1), recorded: "1947", confidence: "sure", source: "x" })).toThrow(CuratuneError);
+    expect(() => validateEntry({ uri: trackUri(1), recorded: "1947", confidence: "high", source: " " })).toThrow(CuratuneError);
+    expect(() => validateEntry({ recorded: "1947" })).toThrow(CuratuneError);
   });
 });
 
@@ -37,7 +37,7 @@ describe("store", () => {
   it("upserts all-or-nothing", async () => {
     const store = new RecordingStore(new MemoryStore());
     await store.upsert([entry(1, "1945")]);
-    await expect(store.upsert([entry(2, "1946"), entry(3, "not-a-date")])).rejects.toThrow(SpotikitError);
+    await expect(store.upsert([entry(2, "1946"), entry(3, "not-a-date")])).rejects.toThrow(CuratuneError);
     expect(Object.keys(await store.load())).toEqual([trackUri(1)]);
   });
 
@@ -49,13 +49,13 @@ describe("store", () => {
     expect((await store.load())[trackUri(1)]!.note).toBe("master");
   });
 
-  it("imports spotikit's recordings.json and exports the same format", async () => {
+  it("imports curatune's recordings.json and exports the same format", async () => {
     const store = new RecordingStore(new MemoryStore());
-    const spotikitFile = JSON.stringify({
+    const curatuneFile = JSON.stringify({
       [trackUri(2)]: { recorded: "1947-12-05", confidence: "high", source: "AllMusic session notes", name: "Nostalgia", artists: ["Fats Navarro"] },
       [trackUri(1)]: { recorded: "1945", confidence: "medium", source: "liner notes" },
     });
-    expect(await store.importJson(spotikitFile)).toEqual({ created: 2, updated: 0, total: 2 });
+    expect(await store.importJson(curatuneFile)).toEqual({ created: 2, updated: 0, total: 2 });
     const exported = JSON.parse(await store.exportJson());
     expect(Object.keys(exported)).toEqual([trackUri(1), trackUri(2)].sort());
     expect(Object.keys(exported[trackUri(2)])).toEqual(["artists", "confidence", "name", "recorded", "source"]);
@@ -104,8 +104,8 @@ describe("chronological order", () => {
       chronologicalOrder(items, await store.load());
       throw new Error("expected RECORDING_DATES_MISSING");
     } catch (exc) {
-      expect((exc as SpotikitError).code).toBe("RECORDING_DATES_MISSING");
-      expect(((exc as SpotikitError).details.missing as { position: number }[]).map((m) => m.position)).toEqual([1, 2]);
+      expect((exc as CuratuneError).code).toBe("RECORDING_DATES_MISSING");
+      expect(((exc as CuratuneError).details.missing as { position: number }[]).map((m) => m.position)).toEqual([1, 2]);
     }
   });
 });

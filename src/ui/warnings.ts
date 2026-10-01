@@ -1,4 +1,4 @@
-// Warnings as the user reads them. Reads and plans return warnings for the model and for spotikit parity;
+// Warnings as the user reads them. Reads and plans return warnings for the model and for curatune parity;
 // some are bookkeeping the app already handled and mean nothing to the user, the rest get plain wording.
 // Track numbers are 1-based, as in the Spotify app. Pure (no DOM), so it is tested in Node.
 

@@ -4,7 +4,7 @@
 // all of it is rendered as text.
 
 import { applyPlan, type AfterItem, type ApplyResult, type CompactItem, type ItemPlan, type Plan } from "../plans/plans";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { KeyValueStore } from "../storage/kv";
 import type { WriteReport } from "../tools";
@@ -121,7 +121,7 @@ function detailsDiff(plan: Extract<Plan, { kind: "details" }>): HTMLElement {
 }
 
 function describeFailure(exc: unknown): string {
-  if (!(exc instanceof SpotikitError)) return "Unexpected error; see the browser console.";
+  if (!(exc instanceof CuratuneError)) return "Unexpected error; see the browser console.";
   if (exc.code === "SNAPSHOT_MISMATCH") return "The playlist changed since this plan was made. Nothing was modified; ask for a new plan.";
   if (exc.code === "APPLY_FAILED") return `${exc.message} A backup of the playlist before the change is stored in this browser (${String(exc.details.backup_key)}).`;
   if (exc.code === "VERIFICATION_FAILED") return `${exc.message} A backup is stored in this browser (${String(exc.details.backup_key)}).`;
@@ -166,12 +166,12 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
     try {
       result = await applyPlan(options.client, plan, options.backups);
     } catch (exc) {
-      if (!(exc instanceof SpotikitError)) console.error(exc);
-      const ranOperations = exc instanceof SpotikitError && (exc.code === "VERIFICATION_FAILED" || (exc.code === "APPLY_FAILED" && Number(exc.details.operations_done) > 0));
+      if (!(exc instanceof CuratuneError)) console.error(exc);
+      const ranOperations = exc instanceof CuratuneError && (exc.code === "VERIFICATION_FAILED" || (exc.code === "APPLY_FAILED" && Number(exc.details.operations_done) > 0));
       const message = describeFailure(exc);
       finish(message, "failed");
       if (ranOperations) options.onWrite({ title: `Plan partly applied: ${planTitle(plan)}`, lines: [message], playlistId: plan.playlist.id, warnings: [message] });
-      const code = exc instanceof SpotikitError ? exc.code : "ERROR";
+      const code = exc instanceof CuratuneError ? exc.code : "ERROR";
       options.onNotice(`The user pressed Apply on plan ${plan.plan_id} (${planTitle(plan)}) and it failed with ${code}: ${message}`);
       return;
     }

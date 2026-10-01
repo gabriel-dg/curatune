@@ -1,5 +1,5 @@
 // OAuth 2.0 Authorization Code flow with PKCE, entirely in the browser (no client secret, no backend).
-// Follows spotikit commit b3531aa, src/spotikit/auth.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/spotikit/auth.py. Differences, all deliberate:
 // - The callback is a page of this app instead of a local HTTP server; `takeCallbackParams` strips `code`
 //   and `state` from the address bar and the session history before anything else runs.
 // - Tokens and the pending login (verifier, state) live in the injected storage (sessionStorage in the
@@ -8,15 +8,15 @@
 // Tokens, codes, and verifiers never appear in errors, logs, or the URL. Refresh tokens expire 6 months
 // after the original authorization; on invalid_grant the token is discarded and AUTH_EXPIRED is raised.
 
-import { SpotikitError } from "./errors";
+import { CuratuneError } from "./errors";
 
 export const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 export const TOKEN_URL = "https://accounts.spotify.com/api/token";
 export const SCOPES = ["playlist-read-private", "playlist-modify-public", "playlist-modify-private"] as const;
 export const CALLBACK_PATH = "/callback";
 
-const TOKEN_KEY = "spotikit-web.token";
-const PENDING_KEY = "spotikit-web.pending-login";
+const TOKEN_KEY = "curatune-web.token";
+const PENDING_KEY = "curatune-web.pending-login";
 const ACCESS_TOKEN_SKEW_MS = 60_000;
 const PENDING_LOGIN_MAX_AGE_MS = 10 * 60_000;
 const REFRESH_TOKEN_LIFETIME_MONTHS = 6;
@@ -169,7 +169,7 @@ export class SpotifyAuth {
 
   constructor(options: AuthOptions) {
     if (!options.clientId) {
-      throw new SpotikitError("CONFIG_ERROR", "VITE_SPOTIFY_CLIENT_ID is not set. Add it to .env.local.");
+      throw new CuratuneError("CONFIG_ERROR", "VITE_SPOTIFY_CLIENT_ID is not set. Add it to .env.local.");
     }
     this.clientId = options.clientId;
     this.redirectUri = options.redirectUri;
@@ -193,25 +193,25 @@ export class SpotifyAuth {
     // The pending login is single-use: the verifier is removed whatever the outcome.
     const pending = this.takePendingLogin();
     if (!pending) {
-      throw new SpotikitError(
+      throw new CuratuneError(
         "AUTH_ERROR",
         "No login is in progress in this tab. Start the login again from this page (same tab and address).",
       );
     }
     // State is validated first, before trusting any other callback parameter.
     if (!constantTimeEqual(params.get("state") ?? "", pending.state)) {
-      throw new SpotikitError("AUTH_STATE_MISMATCH", "OAuth state mismatch; the callback was rejected.");
+      throw new CuratuneError("AUTH_STATE_MISMATCH", "OAuth state mismatch; the callback was rejected.");
     }
     if (this.now() - pending.createdAt > PENDING_LOGIN_MAX_AGE_MS) {
-      throw new SpotikitError("AUTH_ERROR", "The login took too long. Start it again.");
+      throw new CuratuneError("AUTH_ERROR", "The login took too long. Start it again.");
     }
     const error = params.get("error");
     if (error) {
-      throw new SpotikitError("AUTH_ERROR", "Authorization was denied.", { spotify_error: error });
+      throw new CuratuneError("AUTH_ERROR", "Authorization was denied.", { spotify_error: error });
     }
     const code = params.get("code");
     if (!code) {
-      throw new SpotikitError("AUTH_ERROR", "The callback did not include an authorization code.");
+      throw new CuratuneError("AUTH_ERROR", "The callback did not include an authorization code.");
     }
 
     let payload: TokenResponse;
@@ -225,14 +225,14 @@ export class SpotifyAuth {
       });
     } catch (exc) {
       if (exc instanceof InvalidGrant) {
-        throw new SpotikitError("AUTH_ERROR", "Spotify rejected the authorization code. Log in again.", {
+        throw new CuratuneError("AUTH_ERROR", "Spotify rejected the authorization code. Log in again.", {
           spotify_error_description: exc.message || null,
         });
       }
       throw exc;
     }
     if (!payload.refresh_token) {
-      throw new SpotikitError("AUTH_ERROR", "The token response did not include a refresh token.");
+      throw new CuratuneError("AUTH_ERROR", "The token response did not include a refresh token.");
     }
     const now = this.now();
     this.save({
@@ -307,17 +307,17 @@ export class SpotifyAuth {
 
   private loadRequired(): StoredToken {
     const raw = this.storage.getItem(TOKEN_KEY);
-    if (!raw) throw new SpotikitError("AUTH_REQUIRED", "Not logged in.");
+    if (!raw) throw new CuratuneError("AUTH_REQUIRED", "Not logged in.");
     let token: StoredToken;
     try {
       token = JSON.parse(raw) as StoredToken;
     } catch {
       this.storage.removeItem(TOKEN_KEY);
-      throw new SpotikitError("AUTH_REQUIRED", "The stored token was unreadable and was discarded. Log in again.");
+      throw new CuratuneError("AUTH_REQUIRED", "The stored token was unreadable and was discarded. Log in again.");
     }
     if (token.clientId !== this.clientId) {
       this.storage.removeItem(TOKEN_KEY);
-      throw new SpotikitError("AUTH_REQUIRED", "The stored token belongs to a different client ID. Log in again.");
+      throw new CuratuneError("AUTH_REQUIRED", "The stored token belongs to a different client ID. Log in again.");
     }
     return token;
   }
@@ -337,7 +337,7 @@ export class SpotifyAuth {
     } catch (exc) {
       if (!(exc instanceof InvalidGrant)) throw exc;
       this.storage.removeItem(TOKEN_KEY);
-      throw new SpotikitError(
+      throw new CuratuneError(
         "AUTH_EXPIRED",
         "The refresh token is expired or revoked (Spotify refresh tokens last 6 months from the original " +
           "authorization). The stored token was discarded; log in again.",
@@ -378,7 +378,7 @@ export class SpotifyAuth {
         signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
       });
     } catch (exc) {
-      throw new SpotikitError("AUTH_ERROR", "Network error contacting the Spotify token endpoint.", {
+      throw new CuratuneError("AUTH_ERROR", "Network error contacting the Spotify token endpoint.", {
         error: exc instanceof Error ? exc.name : "unknown",
       });
     }
@@ -394,7 +394,7 @@ export class SpotifyAuth {
     const error = typeof body.error === "string" ? body.error : null;
     const description = typeof body.error_description === "string" ? body.error_description : null;
     if (error === "invalid_grant") throw new InvalidGrant(description ?? "");
-    throw new SpotikitError("AUTH_ERROR", "The Spotify token endpoint returned an error.", {
+    throw new CuratuneError("AUTH_ERROR", "The Spotify token endpoint returned an error.", {
       status: resp.status,
       error,
       error_description: description,

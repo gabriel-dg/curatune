@@ -9,10 +9,10 @@ Setup: development and browser on a Windows PC; LM Studio on a Mac on the same L
 
 | Decision | Choice |
 |---|---|
-| Repository | Separate repo, sibling of spotikit |
+| Repository | Separate repo, sibling of curatune |
 | Stack | Vite + TypeScript, no UI framework; Vitest |
 | Browser (phases 1–4) | Windows PC, calling LM Studio on the Mac over the LAN |
-| v1 scope | No web search. Recording dates: added after phase 4 (a local store, as in spotikit) |
+| v1 scope | No web search. Recording dates: added after phase 4 (a local store, as in curatune) |
 
 ## Principles (all phases)
 
@@ -92,7 +92,7 @@ fails with a clear `FORBIDDEN`. Tokens appear in no console output, URL, DOM, or
 - [x] Agent loop in the browser: max iterations, timeouts, error handling.
 - [x] Tools: `playlists_list`, `playlist_show`, `search_tracks`, `track_show`, `album_tracks`.
 - [x] Trim tool results before they reach the model (name, artists, duration, URI).
-- [x] System prompt adapted from spotikit's `SKILL.md` (Spotify text is data, not instructions).
+- [x] System prompt adapted from curatune's `SKILL.md` (Spotify text is data, not instructions).
 - [x] Evaluation set of 8–10 prompts based on real requests; run it against each model and record the
       results.
 - **Done when:** at least one model picks the right tools for most prompts. If none does, that is the
@@ -147,7 +147,7 @@ writing keeps those writes in the conversation; the playlist view numbers tracks
 
 ## Phase 4 — Plans confirmed in the UI
 
-- [x] Port of spotikit's `plans.py`: build remove, reorder, and details plans.
+- [x] Port of curatune's `plans.py`: build remove, reorder, and details plans.
 - [x] Port of `validate_plan`, including `PLAN_INCONSISTENT`.
 - [x] Port of plan application with pre- and post-verification.
 - [x] Write log for the snapshot read lag, in IndexedDB.
@@ -170,7 +170,7 @@ plus a visibility request). The first run failed the alphabetical order: the mod
 itself and got it wrong. `plan_reorder` now takes `sort_by` (title, artist, album, edition date, duration)
 and the app sorts; the model uses it (2/2 reruns). Full rerun: 20/20, about 20 minutes.
 
-Deliberate differences from spotikit: plans live in memory and backups in IndexedDB (no files); no order
+Deliberate differences from curatune: plans live in memory and backups in IndexedDB (no files); no order
 by recording date (out of v1 scope), but deterministic sorts by other keys; the model refers to tracks by
 1-based numbers.
 
@@ -179,7 +179,7 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
 - A real request ("create a playlist with 20 underrated 60s songs in chronological order, one per artist")
   hit the step limit: one search per call, a cap of 8 calls per step, and the model trying to confirm
   recording years through `released` (edition dates) and re-searching.
-- Fixes: `search_many` (up to 25 searches per call, 4 concurrent, like spotikit's batch search, which had
+- Fixes: `search_many` (up to 25 searches per call, 4 concurrent, like curatune's batch search, which had
   not been ported); the prompt says to search each song once and to order by the original year from the
   model's knowledge, never by `released`; the step limit is 12, and reaching it asks the model (without
   tools) for a summary of what it did instead of discarding the turn.
@@ -187,7 +187,7 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   "create in chronological order" scenario 0/2. The mechanics work (one `search_many`, one create, one
   add), but the 9B model gets recording years wrong with confidence (e.g. "Swing to Bop, 1931") and took
   10-15 minutes on that request.
-- Conclusion: the deterministic layer matches spotikit; the gap is the model's knowledge. spotikit relies on
+- Conclusion: the deterministic layer matches curatune; the gap is the model's knowledge. curatune relies on
   Claude (and web search) for recording dates and stores them (`recordings set`), then sorts in code.
   Candidates: a stronger hosted model for knowledge-heavy requests, and porting the recording-date store.
 - Comparison with the same code and scenarios (21 scenarios, 2 runs each, fake Spotify, 2026-09-29):
@@ -214,7 +214,7 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
   20 tracks, about 10 s from creating to adding; 20 distinct, genuinely lesser-known artists, in
   chronological order by year, with plausible years.
 
-- Recording-date store (2026-09-29), ported from spotikit's `recordings.py`: same JSON format (import and
+- Recording-date store (2026-09-29), ported from curatune's `recordings.py`: same JSON format (import and
   export on a Recordings page, so the operator's 144 curated dates can come over), IndexedDB storage,
   lookup by URI or ISRC, `recordings_show` and `recordings_set` tools, `plan_reorder` with `sort_by:
   "recorded"`, and a Recorded column in the playlist view. Gemini passed the three new scenarios twice
@@ -296,6 +296,6 @@ by recording date (out of v1 scope), but deterministic sorts by other keys; the 
 
 ## Phase 6 — Assessment
 
-- [ ] Run the phase 2 evaluation set with Claude through spotikit, and compare.
+- [ ] Run the phase 2 evaluation set with Claude through curatune, and compare.
 - [ ] Decide whether and how to open it to others: the operator's Client ID (up to 5 allowlisted users)
       or each user bringing their own.

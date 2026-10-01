@@ -1,5 +1,5 @@
-// Port of spotikit's tests/test_plans.py, test_read_lag.py, and test_details.py (spotikit commit b3531aa),
-// against the in-memory fake Spotify. `spotify.writes` plays the role of spotikit's `fake.mutations`.
+// Port of curatune's tests/test_plans.py, test_read_lag.py, and test_details.py (curatune commit b3531aa),
+// against the in-memory fake Spotify. `spotify.writes` plays the role of curatune's `fake.mutations`.
 
 import { describe, expect, it } from "vitest";
 import { setDetails } from "../src/plans/ops";
@@ -18,7 +18,7 @@ import {
   type ItemPlan,
   type Plan,
 } from "../src/plans/plans";
-import { SpotikitError } from "../src/spotify/errors";
+import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
 import { getPlaylist, listPlaylists } from "../src/spotify/playlists";
 import { WriteLog } from "../src/spotify/writelog";
@@ -27,7 +27,7 @@ import { MemoryStore } from "../src/storage/kv";
 import { buildFixture, fakeId, FakeSpotify, type FakePlaylist } from "./fake-spotify";
 import { noSleep, rejection } from "./helpers";
 
-const fail = (promise: Promise<unknown>) => rejection(promise, SpotikitError);
+const fail = (promise: Promise<unknown>) => rejection(promise, CuratuneError);
 const range = (n: number) => Array.from({ length: n }, (_, i) => i);
 
 /** Deterministic PRNG (mulberry32) for the permutation property test. */
@@ -98,7 +98,7 @@ function setup(options: { lag?: boolean; writeLog?: boolean; items?: number } = 
   spotify.lag = Boolean(options.lag);
   const log = options.writeLog === false ? null : new WriteLog(new MemoryStore());
   const client = new SpotifyClient({ accessToken: async () => "token" }, { fetch: spotify.fetch, sleep: noSleep, writeLog: log });
-  // A plain playlist of distinct tracks, like spotikit's FakeSpotify([track_uri(i) for i in range(8)]).
+  // A plain playlist of distinct tracks, like curatune's FakeSpotify([track_uri(i) for i in range(8)]).
   const trackIds = [...fixture.tracks.keys()].slice(0, 20);
   const plain: FakePlaylist = {
     id: fakeId("playlist:plain"),
@@ -276,7 +276,7 @@ describe("snapshot read lag", () => {
   });
 
   it("a plan built during lag still applies after reads converge", async () => {
-    // The exact failure seen live by spotikit: plan built during lag, applied after convergence.
+    // The exact failure seen live by curatune: plan built during lag, applied after convergence.
     const { client, spotify, backups, plain, trackIds } = setup({ lag: true, items: 4 });
     await addItems(client, plain.id, [`spotify:track:${trackIds[10]}`]);
     const plan = await buildRemovePlan(client, plain.id, [0]);
@@ -319,7 +319,7 @@ describe("snapshot read lag", () => {
   });
 });
 
-// --- Playlist list lag (spotikit 590cd87) --------------------------------------------------------------------
+// --- Playlist list lag (curatune 590cd87) --------------------------------------------------------------------
 
 describe("playlist list lag", () => {
   it("lists the count our recent write left while Spotify's list still has the old total", async () => {

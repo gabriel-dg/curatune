@@ -2,7 +2,7 @@
 // Spotify; there is deliberately no tool that applies a plan (see AGENTS.md).
 
 import { getAlbumTracks, getTrack, SEARCH_MAX_LIMIT, searchTracks } from "../spotify/catalog";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import { getPlaylist, listPlaylists, type Warning } from "../spotify/playlists";
 import type { Args } from "./schema";
 import { briefAlbum, briefAlbumTrack, briefItem, briefPlaylist, briefTrack, formatTotalDuration } from "./trim";
@@ -191,7 +191,7 @@ const searchMany: Tool = {
         return { index, query: r.query, total: r.total, results: r.results.map(briefTrack) };
       } catch (exc) {
         // Authorization failures stop the whole call (the UI asks to log in again); others stay per search.
-        if (exc instanceof SpotikitError && !["AUTH_REQUIRED", "AUTH_EXPIRED", "CONFIG_ERROR"].includes(exc.code)) {
+        if (exc instanceof CuratuneError && !["AUTH_REQUIRED", "AUTH_EXPIRED", "CONFIG_ERROR"].includes(exc.code)) {
           return { index, error: { code: exc.code, message: exc.message } };
         }
         throw exc;

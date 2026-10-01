@@ -46,8 +46,8 @@ async function start(root: HTMLElement): Promise<void> {
 
   if (!persistent && indexedDbSupported()) {
     app.showWarning(
-      "Local storage is unavailable, probably because another spotikit tab runs an older version. Recording dates " +
-        "and backups will not be saved: close the other spotikit tabs and reload this one.",
+      "Local storage is unavailable, probably because another curatune-web tab runs an older version. Recording " +
+        "dates and backups will not be saved: close the other curatune-web tabs and reload this one.",
     );
   }
   if (callback) {

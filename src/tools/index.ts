@@ -2,7 +2,7 @@
 // {"ok": false, "error": {"code", "message"}}. Authorization failures are not tool errors: they are
 // rethrown so the UI can ask the user to log in again.
 
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import { validateArgs, type Args } from "./schema";
 import { PLAN_TOOLS } from "./plan";
 import { READ_TOOLS } from "./read";
@@ -70,12 +70,12 @@ export async function executeTool(
       try {
         parsed = rawArguments.trim() ? JSON.parse(rawArguments) : {};
       } catch {
-        throw new SpotikitError("INVALID_ARGUMENT", "Arguments are not valid JSON.");
+        throw new CuratuneError("INVALID_ARGUMENT", "Arguments are not valid JSON.");
       }
       args = validateArgs(tool.parameters, parsed);
       outcome = { ok: true, result: await tool.run(args, ctx) };
     } catch (exc) {
-      if (exc instanceof SpotikitError) {
+      if (exc instanceof CuratuneError) {
         if (AUTH_CODES.has(exc.code)) throw exc;
         outcome = failure(exc.code, exc.message);
       } else {

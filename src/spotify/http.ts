@@ -1,11 +1,11 @@
 // Thin HTTP client for the Spotify Web API: auth header, retries, error mapping, pagination.
-// Follows spotikit commit b3531aa, src/spotikit/http.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/spotikit/http.py. Differences, all deliberate:
 // - fetch is called with `redirect: "error"`, so a redirect can never carry the bearer token elsewhere.
 // - Errors carry only the status, method, path, and Spotify's message; never headers or tokens.
 // - The write log (for snapshot_id read lag) is optional and set by the app; reads use it through
 //   getPlaylist, writes record to it.
 
-import { SpotikitError } from "./errors";
+import { CuratuneError } from "./errors";
 import type { FetchLike } from "./auth";
 import type { WriteLog } from "./writelog";
 
@@ -46,16 +46,16 @@ const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(r
 export function resolveUrl(path: string): URL {
   const absolute = /^[a-z][a-z0-9+.-]*:/i.test(path);
   if (!absolute && !path.startsWith("/")) {
-    throw new SpotikitError("INVALID_ARGUMENT", "API paths must start with '/'.", { path });
+    throw new CuratuneError("INVALID_ARGUMENT", "API paths must start with '/'.", { path });
   }
   let url: URL;
   try {
     url = new URL(absolute ? path : `${API_BASE}${path}`);
   } catch {
-    throw new SpotikitError("UNTRUSTED_URL", "Refusing to send credentials to an unparseable URL.");
+    throw new CuratuneError("UNTRUSTED_URL", "Refusing to send credentials to an unparseable URL.");
   }
   if (url.protocol !== "https:" || url.host !== API_HOST || url.username || url.password) {
-    throw new SpotikitError("UNTRUSTED_URL", "Refusing to send credentials to a URL outside the Spotify Web API.", {
+    throw new CuratuneError("UNTRUSTED_URL", "Refusing to send credentials to a URL outside the Spotify Web API.", {
       scheme: url.protocol.replace(/:$/, ""),
       host: url.host,
     });
@@ -119,7 +119,7 @@ export class SpotifyClient {
           await this.sleep(2 ** attempt * 1000);
           continue;
         }
-        throw new SpotikitError("NETWORK_ERROR", "Network error contacting Spotify.", {
+        throw new CuratuneError("NETWORK_ERROR", "Network error contacting Spotify.", {
           error: exc instanceof Error ? exc.name : "unknown",
           method,
           path: logPath,
@@ -146,7 +146,7 @@ export class SpotifyClient {
           await this.sleep(retryAfter * 1000);
           continue;
         }
-        throw new SpotikitError("RATE_LIMITED", "Spotify rate limit reached.", {
+        throw new CuratuneError("RATE_LIMITED", "Spotify rate limit reached.", {
           retry_after_seconds: retryAfter,
           method,
           path: logPath,
@@ -206,7 +206,7 @@ export class SpotifyClient {
   }
 }
 
-async function mapError(resp: Response, method: string, path: string): Promise<SpotikitError> {
+async function mapError(resp: Response, method: string, path: string): Promise<CuratuneError> {
   let body: unknown = {};
   try {
     body = await resp.json();
@@ -218,8 +218,8 @@ async function mapError(resp: Response, method: string, path: string): Promise<S
   const spotifyMessage = typeof raw === "string" ? raw : null;
   const details = { status: resp.status, method, path, spotify_message: spotifyMessage };
   const message = `Spotify API error ${resp.status}` + (spotifyMessage ? `: ${spotifyMessage}` : "");
-  if (resp.status === 400) return new SpotikitError("API_BAD_REQUEST", message, details);
-  if (resp.status === 403) return new SpotikitError("FORBIDDEN", message, details);
-  if (resp.status === 404) return new SpotikitError("NOT_FOUND", message, details);
-  return new SpotikitError("API_ERROR", message, details);
+  if (resp.status === 400) return new CuratuneError("API_BAD_REQUEST", message, details);
+  if (resp.status === 403) return new CuratuneError("FORBIDDEN", message, details);
+  if (resp.status === 404) return new CuratuneError("NOT_FOUND", message, details);
+  return new CuratuneError("API_ERROR", message, details);
 }

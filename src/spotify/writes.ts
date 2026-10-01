@@ -1,12 +1,12 @@
 // Writes allowed without a plan: create a playlist, add items.
-// Follows spotikit commit b3531aa, src/spotikit/playlists.py (create_playlist, add_items) and
+// Follows curatune commit b3531aa, src/spotikit/playlists.py (create_playlist, add_items) and
 // src/spotikit/_writes.py (insert_uris). Differences, all deliberate:
 // - create always requests a private playlist: the caller (the model) never chooses visibility.
 // - add re-reads the playlist after writing and reports whether the new items are where expected.
 // - Both record to the write log (when the client has one), so plans built right after still apply.
 // There is deliberately no function to remove, reorder, rename, or change visibility here.
 
-import { SpotikitError } from "./errors";
+import { CuratuneError } from "./errors";
 import type { SpotifyClient } from "./http";
 import { normalizePlaylist, type Playlist, type PlaylistItem } from "./models";
 import { getPlaylist, listPlaylists, type Warning } from "./playlists";
@@ -39,7 +39,7 @@ function chunks<T>(values: T[], size: number): T[][] {
 
 export function requireEditable(playlist: Playlist): void {
   if (!(playlist.owned || playlist.collaborative)) {
-    throw new SpotikitError("FORBIDDEN", "You can only modify playlists you own or collaborate on.", {
+    throw new CuratuneError("FORBIDDEN", "You can only modify playlists you own or collaborate on.", {
       playlist_id: playlist.id,
       owner_id: playlist.owner_id,
     });
@@ -53,13 +53,13 @@ export async function createPlaylist(
   allowDuplicateName = false,
 ): Promise<CreateResult> {
   const name = (rawName ?? "").trim();
-  if (!name) throw new SpotikitError("INVALID_ARGUMENT", "Playlist name cannot be empty.");
+  if (!name) throw new CuratuneError("INVALID_ARGUMENT", "Playlist name cannot be empty.");
   if (!allowDuplicateName) {
     const existing = (await listPlaylists(client, true)).playlists.filter(
       (p) => (p.name ?? "").trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
     );
     if (existing.length) {
-      throw new SpotikitError("DUPLICATE_NAME", "You already own a playlist with this name.", {
+      throw new CuratuneError("DUPLICATE_NAME", "You already own a playlist with this name.", {
         existing: existing.map((p) => ({ id: p.id, name: p.name })),
       });
     }
@@ -72,7 +72,7 @@ export async function createPlaylist(
   if (client.writeLog && playlist.id && playlist.snapshot_id) await client.writeLog.record(playlist.id, playlist.snapshot_id, []);
 
   // The create response echoes the requested visibility even when Spotify ignores it (public=false is
-  // not applied: known issue, confirmed live by spotikit 2026-09-23). Report what a read says instead,
+  // not applied: known issue, confirmed live by curatune 2026-09-23). Report what a read says instead,
   // and never claim the playlist is private.
   const read = await client.get<{ public?: boolean | null }>(`/playlists/${playlist.id}`, { fields: "public" });
   const reportedPublic = read.public ?? null;
@@ -107,14 +107,14 @@ export async function addItems(
   allowDuplicates = false,
 ): Promise<AddResult> {
   const uris = itemRefs.map(normalizeItemUri);
-  if (!uris.length) throw new SpotikitError("INVALID_ARGUMENT", "No items to add.");
+  if (!uris.length) throw new CuratuneError("INVALID_ARGUMENT", "No items to add.");
 
   const state = await getPlaylist(client, ref);
   const playlist = state.playlist;
   requireEditable(playlist);
   const count = state.items.length;
   if (position !== null && !(Number.isInteger(position) && position >= 0 && position <= count)) {
-    throw new SpotikitError("INVALID_ARGUMENT", "Position is out of range.", { position, item_count: count });
+    throw new CuratuneError("INVALID_ARGUMENT", "Position is out of range.", { position, item_count: count });
   }
 
   const present = new Set(state.items.map((i) => i.uri));
@@ -152,7 +152,7 @@ export async function addItems(
       itemsAfter = after.items;
       verified = after.items.length === count + toAdd.length && added.every((a) => after.items[a.position]?.uri === a.uri);
     } catch (exc) {
-      if (exc instanceof SpotikitError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) throw exc;
+      if (exc instanceof CuratuneError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED")) throw exc;
       verified = false;
     }
   }

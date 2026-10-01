@@ -1,5 +1,5 @@
-// Normalization of Spotify API objects into the JSON shapes of spotikit's docs/reference.md.
-// Follows spotikit commit b3531aa, src/spotikit/models.py. Keys use spotikit's snake_case so tool results
+// Normalization of Spotify API objects into the JSON shapes of curatune's docs/reference.md.
+// Follows curatune commit b3531aa, src/spotikit/models.py. Keys use curatune's snake_case so tool results
 // match the CLI's. Difference: descriptions are unescaped with `unescapeHtml` (numeric and the basic named
 // entities, which is what Spotify emits) instead of Python's full `html.unescape`.
 

@@ -3,7 +3,7 @@
 // Ordering by recording date is plan_reorder with sort_by "recorded".
 
 import { CONFIDENCE_LEVELS, playlistRecordings } from "../recordings/recordings";
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import { normalizeItemUri, parseId } from "../spotify/refs";
 import type { Args } from "./schema";
 import type { Tool, ToolContext } from "./types";
@@ -12,7 +12,7 @@ import { requireKnownIds } from "./write";
 const MAX_ENTRIES = 100;
 
 function store(ctx: ToolContext) {
-  if (!ctx.recordings) throw new SpotikitError("INVALID_ARGUMENT", "Recording dates are not available.");
+  if (!ctx.recordings) throw new CuratuneError("INVALID_ARGUMENT", "Recording dates are not available.");
   return ctx.recordings;
 }
 

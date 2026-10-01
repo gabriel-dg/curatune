@@ -6,7 +6,7 @@ import { buildCsp } from "./config/csp.ts";
 // which additionally enforces frame-ancestors.
 function cspMetaTag(policy: string): Plugin {
   return {
-    name: "spotikit-csp",
+    name: "curatune-csp",
     transformIndexHtml: {
       order: "pre",
       handler: () => [

@@ -1,7 +1,7 @@
 // Local store of recording metadata, keyed by track URI.
-// Follows spotikit commit b3531aa, src/spotikit/recordings.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/spotikit/recordings.py. Differences, all deliberate:
 // - Stored in IndexedDB (through an async KeyValueStore) instead of data/recordings.json. The JSON format
-//   is the same, so importJson/exportJson move data to and from spotikit.
+//   is the same, so importJson/exportJson move data to and from curatune.
 // - All entries live under one key, so an upsert replaces the whole map at once (all-or-nothing).
 //
 // Spotify only exposes the release date of an edition, not when a track was recorded. Recording dates
@@ -9,7 +9,7 @@
 // confidence. The store is data, not judgment: deciding a date is the caller's job; this module only
 // validates, stores, and joins it.
 
-import { SpotikitError } from "../spotify/errors";
+import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { Playlist, PlaylistItem } from "../spotify/models";
 import { getPlaylist, type Warning } from "../spotify/playlists";
@@ -35,7 +35,7 @@ const DATE_RE = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
 const OPTIONAL_TEXT = ["note", "name", "isrc"] as const;
 const STORE_KEY = "entries";
 
-const invalid = (message: string, details: Record<string, unknown> = {}) => new SpotikitError("INVALID_ARGUMENT", message, details);
+const invalid = (message: string, details: Record<string, unknown> = {}) => new CuratuneError("INVALID_ARGUMENT", message, details);
 
 export function validateRecorded(value: unknown): string {
   const match = typeof value === "string" ? DATE_RE.exec(value) : null;
@@ -101,7 +101,7 @@ export class RecordingStore {
     return removed.length;
   }
 
-  /** Import spotikit's data/recordings.json (an object keyed by URI), merging into this store. */
+  /** Import curatune's data/recordings.json (an object keyed by URI), merging into this store. */
   async importJson(text: string): Promise<UpsertResult> {
     let parsed: unknown;
     try {
@@ -110,12 +110,12 @@ export class RecordingStore {
       throw invalid("The file is not valid JSON.");
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw invalid("Expected an object keyed by track URI, like spotikit's data/recordings.json.");
+      throw invalid("Expected an object keyed by track URI, like curatune's data/recordings.json.");
     }
     return this.upsert(Object.entries(parsed as Record<string, unknown>).map(([uri, entry]) => ({ ...(entry as object), uri })));
   }
 
-  /** The same format as spotikit's data/recordings.json: keys sorted, 2-space indent. */
+  /** The same format as curatune's data/recordings.json: keys sorted, 2-space indent. */
   async exportJson(): Promise<string> {
     const data = await this.load();
     const sorted = Object.fromEntries(
@@ -183,7 +183,7 @@ export function chronologicalOrder(items: PlaylistItem[], data: RecordingMap): n
     else missing.push({ position: item.position, uri: item.uri, name: item.name });
   }
   if (missing.length) {
-    throw new SpotikitError("RECORDING_DATES_MISSING", "Some items have no recording date; store them with recordings_set first.", { missing });
+    throw new CuratuneError("RECORDING_DATES_MISSING", "Some items have no recording date; store them with recordings_set first.", { missing });
   }
   return keyed.sort(([a, pa], [b, pb]) => (a < b ? -1 : a > b ? 1 : pa - pb)).map(([, position]) => position);
 }

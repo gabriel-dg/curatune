@@ -24,8 +24,8 @@ export interface ProviderOption {
   create(apiKey: string | null): ChatModel;
 }
 
-const KEY_PREFIX = "spotikit-web.llm-key.";
-const PROVIDER_KEY = "spotikit-web.llm-provider";
+const KEY_PREFIX = "curatune-web.llm-key.";
+const PROVIDER_KEY = "curatune-web.llm-provider";
 
 /** API keys and the selected provider, per tab (sessionStorage in the app). */
 export class LlmSettings {

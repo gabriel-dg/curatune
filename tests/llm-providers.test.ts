@@ -72,7 +72,7 @@ describe("providers", () => {
     expect(settings.selected()).toBe("hosted:gemini-3.5-flash-lite");
     settings.forgetApiKey(lite!);
     expect(settings.apiKey(flash!)).toBeNull();
-    expect([...storage.data.keys()]).toEqual(["spotikit-web.llm-provider"]);
+    expect([...storage.data.keys()]).toEqual(["curatune-web.llm-provider"]);
   });
 
   it("picks the saved provider; an old saved \"hosted\" means the first hosted model", () => {
@@ -103,7 +103,7 @@ describe("security invariant with a hosted provider", () => {
     const KEY = "GEMINI-KEY-SECRET";
     const storage = new MemoryStorage();
     storage.setItem(
-      "spotikit-web.token",
+      "curatune-web.token",
       JSON.stringify({ clientId: "cid", accessToken: ACCESS, refreshToken: "R", expiresAt: Date.now() + 3600_000, scope: "", authorizedAt: "2026-09-28T00:00:00Z" }),
     );
     const spotify = new FakeSpotify(buildFixture());
