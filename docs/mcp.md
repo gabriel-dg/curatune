@@ -31,9 +31,11 @@ A stdio server runs on the same machine as its client. To use LM Studio on anoth
 authorize curatune there too (its own `.env`, token, and data); a Development Mode app allows it, since it
 is the same Spotify user.
 
-Logs go to stderr, which clients keep in their MCP logs (Claude Desktop keeps one log file per server). On the
-first call from each kind of client, the server logs the protocol version, the client's name and version,
-and the capabilities it declares, with no personal data. That records what each client really supports.
+Logs go to stderr. Clients differ in what they keep: Claude Desktop keeps one log file per server, while
+Claude Code's per-server MCP log records connections and tool calls but not the server's stderr. On the
+first call from each kind of client, the server records the protocol version, the client's name and
+version, and the capabilities it declares (no personal data), both in its log and in `mcp_clients.json`
+in the data directory. That file shows what each client really supports, whatever its log keeps.
 
 ## Tools
 

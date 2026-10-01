@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from mcp.server import MCPServer
@@ -115,8 +116,9 @@ class Runtime:
         return ok_result(data)
 
     def probe(self, ctx: Context) -> None:
-        """Log, once per kind of client, what it declares (no personal data): the protocol version, the
-        client's name and version, and its capabilities. Records what each real client supports."""
+        """Record, once per kind of client, what it declares (no personal data): the protocol version, the
+        client's name and version, and its capabilities. Logged to stderr and kept in
+        `<data dir>/mcp_clients.json`, since some clients (Claude Code) don't keep a server's stderr."""
         try:
             params = ctx.session.client_params
             info = params.client_info if params is not None else None
@@ -130,6 +132,26 @@ class Runtime:
                 return
             self._seen_clients.add(key)
         logger.info("client: name=%s version=%s protocol=%s capabilities=%s", key[1], key[2], key[0], key[3])
+        entry = {"client": key[1], "version": key[2], "protocol": key[0], "capabilities": declared}
+        try:
+            self._remember_client(entry)
+        except Exception:  # noqa: BLE001 - a read-only or broken data dir must not break a tool call
+            logger.warning("could not record the client in mcp_clients.json", exc_info=True)
+
+    def _remember_client(self, entry: dict[str, Any]) -> None:
+        path = self.settings().data_dir / "mcp_clients.json"
+        with self._init_lock:
+            try:
+                known = json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                known = []
+            if any({k: e.get(k) for k in entry} == entry for e in known):
+                return
+            known.append({**entry, "first_seen": datetime.now(timezone.utc).strftime("%Y-%m-%d")})
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(known, indent=2, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
 
 
 def build_server(
