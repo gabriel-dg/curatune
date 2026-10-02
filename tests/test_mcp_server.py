@@ -207,6 +207,10 @@ async def test_descriptions_carry_the_rules(client):
     assert "never invent" in tools["playlist_add"] and "Only when the user asks" in tools["playlist_add"]
     assert "Additive only" in tools["recordings_set"]
     assert "Only when the user asks" in tools["recordings_update"]
+    for name in ("recordings_set", "recordings_update"):  # dates need a checkable source, never memory
+        assert "concrete and checkable" in tools[name] and "Your memory is not a source" in tools[name], name
+        assert "confidence low" in tools[name] and "ask the user instead of guessing" in tools[name], name
+        assert "show the user each stored date with its source" in tools[name], name
     assert "not the recording date" in tools["playlist_show"]
     for name in ("plan_remove", "plan_reorder", "plan_details"):
         assert "changes nothing on Spotify" in tools[name] and "after the user confirms" in tools[name], name
@@ -380,10 +384,15 @@ def entry(uri, recorded, source="discography"):
 async def test_recording_dates_are_additive_unless_corrected(client, account):
     _, ids = account
     status, data = await call(client, "recordings_set", {"entries": [entry(ids["koko"], "1945-11-26")]})
-    assert data == {"created": 1, "skipped": [], "total": 1}
+    assert {k: data[k] for k in ("created", "skipped", "total")} == {"created": 1, "skipped": [], "total": 1}
+    assert data["stored"] == [
+        {"uri": ids["koko"], "name": None, "recorded": "1945-11-26", "confidence": "high", "source": "discography"}
+    ]
+    assert "source and confidence" in data["next_step"]
 
     status, data = await call(client, "recordings_set", {"entries": [entry(ids["koko"], "1950", "model knowledge")]})
-    assert data == {"created": 0, "skipped": [ids["koko"]], "total": 1}
+    assert {k: data[k] for k in ("created", "skipped", "total")} == {"created": 0, "skipped": [ids["koko"]], "total": 1}
+    assert data["stored"] == [] and "Nothing new was stored" in data["next_step"]
 
     status, data = await call(client, "recordings_show", {"playlist": ids["test"]})
     koko = [i for i in data["items"] if i["uri"] == ids["koko"]]
@@ -391,7 +400,24 @@ async def test_recording_dates_are_additive_unless_corrected(client, account):
     assert {m["number"] for m in data["missing"]} == {1, 3, 4, 6, 7} and data["chronological"] is False
 
     status, data = await call(client, "recordings_update", {"entries": [entry(ids["koko"], "1945-11")]})
-    assert data == {"created": 0, "updated": 1, "total": 1}
+    assert {k: data[k] for k in ("created", "updated", "total")} == {"created": 0, "updated": 1, "total": 1}
+    assert [(s["recorded"], s["source"]) for s in data["stored"]] == [("1945-11", "discography")]
+
+
+@pytest.mark.anyio
+async def test_stored_dates_are_read_back_from_the_store(client, account):
+    _, ids = account
+    track_id = ids["loco"].split(":")[-1]
+    raw = {**entry(f"https://open.spotify.com/track/{track_id}", "1951-05-01", "  Blue Note discography  "),
+           "name": "Un Poco Loco", "confidence": "low"}  # fmt: skip
+    status, data = await call(client, "recordings_set", {"entries": [raw, entry(ids["koko"], "1945-11-26")]})
+    # Normalized as stored (URI from a URL, trimmed source), in input order, with the confidence to point out.
+    assert data["stored"] == [
+        {"uri": ids["loco"], "name": "Un Poco Loco", "recorded": "1951-05-01", "confidence": "low",
+         "source": "Blue Note discography"},
+        {"uri": ids["koko"], "name": None, "recorded": "1945-11-26", "confidence": "high", "source": "discography"},
+    ]  # fmt: skip
+    assert "low-confidence" in data["next_step"]
 
 
 @pytest.mark.anyio

@@ -41,8 +41,14 @@ class RecordingEntry(_In):
 
     uri: str = Field(description="Track URI (spotify:track:…), ID, or open.spotify.com URL.")
     recorded: str = Field(description="Recording date: YYYY, YYYY-MM, or YYYY-MM-DD.")
-    confidence: Literal["high", "medium", "low"] = Field(description="How sure the date is.")
-    source: str = Field(min_length=1, description="Where the date comes from (a discography, liner notes, …).")
+    confidence: Literal["high", "medium", "low"] = Field(
+        description="high only when a source you checked gives this exact date; low when you couldn't check it."
+    )
+    source: str = Field(
+        min_length=1,
+        description="Where you checked the date: a named discography, liner notes, or a URL, with the session. "
+        "Not your memory.",
+    )
     note: str | None = Field(None, description="Optional note, e.g. 'master take'.")
     name: str | None = Field(None, description="Optional track title, for reference.")
     artists: list[str] | None = Field(None, description="Optional artist names, for reference.")
@@ -233,16 +239,28 @@ class RecordingsShow(_Out):
     warnings: list[ResultWarning]
 
 
+class StoredRecording(_Out):
+    uri: str
+    name: str | None
+    recorded: str
+    confidence: str
+    source: str
+
+
 class RecordingsSet(_Out):
     created: int
     skipped: list[str] = Field(description="Tracks that already had a stored date, left unchanged.")
     total: int
+    stored: list[StoredRecording] = Field(description="What was stored, read back from the store: show the user.")
+    next_step: str
 
 
 class RecordingsUpdate(_Out):
     created: int
     updated: int
     total: int
+    stored: list[StoredRecording] = Field(description="What was stored, read back from the store: show the user.")
+    next_step: str
 
 
 class CreatedPlaylist(_Out):
