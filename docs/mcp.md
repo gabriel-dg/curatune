@@ -19,13 +19,13 @@ The server is an optional extra; the library and the CLI never need it.
 ```
 
 Set up and authorize as in the [README](../README.md#setup) first (`.env` with `SPOTIFY_CLIENT_ID`, then
-`curatune auth login`). Running from the repository's `.venv`, the server reads that same `.env` and token,
+`curatune auth login`). The server reads that same `.env`, token, and data directory (shared with the CLI),
 whatever directory the client starts it in.
 
 | Client | Configuration |
 |---|---|
 | Claude Code | `claude mcp add curatune -- <repo>/.venv/Scripts/curatune-mcp.exe` (`<repo>/.venv/bin/curatune-mcp` on macOS/Linux) |
-| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers` |
+| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop was installed from the Microsoft Store and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
 | LM Studio (0.3.17+) | Program tab → Install → Edit `mcp.json`, same `mcpServers` entry as Claude Desktop |
 
 A stdio server runs on the same machine as its client. To use LM Studio on another computer, install and

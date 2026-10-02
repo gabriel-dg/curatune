@@ -79,3 +79,11 @@ class ApplyFailed(CuratuneError):
 
 class VerificationFailed(CuratuneError):
     code = "VERIFICATION_FAILED"
+
+
+class LegacyDataNotMigrated(CuratuneError):
+    code = "LEGACY_DATA_NOT_MIGRATED"
+
+
+class MigrationError(CuratuneError):
+    code = "MIGRATION_FAILED"

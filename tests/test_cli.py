@@ -77,7 +77,16 @@ def test_auth_status_logged_out(capsys, monkeypatch, tmp_path):
         "schema_version": 1,
         "ok": True,
         "command": "auth status",
-        "data": {"logged_in": False, "token_path": str(tmp_path / "tokens" / "token.json")},
+        "data": {
+            "logged_in": False,
+            "token_path": str(tmp_path / "tokens" / "token.json"),
+            "data": {
+                "data_dir": str(tmp_path / "curatune-data"),
+                "data_dir_explicit": True,
+                "legacy_data": "none",
+                "virtualized": False,
+            },
+        },
         "warnings": [],
     }
 

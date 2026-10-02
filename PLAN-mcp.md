@@ -845,19 +845,34 @@ then:
   out; the docs say so;
 - the criteria that don't need it (demo mode, the prompts, the video) are checked in Claude Code.
 
-- [ ] **Data directory and configuration** (D5, D6, library items 1–2):
+- [ ] **Data directory and configuration** (D5, D6, library items 1–2; built and tested, left open on
+      purpose: it merges together with the cutover in phase 5):
   - `CURATUNE_DATA_DIR`, the legacy guard, and `data migrate`;
   - the optional project root and the `.env` lookup;
   - from here on, development sets `CURATUNE_DATA_DIR` to a test directory.
   - Tests:
-    - [ ] default dir plus legacy data → refuse;
-    - [ ] explicit dir plus legacy data → warn;
-    - [ ] `migrate` backs up, copies, verifies hashes, and refuses to overwrite;
-    - [ ] a cwd equal to the home directory doesn't trip the token check;
-    - [ ] `auth status` reports the legacy state.
+    - [x] default dir plus legacy data → refuse;
+    - [x] explicit dir plus legacy data → warn;
+    - [x] `migrate` backs up, copies, verifies hashes, and refuses to overwrite;
+    - [x] a cwd equal to the home directory doesn't trip the token check;
+    - [x] `auth status` reports the legacy state;
+    - [x] a data dir private to a Store app is refused, before anything is written.
   - Docs updated.
   - **Done when** these tests pass, and in a non-checkout install the server and CLI share one data dir
     that is never the cwd.
+  - **Status (2026-10-02).** Implemented and tested in the worktree (`config.py`, `datadir.py`, `data
+    migrate`, the guard in the CLI and the MCP server; 581 tests with the extra, 446 without). Rehearsed on
+    the worktree's own test data (47 files: backup, copy, SHA-256 check, marker; originals unchanged). Not
+    merged: it merges together with the cutover (phase 5), since the default data dir blocks the CLI until
+    the user's data is migrated. Development sets `CURATUNE_DATA_DIR` (in the worktree's `.env`) to a test
+    folder outside AppData and outside any checkout.
+  - Found live: Claude Desktop from the Microsoft Store virtualizes AppData for the programs it starts. The
+    first rehearsal, run from a Code-tab session, created its data dir (a new top-level folder under
+    `%LOCALAPPDATA%`) inside the app's private `LocalCache`, invisible to a terminal and deleted with the
+    app. A probe inside the existing `%LOCALAPPDATA%\curatune` (new subfolder, new file) resolved in place,
+    so the default data dir is safe once that folder exists, but not on a first run started by the app. Now refused (`DATA_DIR_VIRTUALIZED`,
+    with tests and a live check); the cutover runs from a terminal, and a data dir outside AppData that the
+    user backs up is on the table (decided at the cutover).
 - [ ] **Demo mode:**
   - [ ] promote the fake to `curatune/demo.py`, with synthetic IDs and seed playlists that include a
         duplicate, a same-ISRC edition, and a shuffled order;
@@ -916,12 +931,18 @@ then:
 ### Phase 5: cutover and publishing (each step only with the user's explicit OK)
 
 - [ ] **Merges to `main`**: at any phase boundary, only with an OK.
-- [ ] **Data cutover**, once phase 3's data directory is on `main`, with an OK and **no other curatune
-      sessions open**:
-  1. record `recordings show --brief` for each curated playlist listed in `AGENTS.local.md`;
-  2. run `curatune data migrate` (backup, copy, hash check);
-  3. run `recordings show --brief` again; the items must be identical;
-  4. delete the legacy `data/` and `plans/` only with the OK.
+- [ ] **Data cutover**, together with merging phase 3's data directory to `main`, with an OK and **no
+      other curatune sessions open**, from a terminal (not from a Claude Desktop session: see the AppData
+      finding in phase 3):
+  1. decide `CURATUNE_DATA_DIR`: the default, or a folder outside AppData that the user backs up;
+  2. make a compressed copy of `data/` and `plans/` outside the repository and outside the target data
+     dir, and tell the user where it is;
+  3. record `recordings show --brief` for each curated playlist listed in `AGENTS.local.md`;
+  4. merge, then run `curatune data migrate` (backup, copy, hash check);
+  5. run `recordings show --brief` again; the items must be identical;
+  6. update the `data/recordings.json` references in `AGENTS.local.md` (main checkout and worktree), and
+     check that the skill, `AGENTS.md`, and the docs never present the repository's `data/` as current;
+  7. delete the legacy `data/` and `plans/` a few days later, only with the OK.
 - [ ] **PyPI (the last step):**
   - [ ] re-check the name, description, and any logo against [spotify-design];
   - [ ] the repository is public after a full audit for personal data and secrets, including history;
