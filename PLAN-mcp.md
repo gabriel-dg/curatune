@@ -845,8 +845,8 @@ then:
   out; the docs say so;
 - the criteria that don't need it (demo mode, the prompts, the video) are checked in Claude Code.
 
-- [ ] **Data directory and configuration** (D5, D6, library items 1–2; built and tested, left open on
-      purpose: it merges together with the cutover in phase 5):
+- [x] **Data directory and configuration** (D5, D6, library items 1–2; merged with the cutover,
+      2026-10-02):
   - `CURATUNE_DATA_DIR`, the legacy guard, and `data migrate`;
   - the optional project root and the `.env` lookup;
   - from here on, development sets `CURATUNE_DATA_DIR` to a test directory.
@@ -862,9 +862,9 @@ then:
     that is never the cwd.
   - **Status (2026-10-02).** Implemented and tested in the worktree (`config.py`, `datadir.py`, `data
     migrate`, the guard in the CLI and the MCP server; 581 tests with the extra, 446 without). Rehearsed on
-    the worktree's own test data (47 files: backup, copy, SHA-256 check, marker; originals unchanged). Not
-    merged: it merges together with the cutover (phase 5), since the default data dir blocks the CLI until
-    the user's data is migrated. Development sets `CURATUNE_DATA_DIR` (in the worktree's `.env`) to a test
+    the worktree's own test data (47 files: backup, copy, SHA-256 check, marker; originals unchanged).
+    Merged to `main` on 2026-10-02 together with the cutover (phase 5), since the default data dir blocks
+    the CLI until the user's data is migrated. Development sets `CURATUNE_DATA_DIR` (in the worktree's `.env`) to a test
     folder outside AppData and outside any checkout.
   - Found live: Claude Desktop from the Microsoft Store virtualizes AppData for the programs it starts. The
     first rehearsal, run from a Code-tab session, created its data dir (a new top-level folder under
@@ -931,9 +931,9 @@ then:
 ### Phase 5: cutover and publishing (each step only with the user's explicit OK)
 
 - [ ] **Merges to `main`**: at any phase boundary, only with an OK.
-- [ ] **Data cutover**, together with merging phase 3's data directory to `main`, with an OK and **no
+- [x] **Data cutover**, together with merging phase 3's data directory to `main`, with an OK and **no
       other curatune sessions open**, from a terminal (not from a Claude Desktop session: see the AppData
-      finding in phase 3):
+      finding in phase 3). Done 2026-10-02, steps 1–6; step 7 pending:
   1. decide `CURATUNE_DATA_DIR`: the default, or a folder outside AppData that the user backs up;
   2. make a compressed copy of `data/` and `plans/` outside the repository and outside the target data
      dir, and tell the user where it is;
@@ -943,6 +943,14 @@ then:
   6. update the `data/recordings.json` references in `AGENTS.local.md` (main checkout and worktree), and
      check that the skill, `AGENTS.md`, and the docs never present the repository's `data/` as current;
   7. delete the legacy `data/` and `plans/` a few days later, only with the OK.
+
+  How it went: the user chose the default data dir. The agent ran it from a Claude Desktop session after
+  checking that `%LOCALAPPDATA%\curatune` already existed in place (so its new `data` folder wasn't
+  redirected; the guard would have stopped it otherwise), and the user confirmed from a terminal that the
+  migrated files were visible there. 22 files migrated and verified; the originals unchanged; the
+  compressed copy and the before/after records kept outside the repository; the three curated playlists
+  that could still be read gave identical `recordings show` output before and after (a fourth returned
+  404 from Spotify, unrelated to the migration); `playlists list` and the test suite passed afterwards.
 - [ ] **PyPI (the last step):**
   - [ ] re-check the name, description, and any logo against [spotify-design];
   - [ ] the repository is public after a full audit for personal data and secrets, including history;
