@@ -6,9 +6,9 @@ playlists through it, with no repository-specific skill: the tool descriptions a
 instructions carry the rules. For the design and its decisions, see [PLAN-mcp.md](../PLAN-mcp.md).
 
 It reads playlists and the catalog, creates playlists, adds tracks, keeps recording dates, and removes,
-reorders, or renames through **plans**: a plan changes nothing until the user confirms it in a dialog the
-client shows, which the model cannot answer (see [Confirming plans](#confirming-plans)). Clients that can't
-show that dialog can build and review plans, but not apply them; the user applies those with the CLI.
+reorders, or renames through **plans**: a plan changes nothing until the user confirms it outside the chat,
+in a dialog the client shows or, for clients without one, on a local page that gives them a one-time code
+(see [Confirming plans](#confirming-plans)). The model can answer neither.
 
 ## Install and connect
 
@@ -62,7 +62,7 @@ with a declared output schema, plus the same JSON as text.
 | `plan_reorder` | Plan a new order: exactly one of `sort_by` (title, artist, album, released, duration, recorded; optional `descending`), `order` (every current number, in the new order), or `move_from` + `move_to`. | ✓¹ | | | ✓ |
 | `plan_details` | Plan a rename and/or a new description. Never visibility. | ✓¹ | | | ✓ |
 | `plan_show` | A plan by `plan_id`, and (with `check`) whether it still applies to the playlist as it is now. | ✓ | | | ✓ |
-| `plan_apply` | Apply a plan **after the user confirms it in a dialog** (below). Takes only `plan_id`. Checks, backs up, applies, verifies. | | ✓ | ✓ | ✓ |
+| `plan_apply` | Apply a plan **after the user confirms it** in a dialog or on the confirmation page (below). Takes `plan_id`, and on the page route the `confirmation_code` the user pastes. Checks, backs up, applies, verifies. | | ✓ | ✓ | ✓ |
 
 ¹ Plan builders change nothing on Spotify; their only effect is a local plan file that does nothing by
 itself, so they are marked read-only (Claude Desktop runs read-only tools without a per-call prompt).
@@ -76,7 +76,8 @@ each one accurate hints, and protect hand-curated dates in code rather than in a
 
 ## Confirming plans
 
-`plan_apply` takes only a `plan_id`. Before it changes anything, the person, not the model, has to say yes:
+Before `plan_apply` changes anything, the person, not the model, has to say yes. Clients that show dialogs
+(MCP form elicitation) ask there:
 
 ```mermaid
 sequenceDiagram
@@ -115,22 +116,70 @@ sequenceDiagram
   when the model writes nothing in the chat, and it is never mistaken for what the server verified.
 - **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
   read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
-- **No dialog, no apply.** A client that doesn't declare form elicitation gets `CONFIRMATION_UNAVAILABLE`,
-  with the CLI commands to review and apply the plan in a terminal. A plan that is invalid, edited, already
-  applied, or not a plan ID fails before anything is asked. A closed or unanswered dialog applies nothing.
+- **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, or
+  not a plan ID fails before anything is asked.
 - **Applying re-checks everything**, as `curatune plan apply` does: the playlist must still have the
   snapshot and items the plan was built on (`SNAPSHOT_MISMATCH` otherwise, nothing changed), it is backed
   up first, and the result is verified.
-- `CURATUNE_MCP_CONFIRM` (in `.env` or the environment) picks the route: `auto` (default) and
-  `elicitation` use the dialog. `browser`, a local confirmation page with a one-time code for clients
-  without dialogs, comes in a later version; until then it fails closed.
+
+### The confirmation page
+
+Clients without dialogs (and any client, with `CURATUNE_MCP_CONFIRM=browser`) confirm on a local page:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Model
+    participant Server as curatune-mcp
+    participant Page as Local page (127.0.0.1)
+    participant Spotify
+    Model->>Server: plan_apply(plan_id)
+    Server->>Page: open the plan's page in the browser (its address never reaches the model)
+    Server-->>Model: status "awaiting_user_confirmation"
+    Model->>User: "review the page and paste the code"
+    User->>Page: Approve
+    Page-->>User: one-time code XXXX-XXXX
+    User->>Model: pastes the code in the chat
+    Model->>Server: plan_apply(plan_id, confirmation_code)
+    alt the code matches this plan's approval
+        Server->>Spotify: same snapshot and items? back up, apply, verify
+        Server-->>Model: status "applied", verified
+    else wrong, expired, used, or rejected
+        Server-->>Model: an error or status "rejected": nothing changed
+    end
+```
+
+- **The page shows the plan file**, like the dialog: what leaves or moves, by number, title, and artists,
+  with the model's `reason` apart and labelled. It is static HTML with no JavaScript; every piece of text is
+  escaped, and a Content-Security-Policy allows only its own style and forms.
+- **Only the person can get the code.** The page lives at an unguessable address (`/confirm/<32 random
+  bytes>`) that curatune opens in the browser itself and never puts in a tool result, a log, or stderr.
+  Approve and Reject are POSTs that need the page's exact `Host` (`127.0.0.1:<port>`, which stops DNS
+  rebinding), a matching `Origin`, and the form's nonce, so another website can't press them.
+- **A code is narrow.** 8 Crockford base32 characters (40 bits), compared ignoring case and hyphens. It
+  is bound to the plan and its checksum, lasts 10 minutes from when the page opened, works once, and is
+  used up before the plan is applied (a plan that fails its checks needs a new approval). Three wrong codes
+  void the confirmation (`CONFIRMATION_VOID`); calling `plan_apply` with only the `plan_id` then opens a
+  new page. Reject applies nothing, and until it expires `plan_apply` answers `rejected` without reopening.
+- **No browser, no apply.** If no browser can be opened, `plan_apply` fails with
+  `CONFIRMATION_UNAVAILABLE` and the CLI commands to review and apply the plan in a terminal. Confirmations
+  live in memory: a server restart drops them, and the person approves again.
+
+`CURATUNE_MCP_CONFIRM` (in `.env` or the environment; for one client, the `env` of its server entry) picks
+the route:
+
+| Value | Route |
+|---|---|
+| `auto` (default) | The dialog when the client declares form elicitation, otherwise the page. |
+| `elicitation` | The dialog only; without it, `CONFIRMATION_UNAVAILABLE`. |
+| `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
 Clients verified so far (see PLAN-mcp.md): Claude Code declares form and URL elicitation in both protocol
 eras. Claude Desktop is not verified yet. LM Studio documents tools only.
 
 Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
-with the stored token), and a client set up to answer dialogs by itself (for example a Claude Code
-`Elicitation` hook that auto-accepts).
+with the stored token, or read the page from the local machine), and a client set up to answer dialogs by
+itself (for example a Claude Code `Elicitation` hook that auto-accepts).
 
 ## Conventions
 
@@ -162,7 +211,7 @@ with the stored token), and a client set up to answer dialogs by itself (for exa
 | Batch search up to 50, 10 results each | `search_many` up to 25, 5 each by default | The same budget. |
 | `meta` timing in every envelope | Not returned; logged to stderr | `metrics` is per process, and the server runs concurrent calls. |
 | `--market` per command | `CURATUNE_MARKET` from `.env` | Fewer arguments to get wrong. |
-| `plan apply` runs after an OK in the chat | `plan_apply` runs after an OK in the client's dialog | The dialog can't be answered by the model. |
+| `plan apply` runs after an OK in the chat | `plan_apply` runs after an OK in the client's dialog, or a code from the confirmation page | The model can't answer the dialog or read the page. |
 | `plan show`/`plan apply` accept a plan file path | `plan_id` only | A path could point anywhere. |
 | Error details may hold local paths (`backup_path`) | Paths are left out | They tell the model nothing it needs. |
 

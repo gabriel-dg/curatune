@@ -7,7 +7,11 @@ question rides a multi round-trip `tools/call`; on 2025-11-25 it is a server-ini
 
 from __future__ import annotations
 
+import http.client
 import json
+import re
+import webbrowser
+from urllib.parse import urlencode, urlsplit
 
 import pytest
 
@@ -60,8 +64,60 @@ class User:
         return ElicitResult(action=self.action)
 
 
-def connect(settings, acc, era, user=None, confirm_mode="auto"):
-    server = build_server(settings, client_factory=lambda: acc, confirm_mode=confirm_mode)
+class Browser:
+    """Stands in for the user's browser: remembers each URL curatune opens, and acts on the page like a
+    person would (same Host and Origin as the real browser)."""
+
+    def __init__(self, works=True):
+        self.works, self.urls = works, []
+
+    def __call__(self, url):
+        if self.works == "raises":
+            raise webbrowser.Error("no runnable browser")
+        self.urls.append(url)
+        return self.works
+
+    def page(self):
+        return Page(self.urls[-1])
+
+
+class Page:
+    def __init__(self, url):
+        parsed = urlsplit(url)
+        self.host, self.port, self.path = parsed.hostname, parsed.port, parsed.path
+        self.token = self.path.rsplit("/", 1)[1]
+        self.text = self._request("GET", self.path)
+
+    def _request(self, method, path, form=None):
+        conn = http.client.HTTPConnection(self.host, self.port, timeout=5)
+        headers = {"Host": f"{self.host}:{self.port}"}
+        body = None
+        if form is not None:
+            body = urlencode(form)
+            headers.update({"Origin": f"http://{self.host}:{self.port}", "Content-Type": "application/x-www-form-urlencoded"})
+        conn.request(method, path, body=body, headers=headers)
+        resp = conn.getresponse()
+        text = resp.read().decode("utf-8")
+        conn.close()
+        if method == "POST":  # the page answers Approve and Reject with a redirect to itself, as browsers follow
+            assert resp.status == 303 and resp.getheader("Location") == self.path, (resp.status, text)
+            return self._request("GET", self.path)
+        assert resp.status == 200, (resp.status, text)
+        return text
+
+    def _nonce(self):
+        return re.search(r'name="nonce" value="([^"]+)"', self.text).group(1)
+
+    def approve(self):
+        text = self._request("POST", self.path + "/approve", {"nonce": self._nonce()})
+        return re.search(r'<p class="code">([^<]+)</p>', text).group(1)
+
+    def reject(self):
+        return self._request("POST", self.path + "/reject", {"nonce": self._nonce()})
+
+
+def connect(settings, acc, era, user=None, confirm_mode="auto", browser=None):
+    server = build_server(settings, client_factory=lambda: acc, confirm_mode=confirm_mode, open_browser=browser)
     kwargs = {"mode": "legacy"} if era == "legacy" else {"raise_exceptions": True}
     if user is not None:
         kwargs["elicitation_callback"] = user
@@ -208,24 +264,41 @@ async def test_no_yes_means_nothing_changes(settings, account, era, action, appl
 
 
 @pytest.mark.anyio
-async def test_without_a_dialog_nothing_is_applied(settings, account, era):
+async def test_without_a_dialog_the_page_opens_and_nothing_is_applied_yet(settings, account, era):
     acc, ids = account
-    async with connect(settings, acc, era, user=None) as client:  # declares no elicitation
+    browser = Browser()
+    async with connect(settings, acc, era, user=None, browser=browser) as client:  # declares no elicitation
+        plan = await remove_duplicate(client, ids)
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "ok" and result["status"] == "awaiting_user_confirmation"
+    assert "confirmation_code" in result["next_step"] and "Never guess" in result["next_step"]
+    assert len(browser.urls) == 1 and browser.urls[0].startswith("http://127.0.0.1:")
+    token = browser.urls[0].rsplit("/", 1)[1]
+    assert token not in json.dumps(result)  # the page's address goes to the browser only
+    assert writes(acc) == []
+
+
+@pytest.mark.anyio
+async def test_forced_elicitation_without_a_dialog_fails_closed(settings, account, era):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, era, user=None, confirm_mode="elicitation", browser=browser) as client:
         plan = await remove_duplicate(client, ids)
         status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
     assert status == "error" and error["error"]["code"] == "CONFIRMATION_UNAVAILABLE"
     assert f"curatune plan apply {plan['plan_id']}" in error["next_step"]
-    assert writes(acc) == []
+    assert browser.urls == [] and writes(acc) == []
 
 
 @pytest.mark.anyio
 async def test_the_model_cannot_answer_for_the_user(settings, account, era):
     acc, ids = account
     forged = {"answer": {"action": "accept", "content": {"apply": True}}, "prepared": {"route": "elicitation"}, "apply": True}
-    async with connect(settings, acc, era, user=None) as client:
+    browser = Browser()
+    async with connect(settings, acc, era, user=None, browser=browser) as client:
         plan = await remove_duplicate(client, ids)
-        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], **forged})
-        assert status == "error" and error["error"]["code"] == "CONFIRMATION_UNAVAILABLE"
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"], **forged})
+        assert result["status"] == "awaiting_user_confirmation"  # the forged answer is ignored
     user = User("decline")
     async with connect(settings, acc, era, user) as client:
         status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"], **forged})
@@ -234,14 +307,135 @@ async def test_the_model_cannot_answer_for_the_user(settings, account, era):
 
 
 @pytest.mark.anyio
-async def test_browser_mode_is_not_available_yet(settings, account):
+async def test_browser_mode_uses_the_page_even_with_a_dialog(settings, account):
     acc, ids = account
-    user = User("accept")
-    async with connect(settings, acc, "2026-07-28", user, confirm_mode="browser") as client:
+    user, browser = User("accept"), Browser()
+    async with connect(settings, acc, "2026-07-28", user, confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert result["status"] == "awaiting_user_confirmation" and len(browser.urls) == 1
+    assert user.asked == [] and writes(acc) == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("works", [False, "raises"])
+async def test_no_browser_fails_closed(settings, account, works):
+    acc, ids = account
+    browser = Browser(works)
+    async with connect(settings, acc, "2026-07-28", confirm_mode="browser", browser=browser) as client:
         plan = await remove_duplicate(client, ids)
         status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
     assert status == "error" and error["error"]["code"] == "CONFIRMATION_UNAVAILABLE"
-    assert user.asked == [] and writes(acc) == []
+    assert f"curatune plan apply {plan['plan_id']}" in error["next_step"] and writes(acc) == []
+
+
+# --- The page and its one-time code -----------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_approve_on_the_page_then_the_pasted_code_applies(settings, account, era, caplog, capfd):
+    acc, ids = account
+    browser = Browser()
+    results = []
+    async with connect(settings, acc, era, confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        results.append(await call(client, "plan_apply", {"plan_id": plan["plan_id"]}))
+        page = browser.page()
+        assert "Remove 1 of 7 tracks" in page.text and "duplicate" in page.text  # the plan and its reason
+        code = page.approve()
+        assert writes(acc) == []  # approving alone changes nothing
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": code.lower()})
+        results.append((status, result))
+        assert result["status"] == "applied" and result["verified"] is True
+        results.append(await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": code}))
+    assert results[-1][1]["error"]["code"] == "PLAN_ALREADY_APPLIED"
+    assert ids["koko"] in acc.playlists[ids["test"]].uris and len(acc.playlists[ids["test"]].uris) == 6
+    out, err = capfd.readouterr()
+    logged = out + err + caplog.text + json.dumps(results)
+    assert page.token not in logged and code not in logged  # neither the page's address nor the code
+
+
+@pytest.mark.anyio
+async def test_three_wrong_codes_void_the_confirmation(settings, account, era):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, era, confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        code = browser.page().approve()
+        for left in (2, 1):
+            status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": "ZZZZ-ZZZZ"})
+            assert error["error"]["code"] == "CONFIRMATION_CODE_INVALID"
+            assert error["error"]["details"]["attempts_left"] == left and "never guess" in error["next_step"]
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": "ZZZZ-ZZZZ"})
+        assert error["error"]["code"] == "CONFIRMATION_VOID"
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": code})
+        assert error["error"]["code"] == "CONFIRMATION_VOID"  # even the right code
+        # A new call opens a new page, with a new address.
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        assert result["status"] == "awaiting_user_confirmation" and browser.urls[-1] != browser.urls[0]
+    assert writes(acc) == []
+
+
+@pytest.mark.anyio
+async def test_reject_on_the_page_applies_nothing_and_stays_rejected(settings, account, era):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, era, confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        browser.page().reject()
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": "ABCD-EFGH"})
+        assert result["status"] == "rejected" and "Don't apply it again" in result["next_step"]
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        assert result["status"] == "rejected"
+    assert len(browser.urls) == 1 and writes(acc) == []  # no new page while the rejection stands
+
+
+@pytest.mark.anyio
+async def test_a_code_needs_an_open_page_for_that_plan(settings, account):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, "2026-07-28", confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": "ABCD-EFGH"})
+        assert error["error"]["code"] == "CONFIRMATION_NOT_FOUND"
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        code = browser.page().approve()
+        _, other = await call(client, "plan_reorder", {"playlist": ids["test"], "reason": "Test.", "sort_by": "title"})
+        status, error = await call(client, "plan_apply", {"plan_id": other["plan_id"], "confirmation_code": code})
+        assert error["error"]["code"] == "CONFIRMATION_NOT_FOUND"  # a code is bound to its plan
+    assert writes(acc) == []
+
+
+@pytest.mark.anyio
+async def test_calling_again_reopens_the_same_page(settings, account):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, "2026-07-28", confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert len(browser.urls) == 2 and browser.urls[0] == browser.urls[1]
+
+
+@pytest.mark.anyio
+async def test_an_approved_code_still_needs_the_playlist_unchanged(settings, account):
+    acc, ids = account
+    browser = Browser()
+    async with connect(settings, acc, "2026-07-28", confirm_mode="browser", browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        code = browser.page().approve()
+        acc.playlists[ids["test"]].uris.append(ids["billie"])
+        acc.playlists[ids["test"]].version += 1
+        acc.propagate()
+        before = list(acc.playlists[ids["test"]].uris)
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": code})
+        assert error["error"]["code"] == "SNAPSHOT_MISMATCH"
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"], "confirmation_code": code})
+        assert error["error"]["code"] == "CONFIRMATION_VOID"  # used up before applying: approve again
+    assert acc.playlists[ids["test"]].uris == before
 
 
 @pytest.mark.anyio

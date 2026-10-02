@@ -59,7 +59,8 @@ Clients that speak the [Model Context Protocol](https://modelcontextprotocol.io)
 Claude Code, or LM Studio, can use curatune without the repository's skill: install the `mcp` extra and add
 `curatune-mcp` as a local server. Its tools carry the same rules. Removals, reorders, and renames are
 plans there too, and a plan is applied only after you confirm it in a dialog your client shows: the AI
-can't answer it for you. Clients without such dialogs can build plans but not apply them. Setup, tools, the
+can't answer it for you. Clients without such dialogs open a local page instead, which shows the plan and,
+if you approve, a one-time code you paste in the chat. Setup, tools, the
 confirmation flow, and the differences from the CLI are in **[docs/mcp.md](docs/mcp.md)**.
 
 ## How changes stay safe
