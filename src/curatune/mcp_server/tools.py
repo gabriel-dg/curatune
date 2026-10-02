@@ -83,6 +83,22 @@ def register(server: MCPServer, rt: Runtime) -> None:
         rt.probe(ctx)
         return ok_result(_auth_status(rt))
 
+    @server.tool(
+        title="Log in to Spotify",
+        description="Authorize curatune on the user's Spotify account. Only when the user asks to log in, or "
+        "agrees to after auth_status said they aren't authorized. If curatune is already authorized it does "
+        "nothing. Otherwise it opens Spotify's consent page in the user's browser and returns at once with "
+        "authorized false; once they approve there, auth_status says authorized. The result never carries the "
+        "token; never ask for passwords or codes in the chat.",
+        annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True),
+    )
+    def auth_login(ctx: Context) -> Annotated[CallToolResult, schemas.AuthLogin]:
+        rt.probe(ctx)
+        try:
+            return ok_result(rt.start_login())
+        except CuratuneError as exc:
+            return error_result(exc)
+
     # --- Reading --------------------------------------------------------------------------------
 
     @server.tool(

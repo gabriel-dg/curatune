@@ -151,6 +151,11 @@ class AuthStatus(_Out):
     next_step: str | None = None
 
 
+class AuthLogin(_Out):
+    authorized: bool = Field(description="True only when curatune can already use the account.")
+    next_step: str | None = None
+
+
 class PlaylistsList(_Out):
     count: int
     playlists: list[PlaylistSummary]

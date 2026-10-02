@@ -18,9 +18,10 @@ The server is an optional extra; the library and the CLI never need it.
 .venv/Scripts/python -m pip install -e ".[mcp]"   # .venv/bin/python on macOS/Linux
 ```
 
-Set up and authorize as in the [README](../README.md#setup) first (`.env` with `SPOTIFY_CLIENT_ID`, then
-`curatune auth login`). The server reads that same `.env`, token, and data directory (shared with the CLI),
-whatever directory the client starts it in.
+Set up as in the [README](../README.md#setup) first (`.env` with `SPOTIFY_CLIENT_ID`). To authorize, run
+`curatune auth login` in a terminal, or ask the model to log in (`auth_login` opens the same consent page).
+The server reads that same `.env`, token, and data directory (shared with the CLI), whatever directory the
+client starts it in.
 
 | Client | Configuration |
 |---|---|
@@ -61,7 +62,8 @@ with a declared output schema, plus the same JSON as text.
 
 | Tool | Does | RO | D | I | OW |
 |---|---|---|---|---|---|
-| `auth_status` | Whether curatune is authorized, and if not why (`CONFIG_ERROR`, `AUTH_REQUIRED`, `AUTH_EXPIRED`, `MISSING_SCOPES`). Reads the token file only: no token, no user ID. | ✓ | | | |
+| `auth_status` | Whether curatune is authorized, and if not why (`CONFIG_ERROR`, `AUTH_REQUIRED`, `AUTH_EXPIRED`, `MISSING_SCOPES`, `LEGACY_DATA_NOT_MIGRATED`). Reads the token file only: no token, no user ID. | ✓ | | | |
+| `auth_login` | Opens Spotify's consent page in the user's browser and returns at once (`authorized: false` plus a `next_step`); the authorization finishes in the background when they approve, and `auth_status` confirms it. When curatune is already authorized it opens nothing (`authorized: true`). Neither the token nor the consent URL reaches the result or a log. There is no logout tool: `curatune auth logout` in a terminal. | | | ✓ | ✓ |
 | `playlists_list` | The user's playlists: id, name, owner, item count. `owned_only` filters. | ✓ | | | ✓ |
 | `playlist_show` | A playlist and its tracks, numbered from 1, up to `limit` (≤100) per call from `start`; continue with `next_start`. `full` returns full track objects. | ✓ | | | ✓ |
 | `search_tracks` | One catalog search (≤10 results, `offset` to page), free text and/or `track`, `artist`, `album`, `year` filters. | ✓ | | | ✓ |

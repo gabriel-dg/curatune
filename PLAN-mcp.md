@@ -903,11 +903,20 @@ then:
     dialog, applied and verified. In `@`, Claude Code's search ends at the first space.
   - **Done when** an `@`-mentioned playlist works in Claude Code and the `deduplicate` prompt runs end to
     end there as a slash command (Claude Desktop while it stays deferred).
-- [ ] **`auth_login`:**
-  - idempotent (a valid token, meaning a successful `access_token()` with all scopes, opens nothing);
-  - the model receives only `{authorized: bool}`;
-  - no `auth_logout` tool.
-  - Tests: already authorized; expired → login; the token is never in a result.
+- [x] **`auth_login`:**
+  - [x] idempotent (a valid token, meaning a successful `access_token()` with all scopes, opens nothing);
+  - [x] the model receives only `authorized` (plus a fixed `next_step` text: no token, no URL);
+  - [x] no `auth_logout` tool.
+  - [x] Tests: already authorized; expired → login; the token is never in a result (nor the consent URL, in
+        results, stderr, or logs); a pending login isn't started twice; a failed attempt is reported on the
+        next call; no client ID → `CONFIG_ERROR`; a token dir private to a Store app is refused.
+  - **Status (2026-10-02).** Built and tested (8 tests). `TokenManager.login` gained `announce` (the MCP
+    server keeps the consent URL out of stderr) and `browser`.
+  - Live in Claude Code (2026-10-02): already authorized, "log me in" returned `authorized: true` without
+    opening anything. With a separate `CURATUNE_TOKEN_DIR` in the server's `env` (a logged-out state that left
+    the real token alone): `auth_status` said not authorized, `auth_login` opened the consent page and
+    returned at once, the user approved, and `auth_status` then said authorized; the token landed in that
+    folder with all three scopes.
 - [ ] **MCP App plan viewer (gated; on hold while Claude Desktop is deferred):**
   - [ ] Build a minimal App with an app-only approval tool.
   - [ ] **Real test in Claude Desktop**, logged server-side:

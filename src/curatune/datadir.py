@@ -71,9 +71,10 @@ def is_package_private(path: Path) -> bool:
     return bool(_PACKAGE_PRIVATE.search(_resolve(path)))
 
 
-def ensure_not_virtualized(data_dir: Path) -> None:
-    """Create the data dir if needed and make sure it is a real folder. A folder this call created and found
-    redirected is removed again (it is empty), so nothing is ever written there."""
+def ensure_not_virtualized(data_dir: Path, what: str = "data directory", setting: str = "CURATUNE_DATA_DIR") -> None:
+    """Create the folder if needed and make sure it is a real one. A folder this call created and found
+    redirected is removed again (it is empty), so nothing is ever written there. Used for the data dir, and
+    for the token dir before `auth_login` writes the token."""
     missing = [p for p in (data_dir, *data_dir.parents) if not p.exists()]
     data_dir.mkdir(parents=True, exist_ok=True)
     if not is_package_private(data_dir):
@@ -83,13 +84,14 @@ def ensure_not_virtualized(data_dir: Path) -> None:
             p.rmdir()
         except OSError:
             break
+    code = "DATA_DIR_VIRTUALIZED" if setting == "CURATUNE_DATA_DIR" else "TOKEN_DIR_VIRTUALIZED"
     raise ConfigError(
-        "curatune's data directory would be a private folder of a Microsoft Store app: Windows redirects new "
-        "folders under AppData for the programs such an app starts (Claude Desktop from the Store does this). "
-        "curatune in a terminal wouldn't see that data, and uninstalling the app would delete it. Set "
-        "CURATUNE_DATA_DIR to a folder outside AppData, such as one in Documents.",
-        code="DATA_DIR_VIRTUALIZED",
-        details={"data_dir": str(data_dir), "resolves_to": _resolve(data_dir)},
+        f"curatune's {what} would be a private folder of a Microsoft Store app: Windows redirects new folders "
+        "under AppData for the programs such an app starts (Claude Desktop from the Store does this). curatune "
+        f"in a terminal wouldn't see it, and uninstalling the app would delete it. Set {setting} to a folder "
+        "outside AppData, such as one in Documents, or run curatune once from a terminal first.",
+        code=code,
+        details={"path": str(data_dir), "resolves_to": _resolve(data_dir)},
     )
 
 
