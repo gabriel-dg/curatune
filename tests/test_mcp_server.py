@@ -27,6 +27,7 @@ ERAS = ["2026-07-28", "legacy"]
 
 EXPECTED_TOOLS = [
     "auth_status",
+    "auth_login",
     "playlists_list",
     "playlist_show",
     "search_tracks",
@@ -48,6 +49,7 @@ EXPECTED_TOOLS = [
 # (readOnlyHint, destructiveHint, idempotentHint, openWorldHint); None = not set (meaningless when read-only).
 EXPECTED_HINTS = {
     "auth_status": (True, None, None, False),
+    "auth_login": (False, False, True, True),
     "playlists_list": (True, None, None, True),
     "playlist_show": (True, None, None, True),
     "search_tracks": (True, None, None, True),
@@ -69,6 +71,7 @@ EXPECTED_HINTS = {
 
 OUTPUTS = {
     "auth_status": schemas.AuthStatus,
+    "auth_login": schemas.AuthLogin,
     "playlists_list": schemas.PlaylistsList,
     "playlist_show": schemas.PlaylistShow,
     "search_tracks": schemas.SearchResult,

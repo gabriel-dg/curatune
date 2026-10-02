@@ -22,7 +22,7 @@ import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
@@ -211,17 +211,21 @@ class TokenManager:
         port: int | None = None,
         open_browser: bool = True,
         timeout: float = DEFAULT_LOGIN_TIMEOUT_SECONDS,
+        announce: bool = True,
+        browser: Callable[[str], Any] | None = None,
     ) -> dict[str, Any]:
+        """Run the browser authorization. `announce` prints the URL to stderr (the CLI's `--no-browser`
+        relies on it; the MCP server turns it off, so the URL never reaches a log). `browser` opens it."""
         client_id = self.settings.require_client_id()
         redirect_uri = redirect_uri_for(port or self.settings.redirect_port)
         verifier = generate_code_verifier()
         state = secrets.token_urlsafe(32)
         url = build_authorize_url(client_id, redirect_uri, code_challenge_for(verifier), state)
 
-        # stderr only: stdout is reserved for the JSON result.
-        print(f"Open this URL to authorize curatune:\n{url}", file=sys.stderr, flush=True)
+        if announce:  # stderr only: stdout is reserved for the JSON result.
+            print(f"Open this URL to authorize curatune:\n{url}", file=sys.stderr, flush=True)
         if open_browser:
-            webbrowser.open(url)
+            (browser or webbrowser.open)(url)
 
         code = _wait_for_callback(port or self.settings.redirect_port, state, timeout)
         payload = self._token_request(

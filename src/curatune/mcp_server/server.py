@@ -36,7 +36,10 @@ from .numbering import numbered
 
 logger = logging.getLogger("curatune.mcp")
 
-_LOGIN = "Ask the user to run `curatune auth login` in a terminal (it opens the browser to authorize curatune)."
+_LOGIN = (
+    "Ask the user whether to log in now: auth_login opens Spotify's consent page in their browser (or they can "
+    "run `curatune auth login` in a terminal)."
+)
 
 # What the model should do next, by error code. Codes without an entry need no special handling.
 NEXT_STEPS = {
@@ -65,6 +68,8 @@ NEXT_STEPS = {
     "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
     "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "
     "they can clear it in the Spotify app.",
+    "TOKEN_DIR_VIRTUALIZED": "Nothing changed. Ask the user to log in once from a terminal (`curatune auth login`), "
+    "or to set CURATUNE_TOKEN_DIR to a folder outside AppData, and restart the server.",
     "DATA_DIR_VIRTUALIZED": "Nothing changed. Ask the user to set CURATUNE_DATA_DIR to a folder outside AppData "
     "(in curatune's .env or this server's entry) and restart the server.",
     "LEGACY_DATA_NOT_MIGRATED": "Nothing changed. curatune keeps its data outside the repository now, and the "
@@ -88,6 +93,16 @@ NEXT_STEPS = {
     "VERIFICATION_FAILED": "The plan was applied, but the playlist doesn't match the expected result. Tell the user, "
     "read the playlist, and don't retry blindly.",
 }
+
+
+_LOGIN_STARTED = (
+    "Spotify's consent page opened in the user's browser. Ask them to approve it there (it waits 5 minutes), "
+    "then call auth_status to confirm. Never ask for passwords or codes in the chat."
+)
+_LOGIN_PENDING = (
+    "A consent page is already open and waiting. Ask the user to approve it in their browser, then call "
+    "auth_status."
+)
 
 
 def _json(data: Any) -> str:
@@ -136,6 +151,9 @@ class Runtime:
         self.write_lock = threading.Lock()
         self._seen_clients: set[tuple[Any, ...]] = set()
         self._warned_legacy = False
+        self._login_lock = threading.Lock()
+        self.login_thread: threading.Thread | None = None
+        self._login_error: str | None = None
         # The confirmation page: in memory, per process; its server starts on the first page-route call.
         self.confirmations = confirm.ConfirmationStore()
         self.approval_page = ApprovalPage(self.confirmations)
@@ -160,6 +178,42 @@ class Runtime:
             return self._confirm_mode
         self.settings()
         return confirm.confirm_mode()
+
+    def start_login(self) -> dict[str, Any]:
+        """Open Spotify's consent page unless curatune is already authorized, and return at once: the callback
+        finishes in a background thread. The result says only whether curatune is authorized; the URL, the
+        code, and the token never reach it, or a log."""
+        tokens = self.tokens()  # ConfigError (no client ID) propagates as a tool error
+        settings = self.settings()
+        settings.require_client_id()
+        status = tokens.status()
+        if status.get("logged_in") and status.get("client_id_matches") and not status.get("missing_scopes"):
+            try:
+                tokens.access_token()  # refreshes if needed: a valid token opens nothing
+                return {"authorized": True}
+            except CuratuneError:
+                pass  # expired or revoked: log in again
+        # The token must land where a terminal sees it too (not in a Store app's private AppData).
+        datadir.ensure_not_virtualized(settings.token_dir, "token directory", "CURATUNE_TOKEN_DIR")
+        with self._login_lock:
+            if self.login_thread is not None and self.login_thread.is_alive():
+                return {"authorized": False, "next_step": _LOGIN_PENDING}
+            failed, self._login_error = self._login_error, None
+            self.login_thread = threading.Thread(target=self._login, args=(tokens,), name="curatune-login", daemon=True)
+            self.login_thread.start()
+        step = _LOGIN_STARTED if failed is None else f"The previous attempt didn't finish ({failed}). " + _LOGIN_STARTED
+        return {"authorized": False, "next_step": step}
+
+    def _login(self, tokens: Any) -> None:
+        try:
+            tokens.login(open_browser=True, announce=False, browser=self.open_browser)
+            logger.info("authorization finished")
+        except CuratuneError as exc:
+            self._login_error = exc.code
+            logger.warning("authorization didn't finish: %s", exc.code)
+        except Exception as exc:  # noqa: BLE001 - a background thread must not die silently
+            self._login_error = "AUTH_ERROR"
+            logger.warning("authorization failed: %s", type(exc).__name__)
 
     def check_data_dir(self) -> None:
         """Before anything that uses the data dir: data left in a checkout is never silently ignored
@@ -278,6 +332,9 @@ class DemoTokens:
 
     def status(self) -> dict[str, Any]:
         return {"logged_in": True, "client_id_matches": True, "missing_scopes": [], "refresh_likely_expired": False}
+
+    def access_token(self, force_refresh: bool = False) -> str:
+        return "demo"
 
 
 def build_demo_server(base_dir: Path | None = None, open_browser: Callable[[str], bool] | None = None) -> MCPServer:

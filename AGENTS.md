@@ -93,6 +93,10 @@ its phases are in `PLAN-mcp.md`.
   The tests (`tests/test_mcp_plans.py`, `tests/test_mcp_approval_page.py`) play the user in both protocol
   eras, through the dialog and through the real page server; keep them passing. No test may open a real
   browser (`tests/conftest.py`).
+- `auth_login` is idempotent (a token that works opens nothing), returns at once, and finishes in a
+  background thread; the model sees only `authorized` and a fixed `next_step`, never the token or the
+  consent URL (`login(announce=False)` keeps it out of stderr). It refuses a token dir that would be
+  private to a Store app (`TOKEN_DIR_VIRTUALIZED`). There is deliberately no logout tool.
 - Resources and prompts (`mcp_server/resources.py`) are what the user picks: resources return the same
   strict views as the tools (numbered, with the third-party note) and never write; listing them must never
   fail. Prompts ask for nothing the tool descriptions don't allow (plans still need the user's confirmation).
