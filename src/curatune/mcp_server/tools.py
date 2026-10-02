@@ -21,7 +21,7 @@ from mcp.server.mcpserver import (
     ElicitationResult,
     Resolve,
 )
-from mcp.types import CallToolResult, ToolAnnotations
+from mcp.types import CallToolResult, ResourceLink, ToolAnnotations
 from pydantic import Field
 
 from .. import catalog, datadir, plans, playlists, recordings
@@ -30,6 +30,7 @@ from ..recordings import RecordingStore
 from ..refs import normalize_item_uri
 from . import confirm, schemas, views
 from .numbering import to_position
+from .resources import plan_uri
 from .server import NEXT_STEPS, Runtime, error_result, ok_result
 
 THIRD_PARTY = (
@@ -344,6 +345,16 @@ def register(server: MCPServer, rt: Runtime) -> None:
     def built(result: dict[str, Any]) -> dict[str, Any]:
         return views.plan(plans.load_plan(Path(result["plan_path"])), built_next)
 
+    def linked(result: CallToolResult) -> CallToolResult:
+        """A plan's result also links to the plan as a resource (curatune://plans/<plan_id>)."""
+        if not result.is_error and result.structured_content:
+            plan_id = result.structured_content["plan_id"]
+            result.content.append(
+                ResourceLink(type="resource_link", uri=plan_uri(plan_id), name=f"plan-{plan_id}",
+                             title=f"Plan {plan_id}", mime_type="application/json")  # fmt: skip
+            )
+        return result
+
     @server.tool(
         title="Plan a removal",
         description=builds + "Removes tracks by their numbers (1 = first, from playlist_show) from a playlist the "
@@ -360,11 +371,13 @@ def register(server: MCPServer, rt: Runtime) -> None:
         reason: Reason,
     ) -> Annotated[CallToolResult, schemas.Plan]:
         positions = [to_position(n) for n in numbers]
-        return rt.call(
-            ctx,
-            lambda client: built(
-                plans.build_remove_plan(client, playlist, positions, rt.settings().plans_dir, reason=reason)
-            ),
+        return linked(
+            rt.call(
+                ctx,
+                lambda client: built(
+                    plans.build_remove_plan(client, playlist, positions, rt.settings().plans_dir, reason=reason)
+                ),
+            )
         )
 
     @server.tool(
@@ -425,7 +438,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
                     ) from None
                 raise
 
-        return rt.call(ctx, run)
+        return linked(rt.call(ctx, run))
 
     @server.tool(
         title="Plan a rename or description change",
@@ -440,13 +453,15 @@ def register(server: MCPServer, rt: Runtime) -> None:
         name: Annotated[str | None, Field(description="New name.")] = None,
         description: Annotated[str | None, Field(description="New description. Can't be empty: Spotify can't clear one through the API (only in its app).")] = None,
     ) -> Annotated[CallToolResult, schemas.Plan]:
-        return rt.call(
-            ctx,
-            lambda client: built(
-                plans.build_details_plan(
-                    client, playlist, rt.settings().plans_dir, name=name, description=description, reason=reason
-                )
-            ),
+        return linked(
+            rt.call(
+                ctx,
+                lambda client: built(
+                    plans.build_details_plan(
+                        client, playlist, rt.settings().plans_dir, name=name, description=description, reason=reason
+                    )
+                ),
+            )
         )
 
     @server.tool(

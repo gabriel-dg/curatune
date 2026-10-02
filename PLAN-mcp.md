@@ -890,7 +890,17 @@ then:
     `url: null` (the schemas say so). Installing from a package waits for packaging.
   - **Done when** someone without a Spotify account installs the package and runs remove and reorder,
     including the confirmation, in Claude Code (Claude Desktop while it stays deferred).
-- [ ] **Resources and prompts** from section 4.
+- [x] **Resources and prompts** from section 4.
+  - **Status (2026-10-02).** Built and tested in both protocol eras (`mcp_server/resources.py`, 13 tests):
+    the three resources, each owned playlist listed on its own for `@`-mentions (a `list_resources`
+    override that reads the account once and never fails), a resource link to the plan in every `plan_*`
+    result, and the three prompts. Found by the no-extra suite: `curatune-mcp` now checks that `mcp` is
+    installed before importing the server, whose first import is the extra's `anyio`.
+  - Live in Claude Code (2026-10-02): `@curatune` listed each owned playlist; the first try showed only "12
+    tracks" (Claude Code shows the URI, cut short, and the description), so descriptions now lead with the
+    playlist's name. A mentioned playlist was read as a resource and answered from without any tool call.
+    `/mcp__curatune-demo__deduplicate` ran end to end on the demo: explained, planned, confirmed in the
+    dialog, applied and verified. In `@`, Claude Code's search ends at the first space.
   - **Done when** an `@`-mentioned playlist works in Claude Code and the `deduplicate` prompt runs end to
     end there as a slash command (Claude Desktop while it stays deferred).
 - [ ] **`auth_login`:**

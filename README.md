@@ -63,7 +63,8 @@ can't answer it for you. Clients without such dialogs open a local page instead,
 if you approve, a one-time code you paste in the chat. Setup, tools, the
 confirmation flow, and the differences from the CLI are in **[docs/mcp.md](docs/mcp.md)**. To try it without
 a Spotify account, `curatune-mcp --demo` serves a synthetic account in memory, with no network and nothing
-kept ([demo mode](docs/mcp.md#demo-mode)).
+kept ([demo mode](docs/mcp.md#demo-mode)). Playlists and plans can also be attached as resources (an
+`@`-mention in Claude Code), and the skill's workflows are prompts (`/mcp__curatune__deduplicate`, …).
 
 ## How changes stay safe
 
