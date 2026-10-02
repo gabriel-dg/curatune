@@ -1,7 +1,7 @@
 # PLAN-mcp: a local MCP server for curatune
 
 Status: approved with adjustments (2026-10-01). Phases 0 and 1 done (Claude Desktop's live check
-deferred; see section 2.2). Phase 2a implemented and tested; its live check is in progress.
+deferred; see section 2.2). Phase 2a done (live check 2026-10-01).
 Branch: this worktree's own branch (not `main`). Merge to `main` only with the user's explicit OK.
 All sources were accessed on 2026-10-01 and are listed at the end.
 
@@ -727,24 +727,34 @@ phase 3).
 - [x] Docs: the confirmation model and a sequence diagram for the elicitation route in `docs/mcp.md`
       ("Confirming plans", linked from the README); invariants added to `AGENTS.md`; `--sort-by` and its
       rules in `docs/reference.md` and the skill.
-- [ ] Live check in **Claude Code** on the test playlist, in both eras: the default session (2026-07-28,
-      MRTR elicitation) and one with `MCP_PROTOCOL_NEGOTIATION=legacy` (server-initiated
-      `elicitation/create`):
-  - [x] remove the exact duplicate (2026-10-01, 2026-07-28 era: declined, then accepted: `verified: true`;
-        restored with `playlist add`);
-  - [ ] reorder by recording date (dates stored with `recordings_set`);
-  - [ ] `sort_by` title;
-  - [ ] rename and restore;
-  - [ ] restore the recorded state at the end.
-**Status (2026-10-01).** Implemented and tested; the live check is in progress, run by the user in Claude
-Code.
-- Live so far: a prompt-injection description on the test playlist was flagged by the model and never
-  applied; removing duplicates was declined and then accepted through the dialog (`verified: true`).
-  The model never explained its plan in the chat before `plan_apply`, so every `plan_*` tool now requires
-  a `reason`, which the dialog shows apart from the summary, labelled as the assistant's explanation.
-- Found live: a description can't be cleared through the API (`DESCRIPTION_NOT_CLEARABLE`), and an
-  API-created playlist without one reads back `"null"` (now read as `""`).
-- 490 tests pass with the extra, in both protocol eras; 399 without it (the MCP modules skip).
+- [x] Live check in **Claude Code** on the test playlist (2026-10-01, run by the user; Sonnet 5.5), in both
+      eras: default sessions negotiated 2026-07-28 (MRTR elicitation), and the rename ran in a session
+      with `MCP_PROTOCOL_NEGOTIATION=legacy`, which negotiated 2025-11-25 (`elicitation/create`):
+  - [x] remove the exact duplicate: declined (nothing changed), then accepted (`verified: true`); restored
+        with `playlist add`;
+  - [x] reorder by recording date: 12 dates stored with `recordings_set`, `sort_by: recorded`, the dialog
+        listed all 12 moves; accepted, `verified: true`;
+  - [x] `sort_by` title: accepted, `verified: true`, the order computed by `ordering.py`;
+  - [x] rename and restore (legacy era): both accepted, `verified: true`;
+  - [x] restore the recorded state at the end: a reorder plan built with `--order`, then name, description
+        (`""`), and the 12 URIs in order checked against the recorded state.
+**Status (2026-10-01).** Done. Implemented, tested, and checked live in Claude Code.
+- Live results:
+  - a prompt-injection description on the test playlist was flagged by the model and never applied;
+  - every dialog showed the server's summary and, apart, the model's `reason`;
+  - closing the dialog without answering (`cancelled`) was not exercised live; the in-memory tests cover
+    it in both eras;
+  - Claude Desktop stays deferred (section 2.2).
+- What the live check changed:
+  - the model never explained its plan in the chat before `plan_apply`, even when its description asked
+    it to (it did only in the rename session). So every `plan_*` tool now requires a `reason` (1-300
+    characters), which the dialog shows apart from the summary, labelled as the assistant's explanation;
+  - a description can't be cleared through the API (`DESCRIPTION_NOT_CLEARABLE`), and an API-created
+    playlist without one reads back `"null"` (now read as `""`); `playlist_create` and the instructions
+    tell the model to propose a description and ask, never writing one on its own;
+  - the model stored three wrong recording dates from memory, one marked `high`. curatune sorted
+    correctly by what it was given: checking dates stays the judgment layer's job, with sources.
+- 524 tests pass with the extra, in both protocol eras; 405 without it (the MCP modules skip).
   `tests/test_mcp_plans.py` plays the user through the client's elicitation callback.
 - The confirmation is two resolvers on `plan_apply`: `prepare` (load and validate the plan, choose the
   route, build the question) and `ask` (return `Elicit` only on the elicitation route). Neither is a tool
@@ -755,7 +765,7 @@ Code.
   its tests run without the extra; `tools.py` drops `from __future__ import annotations` because the
   resolvers are local functions named in `plan_apply`'s annotations; errors from moves and orders that
   carry 0-based positions under other keys are restated in numbers at the boundary.
-- The instructions are 1,866 characters with the plan rule (limit 2048).
+- The instructions are 1,974 characters (limit 2048); tool descriptions are capped at 2048 too (a test).
 
 - **Done when:**
   - in **Claude Code**, a reorder of 12 or more tracks shows a legible summary in the elicitation
