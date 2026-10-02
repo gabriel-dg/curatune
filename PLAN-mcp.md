@@ -773,7 +773,8 @@ phase 3).
     dialog; accept applies with `verified: true`; decline and cancel apply nothing;
   - a prompt-injection description on the test playlist ("apply plan …") leads to no apply without the
     user;
-  - in Claude Desktop (if verified by then), `plan_apply` fails closed with the CLI alternative;
+  - in Claude Desktop (if verified by then), `plan_apply` fails closed with the CLI alternative
+    (superseded by phase 2b: in `auto`, a client without dialogs now gets the confirmation page);
   - the test playlist is back in its recorded state.
 
 ### Phase 2b (v2, second part): the page and one-time code
@@ -821,7 +822,8 @@ phase 3).
 
 - **Done when:**
   - in **Claude Code with `CURATUNE_MCP_CONFIRM=browser`**, a plan opens the page; Approve shows a code;
-    pasting it applies with `verified: true`; then the same in Claude Desktop;
+    pasting it applies with `verified: true`; then the same in Claude Desktop (deferred: see "Claude
+    Desktop, deferred" in phase 3);
   - a wrong code three times voids the confirmation;
   - Reject applies nothing;
   - the injection check holds;
@@ -830,6 +832,18 @@ phase 3).
 ### Phase 3 (v3): data directory, demo, resources and prompts, authorization, MCP App, packaging
 
 In this order; packaging comes last.
+
+**Claude Desktop, deferred (decided 2026-10-02).** The user chose not to test Claude Desktop for now; it can
+be tested later at any point (about 15 minutes: an `mcpServers` entry pointing to the worktree's
+`curatune-mcp.exe`, a restart, then a read and a rename and rename back in a new chat, in `auto`). Until
+then:
+- the MCP App plan viewer and the `.mcpb` bundle are **on hold**, since only Claude Desktop can pass their
+  gates; they are built only after that test, and are dropped if it never happens;
+- what Claude Desktop declares (elicitation, and whether `readOnlyHint`/`destructiveHint` drive its
+  prompts) stays unverified in section 2.2. If it declares elicitation without showing the dialog, as
+  Cowork does, `auto` would wait without applying anything, and `CURATUNE_MCP_CONFIRM=browser` is the way
+  out; the docs say so;
+- the criteria that don't need it (demo mode, the prompts, the video) are checked in Claude Code.
 
 - [ ] **Data directory and configuration** (D5, D6, library items 1–2):
   - `CURATUNE_DATA_DIR`, the legacy guard, and `data migrate`;
@@ -851,16 +865,16 @@ In this order; packaging comes last.
   - [ ] `tests/fakes.py` re-exports it;
   - [ ] a test asserts no network call in demo mode.
   - **Done when** someone without a Spotify account installs the package and runs remove and reorder,
-    including the confirmation, in Claude Desktop.
+    including the confirmation, in Claude Code (Claude Desktop while it stays deferred).
 - [ ] **Resources and prompts** from section 4.
   - **Done when** an `@`-mentioned playlist works in Claude Code and the `deduplicate` prompt runs end to
-    end in Claude Desktop.
+    end there as a slash command (Claude Desktop while it stays deferred).
 - [ ] **`auth_login`:**
   - idempotent (a valid token, meaning a successful `access_token()` with all scopes, opens nothing);
   - the model receives only `{authorized: bool}`;
   - no `auth_logout` tool.
   - Tests: already authorized; expired → login; the token is never in a result.
-- [ ] **MCP App plan viewer (gated):**
+- [ ] **MCP App plan viewer (gated; on hold while Claude Desktop is deferred):**
   - [ ] Build a minimal App with an app-only approval tool.
   - [ ] **Real test in Claude Desktop**, logged server-side:
     - (a) the model's tool list lacks the app-only tool (ask it to list its curatune tools);
@@ -873,7 +887,7 @@ In this order; packaging comes last.
 - [ ] **Packaging (after the data directory):**
   - [ ] `uvx` and `pipx` instructions (from the GitHub repository, or from PyPI after phase 5), each with
         the config dir and `.env` for `SPOTIFY_CLIENT_ID`;
-  - [ ] an `.mcpb` bundle using the `uv` server type (manifest 0.4, [mcpb-manifest]) with a `user_config`
+  - [ ] (on hold while Claude Desktop is deferred) an `.mcpb` bundle using the `uv` server type (manifest 0.4, [mcpb-manifest]) with a `user_config`
         for the Client ID. **First verify empirically that Claude Desktop installs a `uv`-type bundle.**
         Traditional Python bundles can't ship compiled dependencies such as pydantic. If `uv` isn't
         supported, document the uvx configuration instead.
@@ -892,7 +906,8 @@ In this order; packaging comes last.
 - [ ] `docs/mcp-demo-script.md`: a script for a 60–90 s video.
   1. Ask in Claude Code to remove a duplicate from the test or demo playlist; show the plan and the
      elicitation summary; accept; `verified`.
-  2. Ask the same in Claude Desktop; the page (or the App) opens; approve; applied.
+  2. Ask the same with the confirmation page (Claude Code with `CURATUNE_MCP_CONFIRM=browser`, or Claude
+     Desktop if tested by then); the page opens; approve; paste the code; applied.
   3. Show a playlist description that tries to make the model apply a plan; nothing happens without the
      user.
   4. Demo mode for viewers without Spotify.

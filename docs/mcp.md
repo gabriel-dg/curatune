@@ -175,7 +175,9 @@ the route:
 | `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
 Clients verified so far (see PLAN-mcp.md): Claude Code declares form and URL elicitation in both protocol
-eras. Claude Desktop is not verified yet. LM Studio documents tools only.
+eras, and both routes were checked live in it. Claude Desktop is not verified yet. LM Studio documents tools
+only. If a client's `plan_apply` waits and no dialog appears (a client that declares dialogs but doesn't
+show them), nothing is applied: set `CURATUNE_MCP_CONFIRM=browser` in that server's entry to use the page.
 
 Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
 with the stored token, or read the page from the local machine), and a client set up to answer dialogs by
