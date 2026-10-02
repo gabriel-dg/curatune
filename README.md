@@ -73,7 +73,7 @@ confirmation flow, and the differences from the CLI are in **[docs/mcp.md](docs/
 - Sorting by title, artist, album, release date, or duration is computed by curatune, not guessed by the
   agent.
 - Applying a plan first checks that the playlist hasn't changed since the plan was made, backs it up to
-  `data/backups/`, and verifies the result afterwards.
+  `backups/` in curatune's data directory, and verifies the result afterwards.
 - Spotify currently makes every playlist created through the API **public**, whatever is requested.
   Make it private from the Spotify app if needed.
 
@@ -145,13 +145,19 @@ authorization; after that, run `curatune auth login` again.
 | `SPOTIFY_CLIENT_ID` | — (required) | App client ID. |
 | `SPOTIFY_REDIRECT_PORT` | `8888` | Callback port; URI is always `http://127.0.0.1:<port>/callback` and must be registered in the dashboard. `auth login --port` overrides it. |
 | `CURATUNE_MARKET` | none | Default market for `playlist show`, `search`, `track`, `album`. |
-| `CURATUNE_TOKEN_DIR` | `%LOCALAPPDATA%\curatune` / `~/.config/curatune` | Token location. Must be outside the repo (enforced). |
+| `CURATUNE_TOKEN_DIR` | `%LOCALAPPDATA%\curatune` / `~/.config/curatune` | Token location (the config directory; a `.env` there is read too). Must be outside the repo (enforced). |
+| `CURATUNE_DATA_DIR` | `%LOCALAPPDATA%\curatune\data` / `~/.local/share/curatune` | Plans, backups, the write log, and recording dates, shared by the CLI and the MCP server. Must be outside the repo (enforced). If curatune is first started by an app installed from the Microsoft Store (such as Claude Desktop), Windows can keep a new AppData folder private to that app; curatune refuses that (`DATA_DIR_VIRTUALIZED`): run it once from a terminal, or set this to a folder outside AppData. |
+
+curatune used to keep its data in the repository's `data/` and `plans/`. If yours still has files there,
+commands stop with `LEGACY_DATA_NOT_MIGRATED` until you run `curatune data migrate`, which backs them up,
+copies them into the data directory, and checks every file; it never moves or deletes the originals.
 
 ## Commands
 
 | Command | Does |
 |---|---|
 | `auth login` / `status` / `logout` | Authorize, inspect, or remove the stored token. |
+| `data migrate` | Copy data left in the repository's `data/` and `plans/` into the data directory. |
 | `playlists list` | Your playlists. |
 | `playlist show` | A playlist and all its items. |
 | `playlist create` / `playlist add` | Create a playlist; add tracks (runs directly). |
@@ -176,6 +182,8 @@ src/curatune/
   _writes.py     mutating primitives (private: only plans and add use them)
   recordings.py  local recording-date store and chronological ordering
   writelog.py    compensation for snapshot_id read lag
+  config.py      settings, the config and data directories, .env lookup
+  datadir.py     the guard against data left in a checkout, and `data migrate`
   models.py      normalization to the documented JSON shapes (full and brief)
   metrics.py     per-command HTTP timing
   cli.py         thin argparse layer emitting the JSON envelope

@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from . import catalog, connect, metrics, playlists, plans, recordings
+from . import catalog, connect, datadir, metrics, playlists, plans, recordings
 from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import InvalidArgument, PlanError, CuratuneError
@@ -153,7 +153,11 @@ def _auth_login(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
 
 
 def _auth_status(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
-    return TokenManager(s).status()
+    return {**TokenManager(s).status(), "data": datadir.status(s)}
+
+
+def _data_migrate(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
+    return datadir.migrate(s, dry_run=args.dry_run)
 
 
 def _auth_logout(args: argparse.Namespace, s: Settings) -> dict[str, Any]:
@@ -298,6 +302,17 @@ def _build_parser() -> _Parser:
     command(auth, "status", _auth_status, "Show the stored authorization (no network).")
     command(auth, "logout", _auth_logout, "Delete the stored token.")
 
+    # data
+    dat = groups.add_parser("data", help="The data directory.").add_subparsers(dest="action", required=True)
+    p = command(
+        dat,
+        "migrate",
+        _data_migrate,
+        "Copy a checkout's data/ and plans/ into the data directory (backup first, then copy, then a SHA-256 "
+        "check; never moves or overwrites).",
+    )
+    p.add_argument("--dry-run", action="store_true", help="List what would be copied; copy nothing.")
+
     # playlists
     pls = groups.add_parser("playlists", help="Playlist collections.").add_subparsers(dest="action", required=True)
     p = command(pls, "list", _playlists_list, "List the current user's playlists.")
@@ -410,6 +425,9 @@ def _build_parser() -> _Parser:
     return parser
 
 
+_NO_DATA_GROUPS = ("auth", "data")  # they report or fix the data dir's state, so they never stop on it
+
+
 def main(argv: list[str] | None = None) -> int:
     global _started
     _started = time.perf_counter()
@@ -434,8 +452,10 @@ def main(argv: list[str] | None = None) -> int:
     command_name = f"{args.group} {args.action}"
     try:
         settings = load_settings()
+        # Commands that use the data dir first make sure data left in a checkout isn't silently ignored.
+        data_warnings = [] if args.group in _NO_DATA_GROUPS else datadir.check(settings)
         data = args.handler(args, settings)
-        warnings = data.pop("warnings", []) if isinstance(data, dict) else []
+        warnings = data_warnings + (data.pop("warnings", []) if isinstance(data, dict) else [])
         _emit(
             {
                 "schema_version": OUTPUT_SCHEMA_VERSION,

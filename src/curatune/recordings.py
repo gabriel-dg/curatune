@@ -1,7 +1,7 @@
 """Local store of recording metadata, keyed by track URI.
 
 Spotify only exposes the release date of an edition, not when a track was recorded. Recording
-dates come from discographies or other sources and are stored in `data/recordings.json`
+dates come from discographies or other sources and are stored in `recordings.json` in the data dir
 (gitignored) together with their source and confidence. The store is data, not judgment:
 deciding a date is the caller's job; this module only validates, stores, and joins it.
 

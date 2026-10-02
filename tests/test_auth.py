@@ -101,6 +101,7 @@ def _settings(tmp_path) -> Settings:
         redirect_port=8888,
         market=None,
         token_dir=tmp_path / "tokens",
+        data_dir=tmp_path / "data",
     )
 
 

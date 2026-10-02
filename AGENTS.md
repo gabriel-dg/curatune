@@ -120,7 +120,23 @@ its phases are in `PLAN-mcp.md`.
   a path inside the repo is rejected).
 - Callback port: `SPOTIFY_REDIRECT_PORT` (default 8888) or `auth login --port`; the exact
   `http://127.0.0.1:<port>/callback` must be registered in the dashboard (portless URIs are rejected).
-- Gitignored: `.env`, `plans/`, `data/` (backups, write log, recordings), `AGENTS.local.md`.
+- Data (plans, backups, write log, recording dates, MCP client records) lives in the **data dir**, outside
+  the repository: `%LOCALAPPDATA%\curatune\data` or `~/.local/share/curatune`; `CURATUNE_DATA_DIR` overrides,
+  and a path inside the repo is rejected. `config.py` resolves it; the checkout itself is optional (installed
+  servers have none), and `.env` is read from the checkout and from the config dir (process env wins).
+- Data left in a checkout's `data/` and `plans/` (where curatune kept it before) blocks commands with
+  `LEGACY_DATA_NOT_MIGRATED` until `curatune data migrate` copies it (`datadir.py`: backup, copy, SHA-256
+  check, marker; never moves or overwrites). With an explicit `CURATUNE_DATA_DIR` it only warns.
+- **Claude Desktop from the Microsoft Store virtualizes AppData** for the programs it starts (its Code
+  sessions, the MCP servers it launches). Verified live 2026-10-02 from a Code-tab session: a **new
+  top-level folder** under `%LOCALAPPDATA%` resolved to `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\
+  Local\…`, while a new subfolder and a new file inside the existing `%LOCALAPPDATA%\curatune` (created
+  earlier from a terminal) resolved in place, like the token. A terminal never sees redirected files, and
+  uninstalling the app deletes them. So the default data dir is fine once `%LOCALAPPDATA%\curatune`
+  exists, but not on a first run started by such an app. `datadir.ensure_not_virtualized` refuses a data
+  dir that resolves into a package (`DATA_DIR_VIRTUALIZED`), and `data migrate` checks it before copying.
+  Run first-time setup and migrations from a terminal, or set `CURATUNE_DATA_DIR` outside AppData.
+- Gitignored: `.env`, `plans/` and `data/` (older checkouts), `AGENTS.local.md`.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
   IDs). The repo is intended to be published.
 
@@ -129,7 +145,7 @@ its phases are in `PLAN-mcp.md`.
 - No audio features; since the 2026 migration no `popularity`, `followers`, `label`, or
   `available_markets`. Rankings and criteria depend on knowledge or external sources.
 - `release_date` is the **edition** date, not the recording date. Recording dates live in
-  `data/recordings.json` (`recordings.py`), with source and confidence.
+  `recordings.json` in the data dir (`recordings.py`), with source and confidence.
 - ISRC (`external_ids`, restored March 2026) helps match the same recording across editions (not fully
   reliable across remasters).
 
@@ -163,7 +179,7 @@ its phases are in `PLAN-mcp.md`.
   re-insert kept occurrences.
 - **snapshot_id read lag** (observed live): after a write, reads return the previous `snapshot_id` for a
   few minutes while items are already current; the write's snapshot is what reads converge to. Handled
-  by `writelog.py` (`data/write_log.json`, `SNAPSHOT_READ_LAG`).
+  by `writelog.py` (`write_log.json` in the data dir, `SNAPSHOT_READ_LAG`).
 - The playlist list lags too (observed 2026-09-29 by spotikit-web): right after creating a playlist and
   adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
   all 20. `playlists list` reports the count left by curatune's own writes of the last 15 minutes when
@@ -190,5 +206,8 @@ its phases are in `PLAN-mcp.md`.
   (`tests/fakes.py:FakeSpotify`); the MCP server through an in-memory MCP client in both protocol eras
   against a fake account (`FakeAccount`, `jazz_account()`: synthetic IDs, public track names); HTTP
   behaviour against a scripted session (`tests/test_http.py`). MCP tests are skipped without the extra.
+- No test may touch the user's data dir or open a browser: `tests/conftest.py` points `CURATUNE_DATA_DIR`
+  at each test's `tmp_path` and refuses `webbrowser.open`. Tests of the default location delete the
+  variable and point `LOCALAPPDATA` / `XDG_DATA_HOME` at `tmp_path`.
 - CI (`.github/workflows/tests.yml`): Windows and Linux, Python 3.10 and 3.14, with and without the extra.
   Actions are pinned to commit SHAs; the workflow has read-only permissions and needs no secrets.

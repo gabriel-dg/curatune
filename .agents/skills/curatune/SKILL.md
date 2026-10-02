@@ -77,7 +77,11 @@ Do this when `.venv` is missing, or a command fails with `CONFIG_ERROR` or `AUTH
 3. The user copies `.env.example` to `.env` and sets `SPOTIFY_CLIENT_ID`. No client secret is used (PKCE).
    Never ask for credentials in chat.
 4. Run `auth login`. It opens a browser and the user approves. Then check `auth status`: `missing_scopes`
-   must be empty.
+   must be empty, and `data.legacy_data` must not be `not_migrated`.
+
+curatune keeps its data (plans, backups, write log, recording dates) in a data directory outside the
+repository (`CURATUNE_DATA_DIR`, or `%LOCALAPPDATA%\curatune\data` / `~/.local/share/curatune`). Older
+versions used the repository's `data/` and `plans/`; see `LEGACY_DATA_NOT_MIGRATED` below.
 
 On `AUTH_EXPIRED`, ask the user to re-run `auth login`. Refresh tokens expire 6 months after the
 authorization. Do not try to work around it.
@@ -105,7 +109,8 @@ authorization. Do not try to work around it.
 
 | Command | Effect |
 |---|---|
-| `auth login` / `auth status` / `auth logout` | Authorization. The user completes the browser flow. |
+| `auth login` / `auth status` / `auth logout` | Authorization. The user completes the browser flow. `auth status` also reports the data directory (`data`). |
+| `data migrate [--dry-run]` | Copies data left in the repository's `data/` and `plans/` into the data directory (backup, copy, SHA-256 check; never moves or overwrites). **Only when the user asks.** |
 | `playlists list [--owned-only]` | The user's playlists. |
 | `playlist show <playlist> [--market CC] [--brief]` | Metadata and all items (position, name, artists, album, duration, ISRC, URI; the full output adds `added_at` and more). |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | **Executes.** See the visibility note below. |
@@ -250,6 +255,9 @@ the chronological workflow above.
 | `DUPLICATE_NAME` | On create (error): ask whether to reuse the existing playlist or create another one (`--allow-duplicate-name`). On `plan details` (warning): tell the user another playlist already has that name before asking for the OK. |
 | `RECORDING_DATES_MISSING` | Research and `recordings set` the listed items, then retry. |
 | `NO_CHANGES` | The playlist is already in the requested order, or already has that name or description. |
+| `LEGACY_DATA_NOT_MIGRATED` | Nothing ran. The repository's older `data/` and `plans/` haven't been copied to the data directory. Tell the user; run `data migrate` only if they ask (they may prefer to choose `CURATUNE_DATA_DIR` first). |
+| `DATA_DIR_VIRTUALIZED` | Nothing ran. The data directory would be private to a Microsoft Store app (Windows hides new AppData folders for programs such an app starts). Tell the user to set `CURATUNE_DATA_DIR` outside AppData, or to run curatune from a terminal. |
+| `LEGACY_DATA_PRESENT` (warning) | `CURATUNE_DATA_DIR` is set and the repository's older data isn't in it. Mention it once. |
 | `DESCRIPTION_NOT_CLEARABLE` | An empty description was requested. Tell the user the API can only replace a description; they can clear it in the Spotify app. |
 | `ADD_NOT_VERIFIED` (warning) | The tracks were added, but the playlist read back differs from what was expected (someone may have changed it at the same time), or the read failed (`read_error`). Run `playlist show --brief` and tell the user what it holds. Don't add again blindly. |
 | `DETAILS_NOT_CONFIRMED` (warning) | The rename or description change was accepted, but reads still show the old values. Tell the user it may be read lag or an ignored change, and to check in the Spotify app. |

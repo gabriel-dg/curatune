@@ -38,7 +38,7 @@ def anyio_backend():
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(project_root=tmp_path, client_id="client", redirect_port=8888, market=None, token_dir=tmp_path / "t")
+    return Settings(project_root=None, data_dir=tmp_path / "data", client_id="client", redirect_port=8888, market=None, token_dir=tmp_path / "t")
 
 
 @pytest.fixture
@@ -469,7 +469,8 @@ async def test_a_playlist_changed_after_approval_is_not_touched(settings, accoun
 @pytest.mark.parametrize("bad", ["../../secret", "20260101T000000Z-remove-x-zzzz", "nope"])
 async def test_only_plan_ids_are_accepted_and_nothing_is_asked(settings, account, bad):
     acc, _ = account
-    (settings.project_root / "secret.json").write_text("{}")
+    (settings.data_dir / "secret.json").parent.mkdir(parents=True, exist_ok=True)
+    (settings.data_dir / "secret.json").write_text("{}")
     user = User("accept")
     async with connect(settings, acc, "2026-07-28", user) as client:
         status, error = await call(client, "plan_apply", {"plan_id": bad})

@@ -24,7 +24,7 @@ from mcp.server.mcpserver import (
 from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from .. import catalog, plans, playlists, recordings
+from .. import catalog, datadir, plans, playlists, recordings
 from ..errors import AuthRequired, ConfigError, CuratuneError, InvalidArgument, PlanError
 from ..recordings import RecordingStore
 from ..refs import normalize_item_uri
@@ -73,8 +73,9 @@ def register(server: MCPServer, rt: Runtime) -> None:
 
     @server.tool(
         title="Check authorization",
-        description="Whether curatune is authorized to use the user's Spotify account. No network call. If not, "
-        "`next_step` says what the user has to do; never ask for credentials in the chat.",
+        description="Whether curatune is authorized to use the user's Spotify account, and whether its data is "
+        "ready. No network call. If not, `reason` and `next_step` say what the user has to do; never ask for "
+        "credentials in the chat, and never run commands for them.",
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False),
     )
     def auth_status(ctx: Context) -> Annotated[CallToolResult, schemas.AuthStatus]:
@@ -480,6 +481,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
         call, so the client can never supply its outcome. No side effects here: the page opens in the body."""
         try:
             mode = rt.confirm_mode()
+            rt.check_data_dir()
             path = plans.plan_path_for_id(plan_id, rt.settings().plans_dir)
             plan = plans.load_plan(path)  # schema, checksum, and the readable parts against the operations
             if plan.get("applied"):
@@ -637,4 +639,7 @@ def _auth_status(rt: Runtime) -> dict[str, Any]:
         return no("MISSING_SCOPES", "AUTH_REQUIRED")
     if status.get("refresh_likely_expired"):
         return no("AUTH_EXPIRED", "AUTH_EXPIRED")
+    if datadir.legacy_state(settings) == "not_migrated" and not settings.data_dir_explicit:
+        # Authorized, but every tool that uses data would stop until the user migrates.
+        return {"authorized": True, "reason": "LEGACY_DATA_NOT_MIGRATED", "next_step": NEXT_STEPS["LEGACY_DATA_NOT_MIGRATED"]}
     return {"authorized": True}

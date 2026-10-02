@@ -144,7 +144,7 @@ class PlaylistInfo(PlaylistSummary):
 
 class AuthStatus(_Out):
     authorized: bool
-    reason: Literal["CONFIG_ERROR", "AUTH_REQUIRED", "AUTH_EXPIRED", "MISSING_SCOPES"] | None = None
+    reason: Literal["CONFIG_ERROR", "AUTH_REQUIRED", "AUTH_EXPIRED", "MISSING_SCOPES", "LEGACY_DATA_NOT_MIGRATED"] | None = None
     next_step: str | None = None
 
 

@@ -106,7 +106,7 @@ class Tokens:
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(project_root=tmp_path, client_id="client", redirect_port=8888, market=None, token_dir=tmp_path / "t")
+    return Settings(project_root=None, data_dir=tmp_path / "data", client_id="client", redirect_port=8888, market=None, token_dir=tmp_path / "t")
 
 
 @pytest.fixture
@@ -526,11 +526,36 @@ async def test_auth_status(settings, account, status, expected):
 @pytest.mark.anyio
 async def test_missing_client_id_is_a_config_error(tmp_path, account):
     acc, _ = account
-    settings = Settings(project_root=tmp_path, client_id=None, redirect_port=8888, market=None, token_dir=tmp_path / "t")
+    settings = Settings(project_root=None, data_dir=tmp_path / "data", client_id=None, redirect_port=8888, market=None, token_dir=tmp_path / "t")
     server = build_server(settings, client_factory=lambda: acc, tokens=Tokens())
     async with Client(server, raise_exceptions=True) as c:
         data = (await c.call_tool("auth_status", {})).structured_content
     assert data["reason"] == "CONFIG_ERROR" and "credentials" in data["next_step"]
+
+
+@pytest.mark.anyio
+async def test_unmigrated_data_stops_every_data_tool_until_the_user_migrates(tmp_path, account):
+    acc, ids = account
+    root = tmp_path / "repo"
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "recordings.json").write_text("{}", encoding="utf-8")
+    data_dir = tmp_path / "default-data"
+    settings = Settings(root, "client", 8888, None, tmp_path / "t", data_dir, data_dir_explicit=False)
+    server = build_server(settings, client_factory=lambda: acc, tokens=Tokens())
+    async with Client(server, raise_exceptions=True) as c:
+        status = (await c.call_tool("auth_status", {})).structured_content
+        assert status == {
+            "authorized": True,
+            "reason": "LEGACY_DATA_NOT_MIGRATED",
+            "next_step": server_module.NEXT_STEPS["LEGACY_DATA_NOT_MIGRATED"],
+        }
+        assert "curatune data migrate" in status["next_step"] and "don't run it for them" in status["next_step"]
+        for name, args in (("playlists_list", {}), ("recordings_show", {"playlist": ids["test"]}),
+                           ("plan_apply", {"plan_id": "20260101T000000Z-remove-abcdefgh-0001"})):  # fmt: skip
+            result = await c.call_tool(name, args)
+            assert result.is_error and json.loads(result.content[0].text)["error"]["code"] == "LEGACY_DATA_NOT_MIGRATED"
+    assert not data_dir.exists()  # not even the client records: the migration needs an empty folder
+    assert acc.requests == []
 
 
 @pytest.mark.anyio
@@ -607,6 +632,6 @@ async def test_probe_survives_an_unwritable_data_dir(tmp_path, account):
     acc, _ = account
     blocker = tmp_path / "repo"
     blocker.write_text("a file where the project directory should be")  # data dir cannot be created
-    settings = Settings(project_root=blocker, client_id="c", redirect_port=8888, market=None, token_dir=tmp_path / "t")
+    settings = Settings(project_root=None, data_dir=blocker / "data", client_id="c", redirect_port=8888, market=None, token_dir=tmp_path / "t")
     async with Client(build_server(settings, client_factory=lambda: acc, tokens=Tokens()), raise_exceptions=True) as c:
         assert (await c.call_tool("auth_status", {})).structured_content == {"authorized": True}

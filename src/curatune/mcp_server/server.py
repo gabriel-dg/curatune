@@ -18,7 +18,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 
-from .. import __version__
+from .. import __version__, datadir
 from ..auth import TokenManager
 from ..config import Settings, load_settings
 from ..errors import CuratuneError
@@ -60,6 +60,11 @@ NEXT_STEPS = {
     "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
     "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "
     "they can clear it in the Spotify app.",
+    "DATA_DIR_VIRTUALIZED": "Nothing changed. Ask the user to set CURATUNE_DATA_DIR to a folder outside AppData "
+    "(in curatune's .env or this server's entry) and restart the server.",
+    "LEGACY_DATA_NOT_MIGRATED": "Nothing changed. curatune keeps its data outside the repository now, and the "
+    "user's older data hasn't been copied there yet. Ask the user to run `curatune data migrate` in a terminal "
+    "(it copies, never moves); don't run it for them.",
     "RECORDING_DATES_MISSING": "Store dates for the listed tracks with recordings_set (with source and confidence; "
     "say when unsure), then build the plan again.",
     # The confirmation page's one-time codes
@@ -125,6 +130,7 @@ class Runtime:
         self._init_lock = threading.Lock()
         self.write_lock = threading.Lock()
         self._seen_clients: set[tuple[Any, ...]] = set()
+        self._warned_legacy = False
         # The confirmation page: in memory, per process; its server starts on the first page-route call.
         self.confirmations = confirm.ConfirmationStore()
         self.approval_page = ApprovalPage(self.confirmations)
@@ -150,6 +156,14 @@ class Runtime:
         self.settings()
         return confirm.confirm_mode()
 
+    def check_data_dir(self) -> None:
+        """Before anything that uses the data dir: data left in a checkout is never silently ignored
+        (LEGACY_DATA_NOT_MIGRATED with the default dir; a one-time stderr warning with an explicit one)."""
+        warnings = datadir.check(self.settings())
+        if warnings and not self._warned_legacy:
+            self._warned_legacy = True
+            logger.warning("%s", warnings[0]["message"])
+
     def client(self) -> Any:
         if self._client_factory is not None:
             return self._client_factory()
@@ -159,6 +173,7 @@ class Runtime:
         """Run `fn(client)` and wrap its view; curatune errors become tool errors the model can read."""
         self.probe(ctx)
         try:
+            self.check_data_dir()
             if write:
                 with self.write_lock:
                     data = fn(self.client())
@@ -192,7 +207,11 @@ class Runtime:
             logger.warning("could not record the client in mcp_clients.json", exc_info=True)
 
     def _remember_client(self, entry: dict[str, Any]) -> None:
-        path = self.settings().data_dir / "mcp_clients.json"
+        settings = self.settings()
+        if datadir.legacy_state(settings) == "not_migrated" and not settings.data_dir_explicit:
+            return  # don't start a data dir the migration would then refuse to write into
+        datadir.ensure_not_virtualized(settings.data_dir)  # raises (and is logged) rather than write there
+        path = settings.data_dir / "mcp_clients.json"
         with self._init_lock:
             try:
                 known = json.loads(path.read_text(encoding="utf-8"))

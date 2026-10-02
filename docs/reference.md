@@ -74,7 +74,8 @@ about a third of the size, with every key always present:
 | Command | `data` |
 |---|---|
 | `auth login [--port N] [--no-browser] [--timeout S]` | same as `auth status` |
-| `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path}` |
+| `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path, data: {data_dir, data_dir_explicit, legacy_data, virtualized}}`. `legacy_data` is `none`, `not_migrated`, or `migrated` (see [Data directory](#data-directory)). |
+| `data migrate [--dry-run]` | `{source, data_dir, files, bytes, by_folder: {data, plans}, dry_run}`, plus `would_copy: [{from, to}]` with `--dry-run`, or `backup_dir`, `verified`, `originals_kept` after copying. |
 | `auth logout` | `{logged_out, token_path}` |
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` + warning `ITEM_COUNT_READ_LAG` |
 | `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
@@ -94,7 +95,7 @@ about a third of the size, with every key always present:
 
 `<playlist>`, `<track>`, `<album>` accept a bare ID, a `spotify:` URI, or an `open.spotify.com` URL.
 `<plan>` accepts a plan file path or a `plan_id`; a bare `plan_id` must have the plan-ID shape
-(`<UTC timestamp>-<kind>-<playlist ID prefix>-<4 hex>`), so it can never point outside `plans/`.
+(`<UTC timestamp>-<kind>-<playlist ID prefix>-<4 hex>`), so it can never point outside the plans folder.
 `--from-file` accepts a JSON array (strings or objects with `uri`) or one reference per line.
 
 Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, items_after, operations}, changes}`.
@@ -102,7 +103,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
 ## Plans (remove / reorder / details)
 
 
-`plan remove` and `plan reorder` only read the playlist and write `plans/<plan_id>.json`:
+`plan remove` and `plan reorder` only read the playlist and write `plans/<plan_id>.json` in the data directory:
 
 ```jsonc
 {
@@ -141,7 +142,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
    another. Refuses already-applied plans (`PLAN_ALREADY_APPLIED`).
 2. Re-reads the playlist (without market, so URIs are exactly the stored ones) and requires the **same
    `snapshot_id` and the same URI list** as `before`; otherwise `SNAPSHOT_MISMATCH` and nothing changes.
-3. Writes a full backup to `data/backups/`.
+3. Writes a full backup to `backups/` in the data directory.
 4. Runs the operations in order, chaining each returned `snapshot_id`. On failure: `APPLY_FAILED` with
    `operations_done`, the failed operation, and `backup_path`.
 5. Re-reads the playlist and compares with `after`. Mismatch: `VERIFICATION_FAILED` (changes were applied).
@@ -205,7 +206,7 @@ ICU collation.
 
 
 Spotify only knows an edition's release date. Recording dates are researched elsewhere and kept in
-`data/recordings.json` (gitignored), keyed by track URI:
+`recordings.json` in the data directory, keyed by track URI:
 
 ```json
 {
@@ -243,7 +244,7 @@ curatune never changes the visibility of existing playlists.
 
 After a write, Spotify keeps returning the previous `snapshot_id` on reads for a few minutes, while the
 item list is already current. curatune records the snapshot returned by each of its own writes (create,
-add, apply) together with the expected URI list in `data/write_log.json`. A market-less read whose items
+add, apply) together with the expected URI list in `write_log.json` (data directory). A market-less read whose items
 match that record exactly, within 15 minutes of the write, uses the recorded snapshot and emits
 `SNAPSHOT_READ_LAG`. Any other difference is treated as a real change. The URI list check in `plan apply`
 never relaxes.
@@ -253,6 +254,41 @@ The playlist list lags too: `GET /me/playlists` keeps the old `items.total` for 
 (the length of the recorded URI list) when it differs from the listed one, and emits
 `ITEM_COUNT_READ_LAG` with both counts. `playlist show` counts the items it reads and is always current.
 
+## Data directory
+
+curatune keeps plans, backups, the write log, recording dates, and the MCP server's client records in one
+data directory, shared by the CLI and the MCP server: `CURATUNE_DATA_DIR` if set (environment variables are
+expanded), otherwise `%LOCALAPPDATA%\curatune\data` on Windows or `$XDG_DATA_HOME/curatune` (default
+`~/.local/share/curatune`). Inside: `plans/`, `backups/`, `write_log.json`, `recordings.json`,
+`mcp_clients.json`. It may not be inside the repository (`CONFIG_ERROR`), like the token.
+
+On Windows, an app installed from the Microsoft Store (Claude Desktop is one) gets AppData virtualized for
+the programs it starts: a new top-level folder under `%LOCALAPPDATA%` is really created in
+`%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\`, where a terminal never sees it and which uninstalling
+the app deletes (observed 2026-10-02; new items inside a folder that already existed, such as
+`%LOCALAPPDATA%\curatune` after a login from a terminal, stayed in place). Every command that uses the data
+directory refuses one that resolves into a package (`DATA_DIR_VIRTUALIZED`, removing the empty folders it
+just created), and `data migrate` checks before copying. Run curatune once from a terminal first, or set
+`CURATUNE_DATA_DIR` outside AppData. `auth status` reports it as `data.virtualized`.
+
+`CURATUNE_TOKEN_DIR` can't be set in the config directory's own `.env`: that directory is located before its
+`.env` is read. Set it in the environment or in the repository's `.env`.
+
+Earlier versions kept that data in the repository's `data/` and `plans/`. If they still hold files:
+- with the default data directory, every command except `auth` and `data` stops with
+  `LEGACY_DATA_NOT_MIGRATED`, so curatune never starts empty without saying so;
+- with `CURATUNE_DATA_DIR` set, commands run and warn `LEGACY_DATA_PRESENT`.
+
+`data migrate` fixes it: it copies (never moves) both folders, first to
+`<data dir>/migration-backup-<UTC timestamp>/`, then to their places in the data directory, compares the
+SHA-256 of every file in all three places, and writes `migration.json` (source, time, hashes). After that
+nothing warns. It refuses to overwrite anything (`MIGRATION_CONFLICT`, nothing copied), runs once
+(`ALREADY_MIGRATED`), and reports `NOTHING_TO_MIGRATE` when there's nothing to copy. The originals stay;
+delete them yourself once you've checked the result.
+
+`.env` is read from the repository (when curatune runs from one) and from the config directory next to the
+token; the process environment wins over both, and the repository's file over the config directory's.
+
 ## Error codes
 
 
@@ -260,6 +296,8 @@ The playlist list lags too: `GET /me/playlists` keeps the old `items.total` for 
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,
 `CONCURRENT_MODIFICATION`, `DUPLICATE_NAME`, `PLAN_INVALID`, `PLAN_NOT_FOUND`, `PLAN_CHECKSUM_MISMATCH`,
 `PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `DESCRIPTION_NOT_CLEARABLE`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
+`LEGACY_DATA_NOT_MIGRATED`, `DATA_DIR_VIRTUALIZED`, `NOTHING_TO_MIGRATE`, `ALREADY_MIGRATED`, `MIGRATION_CONFLICT`,
+`MIGRATION_FAILED`,
 `VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
 
 `UNTRUSTED_URL`: a response pointed to a URL (such as a pagination `next` link) outside
@@ -270,6 +308,7 @@ Warning codes (in `warnings`; the command still succeeded):
 | Code | Meaning |
 |---|---|
 | `SNAPSHOT_READ_LAG` | The read returned a stale `snapshot_id`; the one from curatune's last write is used. |
+| `LEGACY_DATA_PRESENT` | `CURATUNE_DATA_DIR` is set, and the repository's older `data/` or `plans/` still hold files it doesn't use (`legacy_dirs`, `data_dir`). `data migrate` copies them, if wanted. |
 | `ITEM_COUNT_READ_LAG` | The playlist list returned stale item counts; the counts left by curatune's recent writes are used (`playlists`: `playlist_id`, `listed_item_count`, `item_count`). |
 | `LOCAL_FILES` | The playlist contains local files. |
 | `UNAVAILABLE_ITEMS` | Some items have no track object and no URI. |
