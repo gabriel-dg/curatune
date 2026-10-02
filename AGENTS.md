@@ -72,18 +72,27 @@ its phases are in `PLAN-mcp.md`.
 - The tool descriptions and `mcp_server/instructions.py` carry the skill's rules (tests check them). When a
   rule changes in the skill, change it there too.
 - Removals, reorders, and renames are plans (`plan_*` build them; changing nothing). **`plan_apply` applies
-  one only after the person answers the client's dialog** (MCP form elicitation; `mcp_server/confirm.py`):
-  - its confirmation is filled by resolvers, never by tool arguments (the input schema is `plan_id` only);
-    don't add an argument that could stand in for the answer;
+  one only after the person confirms it outside the chat**: in the client's dialog (MCP form elicitation),
+  or on the local confirmation page, which reveals a one-time code (`mcp_server/confirm.py`,
+  `approval_page.py`):
+  - the dialog's answer is filled by resolvers, never by tool arguments. The only other argument is
+    `confirmation_code`: the page shows it only after the person clicks Approve, bound to the plan and its
+    checksum, 40 bits, three attempts, single use, 10 minutes. Don't add an argument that could stand in
+    for either;
+  - the page's address and the code never appear in a tool result, a log, or stderr (the page's request
+    log is off); its POSTs need the exact `Host`, a matching `Origin`, and the form nonce;
   - the question is built from the plan file alone (no live data, so it is identical on every multi
     round-trip round), with third-party text cleaned; the model's `reason` (required by every `plan_*`
     tool, at most 300 characters) follows it apart, labelled as the assistant's unchecked explanation;
-  - no form elicitation, a forced `CURATUNE_MCP_CONFIRM=browser` (not built yet), an invalid or applied
-    plan, or anything but "accept" with "Apply this plan" checked: nothing is applied;
+  - routes: the dialog when declared, otherwise the page (`CURATUNE_MCP_CONFIRM` forces either); no
+    browser, an invalid or applied plan, a wrong, expired, or used code, a rejection, or anything but
+    "accept" with "Apply this plan" checked: nothing is applied;
   - it accepts plan IDs only (`plans.plan_path_for_id`), and applies through `plans.apply_plan`, which
     keeps every CLI check (snapshot, items, backup, verification);
   - results and errors never carry local paths (`*_path`, `*_dir` keys are dropped).
-  The tests (`tests/test_mcp_plans.py`) play the user in both protocol eras; keep them passing.
+  The tests (`tests/test_mcp_plans.py`, `tests/test_mcp_approval_page.py`) play the user in both protocol
+  eras, through the dialog and through the real page server; keep them passing. No test may open a real
+  browser (`tests/conftest.py`).
 - Server instructions must stay under 2048 characters (Claude Code truncates there; a test checks it).
   Rules that matter for one tool go in that tool's description.
 - stdout belongs to the protocol; logs go to stderr. Writes (create, add, recording dates) take a

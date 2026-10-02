@@ -332,7 +332,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
 
     built_next = (
         "Nothing has changed yet. Tell the user what this plan does (numbers, titles, artists: what leaves or "
-        "moves) and why, then call plan_apply in the same message; the user confirms it in a dialog."
+        "moves) and why, then call plan_apply in the same message; the user confirms it outside the chat."
     )
     builds = "Builds a plan and changes nothing on Spotify; plan_apply applies it after the user confirms. "
 
@@ -465,14 +465,14 @@ def register(server: MCPServer, rt: Runtime) -> None:
             elif check_view and not check_view["applicable"]:
                 step = "The playlist changed since this plan was built, so it can't be applied. Build a new plan."
             else:
-                step = "Show the user what it does. When they want it applied, call plan_apply; they confirm it in a dialog."
+                step = "Show the user what it does. When they want it applied, call plan_apply; they confirm it outside the chat."
             return {"plan": views.plan(shown["plan"], step), "check": check_view}
 
         return rt.call(ctx, run)
 
-    def prepare(plan_id: str, ctx: Context) -> confirm.Prepared:
+    def prepare(plan_id: str, confirmation_code: str | None, ctx: Context) -> confirm.Prepared:
         """Load and validate the plan and choose the route. Runs again on every round of a multi round-trip
-        call, so the client can never supply its outcome."""
+        call, so the client can never supply its outcome. No side effects here: the page opens in the body."""
         try:
             mode = rt.confirm_mode()
             path = plans.plan_path_for_id(plan_id, rt.settings().plans_dir)
@@ -481,8 +481,11 @@ def register(server: MCPServer, rt: Runtime) -> None:
                 raise PlanError("This plan was already applied.", code="PLAN_ALREADY_APPLIED")
         except CuratuneError as exc:
             return confirm.Prepared(plan_id, "unavailable", error=exc)
+        if confirmation_code is not None:
+            return confirm.Prepared(plan_id, "code", path=path, plan=plan, code=confirmation_code)
         route, why = confirm.choose_route(mode, ctx.client_capabilities)
-        return confirm.Prepared(plan_id, route, path=path, summary=confirm.render_summary(plan), unavailable_reason=why)
+        summary = confirm.render_summary(plan) if route == "elicitation" else ""
+        return confirm.Prepared(plan_id, route, path=path, plan=plan, summary=summary, unavailable_reason=why)
 
     def ask(
         prepared: Annotated[confirm.Prepared, Resolve(prepare)],
@@ -502,17 +505,72 @@ def register(server: MCPServer, rt: Runtime) -> None:
         data["next_step"] = "Tell the user what changed. Use playlist_show to report the result if needed."
         return ok_result(data)
 
+    def unavailable(plan_id: str, why: str) -> CallToolResult:
+        return error_result(
+            CuratuneError(
+                f"Can't ask the user to confirm: {why}. Nothing changed.",
+                code="CONFIRMATION_UNAVAILABLE",
+                details={"plan_id": plan_id},
+            ),
+            next_step="Tell the user nothing was applied because curatune couldn't ask them to confirm here. They "
+            f"can review and apply it in a terminal: `curatune plan show {plan_id}`, then `curatune plan apply "
+            f"{plan_id}`.",
+        )
+
+    def rejected(plan_id: str) -> CallToolResult:
+        step = (
+            "The user rejected this plan on the confirmation page: nothing changed. Don't apply it again unless "
+            "they ask; build a new plan if they want something different."
+        )
+        return ok_result({"status": "rejected", "plan_id": plan_id, "warnings": [], "next_step": step})
+
+    def open_page(prepared: confirm.Prepared) -> CallToolResult:
+        """Open (or reopen) the plan's confirmation page. Its URL goes to the browser only."""
+        assert prepared.plan is not None
+        c = rt.confirmations.start(prepared.plan_id, prepared.plan["checksum"], prepared.plan)
+        if c.state == "rejected":
+            return rejected(prepared.plan_id)
+        try:
+            opened = rt.open_browser(rt.approval_page.url_for(c))
+        except Exception:  # noqa: BLE001 - no browser, no display, a port that can't be bound: fail closed
+            opened = False
+        if not opened:
+            return unavailable(prepared.plan_id, "no browser could be opened for the confirmation page")
+        step = (
+            "A page with this plan opened in the user's browser. Tell them to review it there: if they approve, "
+            "it shows a one-time code for them to paste in the chat. Then call plan_apply with this plan_id and "
+            "confirmation_code set to exactly what they paste. Never guess, invent, or reuse a code. If they reject "
+            "the plan or don't paste a code, nothing changes. If no page appeared, they can run "
+            f"`curatune plan apply {prepared.plan_id}` in a terminal."
+        )
+        data = {"status": "awaiting_user_confirmation", "plan_id": prepared.plan_id, "warnings": [], "next_step": step}
+        return ok_result(data)
+
+    def redeem(prepared: confirm.Prepared) -> CallToolResult:
+        """Check the code the user pasted; it is used up before the plan is applied."""
+        assert prepared.plan is not None and prepared.path is not None and prepared.code is not None
+        try:
+            outcome = rt.confirmations.redeem(prepared.plan_id, prepared.plan["checksum"], prepared.code)
+        except CuratuneError as exc:
+            return error_result(exc)
+        if outcome == "rejected":
+            return rejected(prepared.plan_id)
+        return apply(prepared.path)
+
     @server.tool(
         title="Apply a plan",
         description="Before calling this, in the same message, tell the user what the plan changes and why, above "
         "all your judgment calls (such as removing another edition of the same recording); don't wait for a reply: "
-        "the dialog is their confirmation. Applies a plan after the user confirms it. The client shows the user a "
-        "dialog with a summary built from the plan itself, followed by the plan's reason labelled as your "
-        "explanation; you cannot answer it for them, and if they decline or close it nothing changes. Only for a "
-        "plan built in this conversation at the user's request, or one the user asked to apply after reviewing it "
-        "with plan_show. Before changing anything it checks that the playlist hasn't changed since the plan was "
-        "built and backs it up; afterwards it verifies the result. Never say a plan was applied unless this returns "
-        'status "applied".',
+        "their confirmation comes next, outside the chat. Applies a plan only after the user confirms it, in one of "
+        "two ways. Clients with dialogs show a summary built from the plan itself, followed by the plan's reason "
+        "labelled as your explanation; you cannot answer it for them, and if they decline or close it nothing "
+        'changes. Otherwise the result is status "awaiting_user_confirmation" and a page with the plan opens in '
+        "the user's browser; if they approve, it shows them a one-time code. Then call plan_apply again with "
+        "confirmation_code set to exactly what the user pastes in the chat. Never guess, invent, or reuse a code. "
+        "Only for a plan built in this conversation at the user's request, or one the user asked to apply after "
+        "reviewing it with plan_show. Before changing anything it checks that the playlist hasn't changed since the "
+        "plan was built and backs it up; afterwards it verifies the result. Never say a plan was applied unless this "
+        'returns status "applied".',
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=True),
         meta={"anthropic/requiresUserInteraction": True},
     )
@@ -521,20 +579,24 @@ def register(server: MCPServer, rt: Runtime) -> None:
         plan_id: PlanId,
         prepared: Annotated[confirm.Prepared, Resolve(prepare)],
         answer: Annotated[ElicitationResult[schemas.ApplyAnswer], Resolve(ask)],
+        confirmation_code: Annotated[
+            str | None,
+            Field(
+                max_length=40,
+                description="Only the code the user pasted from curatune's confirmation page, exactly as typed. "
+                "Leave it out on the first call.",
+            ),
+        ] = None,
     ) -> Annotated[CallToolResult, schemas.PlanApply]:
         rt.probe(ctx)
         if prepared.error is not None:
             return error_result(prepared.error)
-        if prepared.route != "elicitation":
-            return error_result(
-                CuratuneError(
-                    f"Can't ask the user to confirm: {prepared.unavailable_reason}. Nothing changed.",
-                    code="CONFIRMATION_UNAVAILABLE",
-                    details={"plan_id": plan_id},
-                ),
-                next_step="Tell the user this client can't confirm plans, so nothing was applied. They can review "
-                f"and apply it in a terminal: `curatune plan show {plan_id}`, then `curatune plan apply {plan_id}`.",
-            )
+        if prepared.route == "unavailable":
+            return unavailable(plan_id, prepared.unavailable_reason)
+        if prepared.route == "page":
+            return await anyio.to_thread.run_sync(lambda: open_page(prepared))
+        if prepared.route == "code":
+            return await anyio.to_thread.run_sync(lambda: redeem(prepared))
         match answer:
             case AcceptedElicitation(data=schemas.ApplyAnswer(apply=True)):
                 assert prepared.path is not None

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import webbrowser
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -24,6 +25,7 @@ from ..errors import CuratuneError
 from ..http import SpotifyClient
 from ..writelog import WriteLog
 from . import confirm
+from .approval_page import ApprovalPage
 from .instructions import INSTRUCTIONS
 from .numbering import numbered
 
@@ -60,6 +62,15 @@ NEXT_STEPS = {
     "they can clear it in the Spotify app.",
     "RECORDING_DATES_MISSING": "Store dates for the listed tracks with recordings_set (with source and confidence; "
     "say when unsure), then build the plan again.",
+    # The confirmation page's one-time codes
+    "CONFIRMATION_CODE_INVALID": "Nothing changed. Ask the user to check the code on the page and paste it again; "
+    "never guess one. attempts_left says how many tries remain before the confirmation is void.",
+    "CONFIRMATION_VOID": "Nothing changed, and this confirmation can't be used any more. If the user still wants "
+    "the plan, call plan_apply with only the plan_id to open a new confirmation page.",
+    "CONFIRMATION_EXPIRED": "Nothing changed. If the user still wants the plan, call plan_apply with only the "
+    "plan_id to open a new confirmation page.",
+    "CONFIRMATION_NOT_FOUND": "Nothing changed. Call plan_apply with only the plan_id to open the confirmation "
+    "page; pass a code only after the user pastes the one that page showed them.",
     "SNAPSHOT_MISMATCH": "Nothing changed: the playlist changed since the plan was built. Build a new plan and show "
     "it to the user again.",
     "APPLY_FAILED": "Applying stopped partway: the playlist may be partly changed (a backup was saved first). Tell "
@@ -105,6 +116,7 @@ class Runtime:
         client_factory: Callable[[], Any] | None = None,
         tokens: Any = None,
         confirm_mode: str | None = None,
+        open_browser: Callable[[str], bool] | None = None,
     ):
         self._settings = settings
         self._client_factory = client_factory
@@ -113,6 +125,10 @@ class Runtime:
         self._init_lock = threading.Lock()
         self.write_lock = threading.Lock()
         self._seen_clients: set[tuple[Any, ...]] = set()
+        # The confirmation page: in memory, per process; its server starts on the first page-route call.
+        self.confirmations = confirm.ConfirmationStore()
+        self.approval_page = ApprovalPage(self.confirmations)
+        self.open_browser: Callable[[str], bool] = open_browser or webbrowser.open
 
     def settings(self) -> Settings:
         with self._init_lock:
@@ -196,11 +212,12 @@ def build_server(
     client_factory: Callable[[], Any] | None = None,
     tokens: Any = None,
     confirm_mode: str | None = None,
+    open_browser: Callable[[str], bool] | None = None,
 ) -> MCPServer:
     """The curatune MCP server. Tests pass a fake `client_factory` (and `tokens` for auth_status, and
-    `confirm_mode` instead of CURATUNE_MCP_CONFIRM)."""
+    `confirm_mode` instead of CURATUNE_MCP_CONFIRM, and `open_browser` to catch the confirmation page's URL)."""
     from . import tools
 
     server = MCPServer("curatune", instructions=INSTRUCTIONS, version=__version__)
-    tools.register(server, Runtime(settings, client_factory, tokens, confirm_mode))
+    tools.register(server, Runtime(settings, client_factory, tokens, confirm_mode, open_browser))
     return server

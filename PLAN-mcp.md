@@ -1,7 +1,8 @@
 # PLAN-mcp: a local MCP server for curatune
 
 Status: approved with adjustments (2026-10-01). Phases 0 and 1 done (Claude Desktop's live check
-deferred; see section 2.2). Phase 2a done (live check 2026-10-01).
+deferred; see section 2.2). Phase 2a done (live check 2026-10-01). Phase 2b implemented and
+tested; its live check is next.
 Branch: this worktree's own branch (not `main`). Merge to `main` only with the user's explicit OK.
 All sources were accessed on 2026-10-01 and are listed at the end.
 
@@ -777,18 +778,30 @@ phase 3).
 
 ### Phase 2b (v2, second part): the page and one-time code
 
-- [ ] `approval_page.py` and the confirmation store in `confirm.py`.
-- [ ] Tests:
-  - [ ] codes: wrong, expired, reused, third attempt, other plan, other checksum, rejected;
-  - [ ] the page server: `Host`/`Origin`/nonce rejection, CSP header, escaping of a hostile track name;
-  - [ ] the URL and the code never appear in a result or a log;
-  - [ ] the browser can't open → `CONFIRMATION_UNAVAILABLE`;
-  - [ ] the route order: elicitation first, otherwise the page, plus the forced modes.
-- [ ] Docs: a sequence diagram for the page route; the threat-model boundary (section 5).
+- [x] `approval_page.py` and the confirmation store in `confirm.py`.
+- [x] Tests (`tests/test_mcp_approval_page.py`, `tests/test_mcp_plans.py`):
+  - [x] codes: wrong, expired, reused, third attempt, other plan, other checksum, rejected;
+  - [x] the page server: `Host`/`Origin`/nonce rejection, CSP header, escaping of a hostile track name;
+  - [x] the URL and the code never appear in a result or a log;
+  - [x] the browser can't open → `CONFIRMATION_UNAVAILABLE`;
+  - [x] the route order: elicitation first, otherwise the page, plus the forced modes.
+- [x] Docs: a sequence diagram for the page route; the threat-model boundary (section 5).
 - [ ] Live check in **Claude Code with `CURATUNE_MCP_CONFIRM=browser`** on the test playlist: remove,
       reorder, and rename through the page; restore the recorded state.
 - [ ] Live check in **Claude Desktop** (after its deferred phase 1 check): the same, through the page with
       the default `auto` route. LM Studio optional, as in phase 1.
+**Status (2026-10-01).** Implemented and tested; the live check in Claude Code is next.
+- 560 tests pass with the extra, in both protocol eras; 426 without it (the page and its codes are pure
+  standard library, so their tests run without the extra). `tests/conftest.py` keeps every test from
+  opening a real browser: one early run did, before tests passed their own `open_browser`.
+- Found while building, in a real browser: with `Referrer-Policy: no-referrer`, Chromium sends
+  `Origin: null` on the form POSTs, so the Origin check refused Approve. The page now sends `same-origin`
+  (it links nowhere), with a test. The in-memory tests had passed because they set `Origin` by hand.
+- `plan_apply` gained one argument, `confirmation_code`; its description is 1,162 characters, and the
+  instructions 1,983 (limit 2048).
+- A rejected plan answers `rejected` until its confirmation expires, without reopening the page, so a model
+  can't keep opening tabs; a pending or approved one reopens the same address.
+
 - **Done when:**
   - in **Claude Code with `CURATUNE_MCP_CONFIRM=browser`**, a plan opens the page; Approve shows a code;
     pasting it applies with `verified: true`; then the same in Claude Desktop;

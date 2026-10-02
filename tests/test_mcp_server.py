@@ -222,7 +222,10 @@ async def test_descriptions_carry_the_rules(client):
     assert "Only for a plan built in this conversation" in apply and 'Never say a plan was applied' in apply
     # The model explains the plan in the chat, but never waits there for an OK: the dialog is the confirmation.
     assert apply.startswith("Before calling this, in the same message, tell the user what the plan changes and why")
-    assert "judgment calls" in apply and "don't wait for a reply: the dialog is their confirmation" in apply
+    assert "judgment calls" in apply and "don't wait for a reply: their confirmation comes next, outside the chat" in apply
+    # The page route: the model passes back only what the user pasted.
+    assert "awaiting_user_confirmation" in apply and "exactly what the user pastes" in apply
+    assert "Never guess, invent, or reuse a code" in apply
 
 
 @pytest.mark.anyio
@@ -234,9 +237,13 @@ async def test_descriptions_fit_claude_codes_limit(client):
 
 
 @pytest.mark.anyio
-async def test_plan_apply_takes_only_a_plan_id_and_always_wants_a_person(client):
+async def test_plan_apply_takes_a_plan_id_and_a_code_and_always_wants_a_person(client):
     [tool] = [t for t in (await client.list_tools()).tools if t.name == "plan_apply"]
-    assert list(tool.input_schema["properties"]) == ["plan_id"]  # the confirmation is not an argument
+    # The dialog's answer is never an argument. The only other argument is the confirmation page's one-time
+    # code, which the page shows only after the person clicks Approve: bound to the plan and its checksum,
+    # 40 bits, three attempts, single use, ten minutes (tests/test_mcp_approval_page.py).
+    assert list(tool.input_schema["properties"]) == ["plan_id", "confirmation_code"]
+    assert tool.input_schema["required"] == ["plan_id"]
     builders = [t for t in (await client.list_tools()).tools if t.name in ("plan_remove", "plan_reorder", "plan_details")]
     for builder in builders:  # the reason reaches the dialog, so every plan must carry one
         assert "reason" in builder.input_schema["required"], builder.name
@@ -256,7 +263,7 @@ def test_instructions_carry_the_rules():
         "never overwrite a stored date unless the user asks",
         "Create a playlist or add tracks only when the user asks",
         "only when the user asks, through plans",
-        "confirm in a dialog you can't answer",
+        "plan_apply asks the user to confirm outside the chat; never invent a code",
         "propose one in the chat and ask first",
         "Never write one on your own",
     ):

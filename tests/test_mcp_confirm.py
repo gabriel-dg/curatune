@@ -23,14 +23,15 @@ URL_ONLY = SimpleNamespace(form=None, url={})
 @pytest.mark.parametrize(
     "mode, capabilities, route",
     [
-        ("auto", caps(FORM), "elicitation"),
+        ("auto", caps(FORM), "elicitation"),  # a dialog first
         ("auto", caps(BARE), "elicitation"),
-        ("auto", caps(URL_ONLY), "unavailable"),
-        ("auto", caps(None), "unavailable"),
-        ("auto", None, "unavailable"),
+        ("auto", caps(URL_ONLY), "page"),  # otherwise the confirmation page
+        ("auto", caps(None), "page"),
+        ("auto", None, "page"),
         ("elicitation", caps(FORM), "elicitation"),
-        ("elicitation", None, "unavailable"),
-        ("browser", caps(FORM), "unavailable"),  # the page comes in phase 2b
+        ("elicitation", None, "unavailable"),  # forced dialog, and there is none: fail closed
+        ("browser", caps(FORM), "page"),  # forced page, even with a dialog
+        ("browser", None, "page"),
     ],
 )
 def test_route(mode, capabilities, route):

@@ -352,7 +352,7 @@ class PlanShow(_Out):
 
 
 class PlanApply(_Out):
-    status: Literal["applied", "declined", "cancelled"]
+    status: Literal["applied", "declined", "cancelled", "awaiting_user_confirmation", "rejected"]
     plan_id: str
     verified: bool | None = None
     operations_done: int | None = None

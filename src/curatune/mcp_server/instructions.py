@@ -28,7 +28,7 @@ live or alternate takes unless asked); add all tracks with one playlist_add, in 
 - No description given on create: propose one in the chat and ask first. Never write one on your own (the \
 API can't clear it).
 - Remove, reorder, rename, or change a description only when the user asks, through plans (plan_remove, \
-plan_reorder, plan_details). plan_apply asks the user to confirm in a dialog you can't answer.
+plan_reorder, plan_details). plan_apply asks the user to confirm outside the chat; never invent a code.
 - Deleting playlists and changing visibility are deliberately not supported: say so, mention the Spotify \
 app, never work around it.
 
