@@ -161,7 +161,7 @@ async def test_without_a_client_id_it_says_how_to_set_up(tmp_path):
 
 
 @pytest.mark.anyio
-async def test_a_token_dir_private_to_a_store_app_is_refused(tmp_path, monkeypatch):
+async def test_a_token_dir_private_to_a_packaged_app_is_refused(tmp_path, monkeypatch):
     from curatune import datadir
 
     real, local = datadir._resolve, str(tmp_path / "local")

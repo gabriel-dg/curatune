@@ -211,13 +211,13 @@ def test_cli_warns_with_an_explicit_dir(monkeypatch, capsys, checkout, tmp_path)
     assert code == 0 and [w["code"] for w in out["warnings"]] == ["LEGACY_DATA_PRESENT"]
 
 
-# --- A data dir private to a Microsoft Store app --------------------------------------------------
+# --- A data dir private to a packaged (MSIX) app -------------------------------------------------
 
 
 @pytest.fixture
 def store_app(monkeypatch, tmp_path):
-    """Make every path under tmp_path/"local" look redirected, as Windows does for programs a Store app
-    starts (seen live 2026-10-02 with Claude Desktop from the Store)."""
+    """Make every path under tmp_path/"local" look redirected, as Windows does for programs a packaged app
+    starts (seen live 2026-10-02 with Claude Desktop, an MSIX package)."""
     real = datadir._resolve
     local = str(tmp_path / "local")
 

@@ -13,8 +13,9 @@ never starts empty without saying so:
 `migrate` copies (never moves): a backup of the checkout's folders first, then the copy, then a SHA-256
 check of every file in all three places, then the marker. It refuses to overwrite anything.
 
-A data dir that Windows keeps private to a Microsoft Store app is refused too (DATA_DIR_VIRTUALIZED). For
-the programs such an app starts (Claude Desktop from the Store starts its Code sessions and MCP servers),
+A data dir that Windows keeps private to a packaged (MSIX) app is refused too (DATA_DIR_VIRTUALIZED). For
+the programs such an app starts (Claude Desktop, installed as an MSIX package, starts its Code sessions and
+MCP servers),
 Windows redirects a new top-level folder under AppData to `AppData/Local/Packages/<app>/LocalCache`
 (observed 2026-10-02; items inside a folder that already existed stayed in place): the CLI in a terminal
 would never see it, and uninstalling the app deletes it.
@@ -67,7 +68,7 @@ def _resolve(path: Path) -> str:
 
 
 def is_package_private(path: Path) -> bool:
-    """Whether a path really lives in a Store app's private folder (only visible once it exists)."""
+    """Whether a path really lives in a packaged app's private folder (only visible once it exists)."""
     return bool(_PACKAGE_PRIVATE.search(_resolve(path)))
 
 
@@ -86,8 +87,8 @@ def ensure_not_virtualized(data_dir: Path, what: str = "data directory", setting
             break
     code = "DATA_DIR_VIRTUALIZED" if setting == "CURATUNE_DATA_DIR" else "TOKEN_DIR_VIRTUALIZED"
     raise ConfigError(
-        f"curatune's {what} would be a private folder of a Microsoft Store app: Windows redirects new folders "
-        "under AppData for the programs such an app starts (Claude Desktop from the Store does this). curatune "
+        f"curatune's {what} would be a private folder of an app installed as an MSIX package: Windows redirects "
+        "new folders under AppData for the programs such an app starts (Claude Desktop does this). curatune "
         f"in a terminal wouldn't see it, and uninstalling the app would delete it. Set {setting} to a folder "
         "outside AppData, such as one in Documents, or run curatune once from a terminal first.",
         code=code,
@@ -96,7 +97,7 @@ def ensure_not_virtualized(data_dir: Path, what: str = "data directory", setting
 
 
 def check(settings: Settings) -> list[dict[str, Any]]:
-    """Run before any command that uses the data dir. Refuses a data dir private to a Store app
+    """Run before any command that uses the data dir. Refuses a data dir private to a packaged app
     (DATA_DIR_VIRTUALIZED); raises LEGACY_DATA_NOT_MIGRATED with the default data dir; returns the
     LEGACY_DATA_PRESENT warning with an explicit one."""
     if legacy_state(settings) != "not_migrated":
