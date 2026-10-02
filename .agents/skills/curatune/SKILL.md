@@ -132,7 +132,10 @@ Recording entries:
 
 - `recorded` may be `YYYY`, `YYYY-MM`, or `YYYY-MM-DD`.
 - `confidence` is `high`, `medium`, or `low`.
-- `source` is required.
+- `source` is required, and must be concrete and checkable: a named discography, liner notes, or a page
+  you read now, with the session. Your memory is not a source.
+- `confidence: high` only when a source you checked gives that exact date. If you can't check a date,
+  store it with `low` and say so, or ask the user instead of guessing.
 - Optional keys: `name`, `artists`, `isrc` (an ISRC also matches the same recording on another edition).
 
 ## Workflows
@@ -190,8 +193,10 @@ Spotify app.
 **Reorder chronologically.**
 1. Run `recordings show --brief`.
 2. Research dates for the `missing` items. Spotify's `release_date` is the **edition** date, never the
-   recording date. Use discographies and state sources.
-3. Run `recordings set`.
+   recording date. Check each date in a source (see "Recording entries"); never store one from memory
+   with `medium` or `high`.
+3. Run `recordings set`, then show the user each stored date with its source and confidence, pointing out
+   the low-confidence ones, before building the plan.
 4. Run `plan reorder --by-recording-date`. Ties keep their current order.
 5. Show the plan. Point out anything surprising, such as earlier misplacements or low-confidence dates.
 6. Apply only after the OK.

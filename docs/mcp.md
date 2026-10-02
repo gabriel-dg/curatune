@@ -53,8 +53,8 @@ with a declared output schema, plus the same JSON as text.
 | `track_show` | One track in full, with its ISRC. | ✓ | | | ✓ |
 | `album_tracks` | An album's full listing (no ISRCs; `track_show` has them). | ✓ | | | ✓ |
 | `recordings_show` | A playlist joined with the stored recording dates: `missing` and `chronological`. | ✓ | | | ✓ |
-| `recordings_set` | Store recording dates. **Additive only**: tracks that already have a date are listed in `skipped` and left alone. | | | ✓ | |
-| `recordings_update` | Replace stored recording dates. Only when the user asks to correct one. | | ✓ | ✓ | |
+| `recordings_set` | Store recording dates. **Additive only**: tracks that already have a date are listed in `skipped` and left alone. Each date needs a checkable source (never the model's memory; `low` or ask when unchecked). Returns `stored`: what was stored, read back from the store, for the user to check. | | | ✓ | |
+| `recordings_update` | Replace stored recording dates. Only when the user asks to correct one. Same source rules, and returns `stored` too. | | ✓ | ✓ | |
 | `playlist_create` | Create an empty playlist. There is no visibility option: curatune always requests private, Spotify makes it public, and the result says so. | | | | ✓ |
 | `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. Reads the playlist back: names each added track and reports `verified`. | | | | ✓ |
 

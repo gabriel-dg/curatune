@@ -27,6 +27,7 @@ from pydantic import Field
 from .. import catalog, plans, playlists, recordings
 from ..errors import AuthRequired, ConfigError, CuratuneError, InvalidArgument, PlanError
 from ..recordings import RecordingStore
+from ..refs import normalize_item_uri
 from . import confirm, schemas, views
 from .numbering import to_position
 from .server import NEXT_STEPS, Runtime, error_result, ok_result
@@ -195,11 +196,36 @@ def register(server: MCPServer, rt: Runtime) -> None:
 
     # --- Recording dates (local store, no Spotify write) ----------------------------------------
 
+    DATE_SOURCES = (
+        "`source` must be concrete and checkable: a named discography, liner notes, or a page you read now, with "
+        "the session. Your memory is not a source: if you can't check a date, store it with confidence low and "
+        "say so, or ask the user instead of guessing. Then show the user each stored date with its source "
+        "(`stored`). "
+    )
+
+    def stored_view(store: RecordingStore, raw: list[dict[str, Any]], skipped: list[str]) -> dict[str, Any]:
+        """What the call stored, read back from the store (not echoed from the request), for the user to check."""
+        uris = list(dict.fromkeys(normalize_item_uri(e["uri"]) for e in raw))
+        data = store.load()
+        stored = [
+            {"uri": uri, "name": data[uri].get("name"), **{k: data[uri][k] for k in ("recorded", "confidence", "source")}}
+            for uri in uris
+            if uri not in skipped and uri in data
+        ]
+        step = (
+            "Show the user each stored date with its source and confidence so they can check them; point out "
+            "the low-confidence ones."
+            if stored
+            else "Nothing new was stored; the skipped tracks keep their dates (recordings_show lists them)."
+        )
+        return {"stored": stored, "next_step": step}
+
     @server.tool(
         title="Store recording dates",
-        description="Store researched recording dates for tracks, with source and confidence. Additive only: a "
-        "track that already has a stored date keeps it and is listed in `skipped` (stored dates may come from the "
-        "user's discographies). Validated all-or-nothing. Spotify's `released` is not a recording date.",
+        description="Store researched recording dates for tracks, with source and confidence. " + DATE_SOURCES
+        + "Additive only: a track that already has a stored date keeps it and is listed in `skipped` (stored dates "
+        "may come from the user's discographies). Validated all-or-nothing. Spotify's `released` is not a "
+        "recording date.",
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False),
     )
     def recordings_set(
@@ -208,15 +234,21 @@ def register(server: MCPServer, rt: Runtime) -> None:
         raw = [e.model_dump(exclude_none=True) for e in entries]
 
         def run(client: Any) -> dict[str, Any]:
-            result = RecordingStore(rt.settings().recordings_path).upsert(raw, overwrite=False)
-            return {"created": result["created"], "skipped": result["skipped"], "total": result["total"]}
+            store = RecordingStore(rt.settings().recordings_path)
+            result = store.upsert(raw, overwrite=False)
+            return {
+                "created": result["created"],
+                "skipped": result["skipped"],
+                "total": result["total"],
+                **stored_view(store, raw, skipped=result["skipped"]),
+            }
 
         return rt.call(ctx, run, write=True)
 
     @server.tool(
         title="Correct recording dates",
         description="Replace stored recording dates (and store new ones). Only when the user asks to correct a "
-        "stored date: stored dates may be hand-curated. To add dates, use recordings_set.",
+        "stored date: stored dates may be hand-curated. To add dates, use recordings_set. " + DATE_SOURCES,
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False),
     )
     def recordings_update(
@@ -225,8 +257,14 @@ def register(server: MCPServer, rt: Runtime) -> None:
         raw = [e.model_dump(exclude_none=True) for e in entries]
 
         def run(client: Any) -> dict[str, Any]:
-            result = RecordingStore(rt.settings().recordings_path).upsert(raw, overwrite=True)
-            return {"created": result["created"], "updated": result["updated"], "total": result["total"]}
+            store = RecordingStore(rt.settings().recordings_path)
+            result = store.upsert(raw, overwrite=True)
+            return {
+                "created": result["created"],
+                "updated": result["updated"],
+                "total": result["total"],
+                **stored_view(store, raw, skipped=[]),
+            }
 
         return rt.call(ctx, run, write=True)
 
