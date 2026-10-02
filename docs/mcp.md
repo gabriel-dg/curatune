@@ -90,6 +90,32 @@ arguments. One tool with an `overwrite` flag would have to be marked destructive
 for destructive tools (Claude Desktop always does) would prompt for every additive call too. Two tools give
 each one accurate hints, and protect hand-curated dates in code rather than in a prompt.
 
+## Resources and prompts
+
+Besides the tools the model calls, the server offers things the **user** picks.
+
+Resources (read-only JSON, the same views the tools return, numbered from 1, with a note that names and
+descriptions are third-party text): attach them with an `@`-mention in Claude Code, or the "+" menu in
+Claude Desktop.
+
+| URI | What |
+|---|---|
+| `curatune://playlists` | Your playlists. |
+| `curatune://playlists/{playlist_id}` | A playlist you own or collaborate on, with all its tracks. Each playlist you own is also listed on its own, by name. |
+| `curatune://plans/{plan_id}` | A plan, as `plan_show` shows it (without the live check). Every `plan_*` result links to it. |
+
+Listing resources reads your playlists once (in the background, and it never fails: without access, only
+`curatune://playlists` is listed). Reading one changes nothing.
+
+Prompts port the project skill's workflows; in Claude Code they are slash commands
+(`/mcp__curatune__deduplicate`, …):
+
+| Prompt | Arguments | Does |
+|---|---|---|
+| `deduplicate` | `playlist` | Finds exact duplicates (same URI), the same recording on another edition (same ISRC), and other versions of a tune (listed apart); proposes what to keep and why; removes through a plan you confirm. |
+| `sort_chronologically` | `playlist` | Stores missing recording dates from checkable sources (low confidence or a question when it can't check), shows them, then reorders by recording date through a plan. |
+| `complete_playlist` | `playlist`, `count`, `criterion` | Suggests tracks that fit, with the exact recordings, why, and how sure; adds them with one `playlist_add` after your OK. |
+
 ## Confirming plans
 
 Before `plan_apply` changes anything, the person, not the model, has to say yes. Clients that show dialogs

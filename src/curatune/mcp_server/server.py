@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+import anyio.to_thread
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, Resource, TextContent
 
 from .. import __version__, datadir
 from ..auth import TokenManager
@@ -230,6 +231,23 @@ class Runtime:
             tmp.replace(path)
 
 
+class CuratuneServer(MCPServer):
+    """MCPServer whose resource listing also offers each playlist the user owns, so clients can attach one
+    by name (an `@`-mention in Claude Code). Listing reads the account once per request, in a worker thread,
+    and never fails: without access it lists only the fixed resources."""
+
+    runtime: Runtime | None = None
+
+    async def list_resources(self) -> list[Resource]:
+        listed = await super().list_resources()
+        if self.runtime is None:
+            return listed
+        from .resources import owned_playlist_resources
+
+        extra = await anyio.to_thread.run_sync(owned_playlist_resources, self.runtime)
+        return listed + [Resource(mime_type="application/json", **entry) for entry in extra]
+
+
 def build_server(
     settings: Settings | None = None,
     client_factory: Callable[[], Any] | None = None,
@@ -242,8 +260,13 @@ def build_server(
     `confirm_mode` instead of CURATUNE_MCP_CONFIRM, and `open_browser` to catch the confirmation page's URL)."""
     from . import tools
 
-    server = MCPServer("curatune", instructions=instructions, version=__version__)
-    tools.register(server, Runtime(settings, client_factory, tokens, confirm_mode, open_browser))
+    from . import resources
+
+    server = CuratuneServer("curatune", instructions=instructions, version=__version__)
+    runtime = Runtime(settings, client_factory, tokens, confirm_mode, open_browser)
+    server.runtime = runtime
+    tools.register(server, runtime)
+    resources.register(server, runtime)
     return server
 
 

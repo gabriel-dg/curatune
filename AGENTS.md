@@ -93,6 +93,9 @@ its phases are in `PLAN-mcp.md`.
   The tests (`tests/test_mcp_plans.py`, `tests/test_mcp_approval_page.py`) play the user in both protocol
   eras, through the dialog and through the real page server; keep them passing. No test may open a real
   browser (`tests/conftest.py`).
+- Resources and prompts (`mcp_server/resources.py`) are what the user picks: resources return the same
+  strict views as the tools (numbered, with the third-party note) and never write; listing them must never
+  fail. Prompts ask for nothing the tool descriptions don't allow (plans still need the user's confirmation).
 - Server instructions must stay under 2048 characters (Claude Code truncates there; a test checks it).
   Rules that matter for one tool go in that tool's description.
 - stdout belongs to the protocol; logs go to stderr. Writes (create, add, recording dates) take a
