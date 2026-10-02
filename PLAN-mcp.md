@@ -928,6 +928,17 @@ then:
   - [ ] If all pass, switch Claude Desktop's route to the App (section 5) and update the docs and the
         matrix.
 - [ ] **Packaging (after the data directory):**
+  - **Status (2026-10-02).** The wheel builds with every module and no tests; installed (not editable)
+    into a fresh venv and run from an unrelated folder: no project root, `SPOTIFY_CLIENT_ID` read from the
+    config dir's `.env`, the data dir where `CURATUNE_DATA_DIR` says, `curatune-mcp --demo` serving over
+    stdio, and the real server reaching `AUTH_REQUIRED` with that config. pipx and uvx themselves weren't
+    run (neither is installed here, and the repository has no public URL yet); the README and docs/mcp.md
+    give their commands with a `<source>` placeholder. Found on the way: an MCP client starts the server
+    with a reduced environment, so shell variables don't reach it. A first smoke test therefore used the
+    default data dir and created the user's `mcp_clients.json` there (one test client record, deleted with
+    the user's OK); the docs now say to put settings in `.env` or the server entry's `env`.
+  - [ ] **To try later** (user's decision, 2026-10-02): run the pipx and uvx commands for real, once uv and
+        pipx are installed and the repository has a public URL (or curatune is on PyPI).
   - [ ] `uvx` and `pipx` instructions (from the GitHub repository, or from PyPI after phase 5), each with
         the config dir and `.env` for `SPOTIFY_CLIENT_ID`;
   - [ ] (on hold while Claude Desktop is deferred) an `.mcpb` bundle using the `uv` server type (manifest 0.4, [mcpb-manifest]) with a `user_config`

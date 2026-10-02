@@ -141,6 +141,28 @@ Development Mode requirement). Development Mode apps allow up to 5 authorized us
 The token is stored outside the repository. Spotify refresh tokens expire 6 months after the original
 authorization; after that, run `curatune auth login` again.
 
+### Without cloning the repository
+
+curatune can also be installed as a tool, with [pipx](https://pipx.pypa.io) or
+[uv](https://docs.astral.sh/uv/). `<source>` is `git+<repository URL>` until curatune is on PyPI, then
+nothing (just `curatune[mcp]`):
+
+```bash
+pipx install "curatune[mcp] @ <source>"
+```
+
+With no repository around, curatune reads its `.env` from the config directory, next to the token:
+`%LOCALAPPDATA%\curatune\.env` on Windows, `~/.config/curatune/.env` elsewhere. Put `SPOTIFY_CLIENT_ID` there
+(and the other settings below, if you use them), then run `curatune auth login`. An MCP client can start the
+server without installing anything first:
+
+```bash
+claude mcp add curatune -- uvx --from "curatune[mcp] @ <source>" curatune-mcp
+```
+
+On Windows, run that first `auth login` from a terminal, not from Claude Desktop installed from the Microsoft
+Store (see `CURATUNE_DATA_DIR` below).
+
 ### Configuration (`.env`)
 
 | Variable | Default | Purpose |
