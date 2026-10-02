@@ -202,7 +202,9 @@ its phases are in `PLAN-mcp.md`.
   leave the package importable (define helpers before the code that calls them).
 - Positions in JSON are **0-based** (same as the API). The MCP server alone shows 1-based `number`s (above).
 - Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`, after installing
-  `-e ".[dev,mcp]"`. Plan logic is tested against an in-memory fake of the playlist API
+  `-e ".[dev,mcp]"`. `curatune/demo.py` is the in-memory account that both the tests and `curatune-mcp
+  --demo` use; it mirrors the live API behaviour recorded below (keep it in step when a new fact is
+  verified), and never touches the network. Plan logic is tested against an in-memory fake of the playlist API
   (`tests/fakes.py:FakeSpotify`); the MCP server through an in-memory MCP client in both protocol eras
   against a fake account (`FakeAccount`, `jazz_account()`: synthetic IDs, public track names); HTTP
   behaviour against a scripted session (`tests/test_http.py`). MCP tests are skipped without the extra.

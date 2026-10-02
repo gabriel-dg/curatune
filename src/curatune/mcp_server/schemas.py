@@ -12,6 +12,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+URL_NOTE = "The open.spotify.com link; null when Spotify gives none, and always in demo mode (synthetic IDs)."
+
+
 class _Out(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -120,7 +123,7 @@ class Track(_Out):
     explicit: bool | None
     is_local: bool
     is_playable: bool | None
-    url: str | None
+    url: str | None = Field(description=URL_NOTE)
     added_at: str | None = None  # playlist items only
 
 
@@ -132,7 +135,7 @@ class PlaylistSummary(_Out):
     collaborative: bool | None
     public: bool | None
     item_count: int | None
-    url: str | None
+    url: str | None = Field(description=URL_NOTE)
 
 
 class PlaylistInfo(PlaylistSummary):
@@ -202,7 +205,7 @@ class AlbumInfo(_Out):
     release_date: str | None
     artists: list[str | None]
     total_tracks: int | None
-    url: str | None
+    url: str | None = Field(description=URL_NOTE)
 
 
 class AlbumTracks(_Out):
@@ -266,7 +269,7 @@ class RecordingsUpdate(_Out):
 class CreatedPlaylist(_Out):
     id: str
     name: str | None
-    url: str | None
+    url: str | None = Field(description=URL_NOTE)
     public: bool | None
 
 

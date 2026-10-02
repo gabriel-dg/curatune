@@ -7,11 +7,15 @@ that run tools); all calls share one TokenManager, whose lock serializes token r
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
+import shutil
+import tempfile
 import threading
 import webbrowser
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 from mcp.server import MCPServer
@@ -232,11 +236,49 @@ def build_server(
     tokens: Any = None,
     confirm_mode: str | None = None,
     open_browser: Callable[[str], bool] | None = None,
+    instructions: str = INSTRUCTIONS,
 ) -> MCPServer:
     """The curatune MCP server. Tests pass a fake `client_factory` (and `tokens` for auth_status, and
     `confirm_mode` instead of CURATUNE_MCP_CONFIRM, and `open_browser` to catch the confirmation page's URL)."""
     from . import tools
 
-    server = MCPServer("curatune", instructions=INSTRUCTIONS, version=__version__)
+    server = MCPServer("curatune", instructions=instructions, version=__version__)
     tools.register(server, Runtime(settings, client_factory, tokens, confirm_mode, open_browser))
     return server
+
+
+# --- Demo mode -------------------------------------------------------------------------------------
+
+
+class DemoTokens:
+    """Always authorized; there is no token."""
+
+    def status(self) -> dict[str, Any]:
+        return {"logged_in": True, "client_id_matches": True, "missing_scopes": [], "refresh_likely_expired": False}
+
+
+def build_demo_server(base_dir: Path | None = None, open_browser: Callable[[str], bool] | None = None) -> MCPServer:
+    """The server over `curatune.demo`'s seeded account: no Spotify account, no token, no network. Plans,
+    backups, and the write log go to a temporary data dir (`base_dir` in tests), removed on exit."""
+    from ..demo import demo_account
+    from .instructions import DEMO_NOTE
+
+    if base_dir is None:
+        base_dir = Path(tempfile.mkdtemp(prefix="curatune-demo-"))
+        atexit.register(shutil.rmtree, base_dir, ignore_errors=True)
+    settings = Settings(
+        project_root=None,
+        client_id="demo",
+        redirect_port=8888,
+        market=None,
+        token_dir=base_dir / "config",
+        data_dir=base_dir / "data",
+    )
+    account, _ = demo_account(urls=False)  # synthetic IDs: no links that would lead nowhere
+    return build_server(
+        settings,
+        client_factory=lambda: account,
+        tokens=DemoTokens(),
+        open_browser=open_browser,
+        instructions=DEMO_NOTE + INSTRUCTIONS,
+    )
