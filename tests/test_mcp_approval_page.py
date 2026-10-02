@@ -249,3 +249,15 @@ def test_requests_are_never_logged(page, store, plan, capfd):
     request(page, "GET", "/confirm/nope")
     out, err = capfd.readouterr()
     assert c.token not in out + err and "GET" not in err
+
+
+def test_refusals_answer_cleanly_even_with_a_body(page, store, plan):
+    # A refused POST must still read its body first: on Windows, closing a socket with unread data resets
+    # the connection, and the client could lose the 403 (it happened, intermittently, in the test above).
+    # Measured before the fix: about 8 resets per 1,000 such refusals, so 300 catch a regression ~90% of runs.
+    c = started(store, plan)
+    for _ in range(300):
+        resp, _ = request(page, "POST", path_of(page, c) + "/approve", origin="http://evil.example",
+                          form={"nonce": "x" * 3000})  # fmt: skip
+        assert resp.status == 403
+    assert c.state == "pending"
