@@ -28,6 +28,10 @@ client starts it in.
 | Claude Code | `claude mcp add curatune -- <repo>/.venv/Scripts/curatune-mcp.exe` (`<repo>/.venv/bin/curatune-mcp` on macOS/Linux) |
 | Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop was installed from the Microsoft Store and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
 | LM Studio (0.3.17+) | Program tab → Install → Edit `mcp.json`, same `mcpServers` entry as Claude Desktop |
+| Any, without the repository | `"command": "uvx", "args": ["--from", "curatune[mcp] @ <source>", "curatune-mcp"]`, or `"command": "curatune-mcp"` after `pipx install "curatune[mcp] @ <source>"` (see the README: `.env` in the config directory) |
+
+An MCP client starts the server with a reduced environment (variables set in your shell don't reach it):
+put curatune's settings in its `.env`, or in the `env` of the server's entry.
 
 A stdio server runs on the same machine as its client. To use LM Studio on another computer, install and
 authorize curatune there too (its own `.env`, token, and data); a Development Mode app allows it, since it
