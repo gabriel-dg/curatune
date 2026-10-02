@@ -8,6 +8,9 @@ with Claude Code 2.1.286). The confirmation rules live in plan_apply's descripti
 
 INSTRUCTIONS_LIMIT = 2048
 
+# Prepended in demo mode (`curatune-mcp --demo`); the two together stay under the limit too.
+DEMO_NOTE = "DEMO MODE: a synthetic account in memory, not the user's Spotify; changes vanish on exit.\n\n"
+
 INSTRUCTIONS = """\
 curatune works with the user's own Spotify playlists. Tools run deterministic Spotify operations; you \
 supply the judgment (which recording, what is a duplicate, how to rank) and say how sure you are.
@@ -15,8 +18,8 @@ supply the judgment (which recording, what is a duplicate, how to rank) and say 
 Tracks
 - Playlist items have `number`: 1 is the first track, as in the Spotify app. Refer to tracks by number, \
 title, and artists.
-- `released` is the edition's date, never the recording date. Stored recording dates: recordings_show. \
-Store new ones with recordings_set; never overwrite a stored date unless the user asks (recordings_update).
+- `released` is the edition's date, never the recording date. Store recording dates with recordings_set; \
+never overwrite a stored date unless the user asks (recordings_update).
 - Same URI twice: an exact duplicate. Same ISRC under another URI: the same recording on another edition.
 - No audio features, popularity, or genres: judge from your knowledge, and say when you don't know.
 

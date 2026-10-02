@@ -38,6 +38,22 @@ first call from each kind of client, the server records the protocol version, th
 version, and the capabilities it declares (no personal data), both in its log and in `mcp_clients.json`
 in the data directory. That file shows what each client really supports, whatever its log keeps.
 
+## Demo mode
+
+`curatune-mcp --demo` serves a synthetic account in memory instead of yours: a few playlists (one with
+an exact duplicate, the same recording on another edition, and a shuffled order) and a small catalog. It
+needs no Spotify account, no `.env`, and no token, and it makes no network call. Every tool works, plans
+and their confirmation (dialog or page) included; plans and backups go to a temporary folder, and
+everything disappears when the server stops. The server's instructions tell the model it is a demo.
+
+```bash
+claude mcp add curatune-demo -- <repo>/.venv/Scripts/curatune-mcp.exe --demo
+```
+
+(In Claude Desktop or LM Studio: the same `command`, with `"args": ["--demo"]`.) Track and album names
+are real; every ID and ISRC is synthetic, so every `url` in the results is `null` (the output schemas allow
+it, and say so): an open.spotify.com link to a synthetic ID would lead nowhere.
+
 ## Tools
 
 RO = read-only; D = destructive; I = idempotent; OW = talks to Spotify. Every result is structured content

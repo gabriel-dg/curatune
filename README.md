@@ -61,7 +61,9 @@ Claude Code, or LM Studio, can use curatune without the repository's skill: inst
 plans there too, and a plan is applied only after you confirm it in a dialog your client shows: the AI
 can't answer it for you. Clients without such dialogs open a local page instead, which shows the plan and,
 if you approve, a one-time code you paste in the chat. Setup, tools, the
-confirmation flow, and the differences from the CLI are in **[docs/mcp.md](docs/mcp.md)**.
+confirmation flow, and the differences from the CLI are in **[docs/mcp.md](docs/mcp.md)**. To try it without
+a Spotify account, `curatune-mcp --demo` serves a synthetic account in memory, with no network and nothing
+kept ([demo mode](docs/mcp.md#demo-mode)).
 
 ## How changes stay safe
 

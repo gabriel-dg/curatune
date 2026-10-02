@@ -874,11 +874,20 @@ then:
     with tests and a live check); the cutover runs from a terminal, and a data dir outside AppData that the
     user backs up is on the table (decided at the cutover).
 - [ ] **Demo mode:**
-  - [ ] promote the fake to `curatune/demo.py`, with synthetic IDs and seed playlists that include a
+  - [x] promote the fake to `curatune/demo.py`, with synthetic IDs and seed playlists that include a
         duplicate, a same-ISRC edition, and a shuffled order;
-  - [ ] `curatune-mcp --demo` uses it, a temporary data dir, and no token;
-  - [ ] `tests/fakes.py` re-exports it;
-  - [ ] a test asserts no network call in demo mode.
+  - [x] `curatune-mcp --demo` uses it, a temporary data dir, and no token;
+  - [x] `tests/fakes.py` re-exports it;
+  - [x] a test asserts no network call in demo mode (HTTP through `requests` and token handling refused,
+        in both protocol eras, reads, removal, and reorder with the confirmation).
+  - **Status (2026-10-02).** Built and tested; checked over real stdio (`curatune-mcp.exe --demo`: authorized,
+    three synthetic playlists, catalog search; its temporary folder gone on exit). The server's
+    instructions start with a one-line demo notice; to fit it, the instructions dropped a sentence the
+    `recordings_show` description already carries (1,949 characters; 2,040 with the notice).
+  - Live run in Claude Code (2026-10-02, a separate folder with the server registered as `curatune-demo`): the
+    model said it was a demo account, removed the duplicates and sorted by title, each confirmed in the dialog
+    and `verified`. It showed open.spotify.com links to the synthetic IDs, so demo results now carry
+    `url: null` (the schemas say so). Installing from a package waits for packaging.
   - **Done when** someone without a Spotify account installs the package and runs remove and reorder,
     including the confirmation, in Claude Code (Claude Desktop while it stays deferred).
 - [ ] **Resources and prompts** from section 4.
