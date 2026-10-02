@@ -96,7 +96,7 @@ its phases are in `PLAN-mcp.md`.
 - `auth_login` is idempotent (a token that works opens nothing), returns at once, and finishes in a
   background thread; the model sees only `authorized` and a fixed `next_step`, never the token or the
   consent URL (`login(announce=False)` keeps it out of stderr). It refuses a token dir that would be
-  private to a Store app (`TOKEN_DIR_VIRTUALIZED`). There is deliberately no logout tool.
+  private to a packaged app (`TOKEN_DIR_VIRTUALIZED`). There is deliberately no logout tool.
 - Resources and prompts (`mcp_server/resources.py`) are what the user picks: resources return the same
   strict views as the tools (numbered, with the third-party note) and never write; listing them must never
   fail. Prompts ask for nothing the tool descriptions don't allow (plans still need the user's confirmation).
@@ -134,8 +134,10 @@ its phases are in `PLAN-mcp.md`.
 - Data left in a checkout's `data/` and `plans/` (where curatune kept it before) blocks commands with
   `LEGACY_DATA_NOT_MIGRATED` until `curatune data migrate` copies it (`datadir.py`: backup, copy, SHA-256
   check, marker; never moves or overwrites). With an explicit `CURATUNE_DATA_DIR` it only warns.
-- **Claude Desktop from the Microsoft Store virtualizes AppData** for the programs it starts (its Code
-  sessions, the MCP servers it launches). Verified live 2026-10-02 from a Code-tab session: a **new
+- **Claude Desktop, installed as an MSIX package, virtualizes AppData** for the programs it starts (its Code
+  sessions, the MCP servers it launches); on this machine it is a sideloaded package (`SignatureKind:
+  Developer`), not the Microsoft Store, and Microsoft documents the behaviour for packaged desktop apps
+  (https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes). Verified live 2026-10-02 from a Code-tab session: a **new
   top-level folder** under `%LOCALAPPDATA%` resolved to `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\
   Local\…`, while a new subfolder and a new file inside the existing `%LOCALAPPDATA%\curatune` (created
   earlier from a terminal) resolved in place, like the token. A terminal never sees redirected files, and

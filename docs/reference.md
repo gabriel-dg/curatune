@@ -262,8 +262,8 @@ expanded), otherwise `%LOCALAPPDATA%\curatune\data` on Windows or `$XDG_DATA_HOM
 `~/.local/share/curatune`). Inside: `plans/`, `backups/`, `write_log.json`, `recordings.json`,
 `mcp_clients.json`. It may not be inside the repository (`CONFIG_ERROR`), like the token.
 
-On Windows, an app installed from the Microsoft Store (Claude Desktop is one) gets AppData virtualized for
-the programs it starts: a new top-level folder under `%LOCALAPPDATA%` is really created in
+On Windows, an app installed as an MSIX package (Claude Desktop is one) gets AppData virtualized for the
+programs it starts ([Microsoft's documentation](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes)): a new top-level folder under `%LOCALAPPDATA%` is really created in
 `%LOCALAPPDATA%\Packages\<app>\LocalCache\Local\`, where a terminal never sees it and which uninstalling
 the app deletes (observed 2026-10-02; new items inside a folder that already existed, such as
 `%LOCALAPPDATA%\curatune` after a login from a terminal, stayed in place). Every command that uses the data

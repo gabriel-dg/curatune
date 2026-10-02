@@ -856,7 +856,7 @@ then:
     - [x] `migrate` backs up, copies, verifies hashes, and refuses to overwrite;
     - [x] a cwd equal to the home directory doesn't trip the token check;
     - [x] `auth status` reports the legacy state;
-    - [x] a data dir private to a Store app is refused, before anything is written.
+    - [x] a data dir private to a packaged (MSIX) app is refused, before anything is written.
   - Docs updated.
   - **Done when** these tests pass, and in a non-checkout install the server and CLI share one data dir
     that is never the cwd.
@@ -866,7 +866,8 @@ then:
     Merged to `main` on 2026-10-02 together with the cutover (phase 5), since the default data dir blocks
     the CLI until the user's data is migrated. Development sets `CURATUNE_DATA_DIR` (in the worktree's `.env`) to a test
     folder outside AppData and outside any checkout.
-  - Found live: Claude Desktop from the Microsoft Store virtualizes AppData for the programs it starts. The
+  - Found live: Claude Desktop, installed as an MSIX package (sideloaded here, not from the Store),
+    virtualizes AppData for the programs it starts, as Microsoft documents for packaged desktop apps. The
     first rehearsal, run from a Code-tab session, created its data dir (a new top-level folder under
     `%LOCALAPPDATA%`) inside the app's private `LocalCache`, invisible to a terminal and deleted with the
     app. A probe inside the existing `%LOCALAPPDATA%\curatune` (new subfolder, new file) resolved in place,
@@ -909,7 +910,7 @@ then:
   - [x] no `auth_logout` tool.
   - [x] Tests: already authorized; expired → login; the token is never in a result (nor the consent URL, in
         results, stderr, or logs); a pending login isn't started twice; a failed attempt is reported on the
-        next call; no client ID → `CONFIG_ERROR`; a token dir private to a Store app is refused.
+        next call; no client ID → `CONFIG_ERROR`; a token dir private to a packaged app is refused.
   - **Status (2026-10-02).** Built and tested (8 tests). `TokenManager.login` gained `announce` (the MCP
     server keeps the consent URL out of stderr) and `browser`.
   - Live in Claude Code (2026-10-02): already authorized, "log me in" returned `authorized: true` without
@@ -966,6 +967,21 @@ then:
      user.
   4. Demo mode for viewers without Spotify.
 - **Done when** the user has reviewed both.
+- **Status (2026-10-02).** Drafted for review. The README gained "How it's built" (the split, a diagram,
+  the decisions, the confirmation diagram, third-party text, the API facts verified live, the clients, why
+  not remote) and marks what isn't verified: Claude Desktop, LM Studio, pipx and uvx, and CI (it runs once
+  the repository is on GitHub). The video script records everything on demo mode, which gained a playlist
+  whose description tries to order the assistant around, for scene 3.
+  - After the user's review: a "Highlights" block at the top; the decision about confirmations reworded so
+    it doesn't contradict the CLI; "Verified live" separates what was observed from what Microsoft documents
+    (with the source), and the AppData finding is credited to MSIX packaging, not the Microsoft Store (this
+    Claude Desktop is a sideloaded MSIX package, `SignatureKind: Developer`); Setup explains the `mcp` and
+    `dev` extras; scene 2's voice-over says the model never sees the page.
+  - An intermittent test failure, hunted down: `test_approve_needs_the_origin_and_the_form_nonce` failed about
+    once in 40 runs with `ConnectionAbortedError`. The page answered a refused POST without reading its body,
+    and on Windows closing a socket with unread data resets the connection, so the client could lose the
+    403 (measured: 8 resets per 1,000 refusals with a 3 KB body, none after the fix). The page now reads the
+    body first, and a regression test sends 300 such refusals.
 
 ### Phase 5: cutover and publishing (each step only with the user's explicit OK)
 

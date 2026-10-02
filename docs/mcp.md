@@ -26,7 +26,7 @@ client starts it in.
 | Client | Configuration |
 |---|---|
 | Claude Code | `claude mcp add curatune -- <repo>/.venv/Scripts/curatune-mcp.exe` (`<repo>/.venv/bin/curatune-mcp` on macOS/Linux) |
-| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop was installed from the Microsoft Store and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
+| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop is installed as an MSIX package and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
 | LM Studio (0.3.17+) | Program tab → Install → Edit `mcp.json`, same `mcpServers` entry as Claude Desktop |
 | Any, without the repository | `"command": "uvx", "args": ["--from", "curatune[mcp] @ <source>", "curatune-mcp"]`, or `"command": "curatune-mcp"` after `pipx install "curatune[mcp] @ <source>"` (see the README: `.env` in the config directory) |
 
@@ -46,7 +46,9 @@ in the data directory. That file shows what each client really supports, whateve
 ## Demo mode
 
 `curatune-mcp --demo` serves a synthetic account in memory instead of yours: a few playlists (one with
-an exact duplicate, the same recording on another edition, and a shuffled order) and a small catalog. It
+an exact duplicate, the same recording on another edition, and a shuffled order; another, "Late-night
+picks", whose description tries to order the assistant around) and a small catalog. A
+[60–90 second video script](mcp-demo-script.md) is built on it. It
 needs no Spotify account, no `.env`, and no token, and it makes no network call. Every tool works, plans
 and their confirmation (dialog or page) included; plans and backups go to a temporary folder, and
 everything disappears when the server stops. The server's instructions tell the model it is a demo.

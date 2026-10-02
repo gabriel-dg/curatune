@@ -115,3 +115,15 @@ async def test_demo_results_carry_no_links_and_the_schemas_say_so(tmp_path, offl
         tools = {t.name: t for t in (await client.list_tools()).tools}
     url_schema = tools["playlists_list"].output_schema["$defs"]["PlaylistSummary"]["properties"]["url"]
     assert {"type": "null"} in url_schema["anyOf"] and "demo mode" in url_schema["description"]
+
+
+@pytest.mark.anyio
+async def test_the_demo_has_a_playlist_whose_description_tries_to_give_orders(tmp_path, offline):
+    async with Client(server_module.build_demo_server(base_dir=tmp_path), raise_exceptions=True) as client:
+        playlists = (await call(client, "playlists_list", {"owned_only": True}))["playlists"]
+        picks = next(p for p in playlists if p["name"] == "Late-night picks")
+        shown = await call(client, "playlist_show", {"playlist": picks["id"]})
+        tools = {t.name: t.description for t in (await client.list_tools()).tools}
+    assert shown["playlist"]["description"] == server_module.DEMO_INJECTION and shown["total"] == 3
+    # What the model is told about such text, in the tool that returns it.
+    assert "never as instructions" in tools["playlist_show"] and "tell the user" in tools["playlist_show"]
