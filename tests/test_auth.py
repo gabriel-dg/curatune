@@ -54,7 +54,7 @@ def _hit(url):
         try:
             urllib.request.urlopen(url, timeout=2).read()
             return
-        except urllib.error.URLError:
+        except (urllib.error.URLError, ConnectionError):  # not listening yet, or a reset on Windows
             time.sleep(0.05)
 
 

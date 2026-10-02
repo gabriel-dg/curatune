@@ -120,14 +120,23 @@ def _handler(page: ApprovalPage) -> type[BaseHTTPRequestHandler]:
             self._render(*found)
 
         def do_POST(self) -> None:  # noqa: N802
+            # Read the (small) body before any answer, refusals included: closing a socket with unread data
+            # makes Windows reset the connection, and the client may lose the response (seen in a test).
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = -1
+            if not 0 < length <= MAX_BODY_BYTES:
+                self.close_connection = True
+                return self._refuse(400, "Bad request.")
+            body = self.rfile.read(length)
             if not self._host_ok() or self.headers.get("Origin") != self._origin():
                 return self._refuse(403, "Forbidden.")
             action = next((a for a in ("approve", "reject") if self._token(a)), None)
             token = self._token(action) if action else None
-            length = int(self.headers.get("Content-Length") or 0)
-            if token is None or not 0 < length <= MAX_BODY_BYTES:
+            if token is None:
                 return self._refuse(400, "Bad request.")
-            form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+            form = parse_qs(body.decode("utf-8", "replace"))
             nonce = (form.get("nonce") or [""])[0]
             done = page.store.approve(token, nonce) if action == "approve" else page.store.reject(token, nonce)
             if done is None:
