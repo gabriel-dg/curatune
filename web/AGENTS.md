@@ -190,4 +190,5 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   0-based positions with track numbers in the phase 2 evaluation). Convert only at the tool boundary
   (`src/tools/`); `spotify/`, plans, and stored data stay 0-based.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
-  IDs, IP addresses, and hostnames). The repo is intended to be published.
+  IDs, IP addresses, and hostnames). The repo is intended to be published. The one exception is the
+  author's name as the copyright holder (`LICENSE`, `NOTICE`, the READMEs, `package.json`).

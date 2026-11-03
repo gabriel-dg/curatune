@@ -1,0 +1,11 @@
+curatune
+Copyright (c) 2026 Gabriel de Giuli
+Licensed under the MIT License (see LICENSE).
+
+curatune is an independent project. It is not affiliated with, endorsed by, or sponsored by Spotify.
+
+Third-party trademarks, not covered by the MIT License:
+
+- The Spotify logos in src/curatune/mcp_server/assets/ are trademarks of Spotify AB. They are copied
+  unmodified from Spotify's design resources and included only to attribute Spotify content, as
+  Spotify's Developer Policy and Branding Guidelines require; their use is governed by those guidelines.

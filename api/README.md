@@ -384,3 +384,8 @@ through an in-memory MCP client in both protocol eras (skipped without the `mcp`
 confirmation page against a real local server. No test calls Spotify, opens a browser, or touches your data
 directory. The CI workflow (`.github/workflows/tests.yml`: Windows and Linux, Python 3.10 and 3.14, with and
 without the extra) runs once the repository is on GitHub; until then the suite runs locally on Windows.
+
+## License
+
+MIT © 2026 Gabriel de Giuli. See [LICENSE](LICENSE). The Spotify logos in
+`src/curatune/mcp_server/assets/` are trademarks of Spotify AB and are not covered by it ([NOTICE](NOTICE)).
