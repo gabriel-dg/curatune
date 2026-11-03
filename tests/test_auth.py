@@ -189,6 +189,26 @@ def test_token_dir_inside_repo_is_rejected(monkeypatch, tmp_path):
         load_settings()
 
 
+def test_data_dir_elsewhere_in_a_monorepo_is_rejected(monkeypatch, tmp_path):
+    # The package is one folder (api/) of a larger repository: the guard covers the whole repository.
+    (tmp_path / "repo" / ".git").mkdir(parents=True)
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo" / "api"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_DATA_DIR", str(tmp_path / "repo" / "web" / "data"))
+    with pytest.raises(ConfigError) as exc:
+        load_settings()
+    assert exc.value.details["repository_root"] == str(tmp_path / "repo")
+
+
+def test_a_git_folder_further_up_is_not_the_projects(monkeypatch, tmp_path):
+    # A version-controlled ancestor two levels up (a home directory, say) must not swallow the defaults.
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "work" / "curatune"))
+    monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.setenv("CURATUNE_DATA_DIR", str(tmp_path / "data"))
+    assert load_settings().data_dir == (tmp_path / "data").resolve()
+
+
 def test_redirect_port_is_configurable(monkeypatch, tmp_path):
     monkeypatch.setenv("CURATUNE_PROJECT_DIR", str(tmp_path / "repo"))
     monkeypatch.setenv("CURATUNE_TOKEN_DIR", str(tmp_path / "tokens"))
