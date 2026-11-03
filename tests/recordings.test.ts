@@ -58,7 +58,8 @@ describe("store", () => {
     expect(await store.importJson(curatuneFile)).toEqual({ created: 2, updated: 0, total: 2 });
     const exported = JSON.parse(await store.exportJson());
     expect(Object.keys(exported)).toEqual([trackUri(1), trackUri(2)].sort());
-    expect(Object.keys(exported[trackUri(2)])).toEqual(["artists", "confidence", "name", "recorded", "source"]);
+    // Names and artists from older files are accepted and dropped: Spotify metadata isn't kept (Terms IV.3).
+    expect(Object.keys(exported[trackUri(2)])).toEqual(["confidence", "recorded", "source"]);
     // Round trip into a fresh store.
     const other = new RecordingStore(new MemoryStore());
     await other.importJson(await store.exportJson());

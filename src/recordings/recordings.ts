@@ -1,5 +1,5 @@
 // Local store of recording metadata, keyed by track URI.
-// Follows curatune commit b3531aa, src/spotikit/recordings.py. Differences, all deliberate:
+// Follows curatune commit 60aff60, src/curatune/recordings.py. Differences, all deliberate:
 // - Stored in IndexedDB (through an async KeyValueStore) instead of data/recordings.json. The JSON format
 //   is the same, so importJson/exportJson move data to and from curatune.
 // - All entries live under one key, so an upsert replaces the whole map at once (all-or-nothing).
@@ -24,15 +24,20 @@ export interface RecordingEntry {
   confidence: Confidence;
   source: string;
   note?: string;
-  name?: string;
   isrc?: string;
+  /**
+   * Never written any more: names and artists are Spotify metadata, which Spotify's Developer Terms (IV.3)
+   * don't allow storing indefinitely; they are read live from the playlist. Entries stored by older
+   * versions may still have them, and are shown with them.
+   */
+  name?: string;
   artists?: string[];
 }
 
 export type RecordingMap = Record<string, RecordingEntry>;
 
 const DATE_RE = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
-const OPTIONAL_TEXT = ["note", "name", "isrc"] as const;
+const OPTIONAL_TEXT = ["note", "isrc"] as const;
 const STORE_KEY = "entries";
 
 const invalid = (message: string, details: Record<string, unknown> = {}) => new CuratuneError("INVALID_ARGUMENT", message, details);
@@ -61,8 +66,7 @@ export function validateEntry(raw: unknown): [string, RecordingEntry] {
   if (typeof r.source !== "string" || !r.source.trim()) throw invalid("source is required (where the date comes from).", { uri });
   const entry: RecordingEntry = { recorded: validateRecorded(r.recorded), confidence: r.confidence as Confidence, source: r.source.trim() };
   for (const key of OPTIONAL_TEXT) if (r[key]) entry[key] = String(r[key]);
-  if (Array.isArray(r.artists) && r.artists.length) entry.artists = r.artists.map(String);
-  return [uri, entry];
+  return [uri, entry]; // `name` and `artists`, if given (older files have them), are not stored
 }
 
 export interface UpsertResult {
