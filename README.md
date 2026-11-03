@@ -75,7 +75,7 @@ under *User Management*.
 ### 3. The CLI and the MCP server (`api/`)
 
 ```bash
-cd api
+cd api                                              # from the repository root
 cp .env.example .env                                # then set SPOTIFY_CLIENT_ID in .env
 python -m venv .venv                                # skip if you made it for the demo; python3 on macOS/Linux
 .venv/Scripts/python -m pip install -e ".[mcp]"     # .venv/bin/python on macOS/Linux
@@ -111,7 +111,7 @@ Claude Desktop, LM Studio, and the other settings are in [api/docs/mcp.md](api/d
 
    `VITE_LLM_BASE_URL` is the server's OpenAI-compatible address, including `/v1`: for example
    `http://127.0.0.1:1234/v1` (LM Studio) or `http://127.0.0.1:11434/v1` (Ollama). `npm run dev` reads
-   `.env.local` when it starts: restart it after changing the file.
+   `.env.local` when it starts: restart it after changing the file, then reload the page.
 3. Log in with Spotify, pick a playlist on the left, and chat.
 
 ## How it works
