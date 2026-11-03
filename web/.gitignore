@@ -1,0 +1,38 @@
+# --- Secrets and local configuration ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Tokens, caches, backups, and local data (the app keeps them in the browser; belt and braces) ---
+.cache/
+token.json
+*.token.json
+data/
+backups/
+*.zip
+
+# --- Personal / local notes and agent-local settings ---
+AGENTS.local.md
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+scratch/
+tmp/
+*.log
+
+# --- Node / Vite ---
+node_modules/
+dist/
+.vite/
+coverage/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
