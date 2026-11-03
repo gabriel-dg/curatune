@@ -30,9 +30,12 @@ duplicates in X?"*, *"Sort X by recording date"*, *"Add 10 tracks that fit X"*, 
 shuffled order, another whose description tries to give the assistant orders) and a small catalog. No
 Spotify account, no `.env`, no token, no network; everything disappears when the server stops.
 
+Clone the repository; the commands start at its root. They are written for PowerShell or Git Bash on
+Windows (not `cmd`), with the macOS/Linux variants in comments.
+
 ```bash
 cd api
-python -m venv .venv
+python -m venv .venv                                # python3 on macOS/Linux
 .venv/Scripts/python -m pip install -e ".[mcp]"     # .venv/bin/python on macOS/Linux
 ```
 
@@ -74,9 +77,9 @@ under *User Management*.
 ```bash
 cd api
 cp .env.example .env                                # then set SPOTIFY_CLIENT_ID in .env
-python -m venv .venv
+python -m venv .venv                                # skip if you made it for the demo; python3 on macOS/Linux
 .venv/Scripts/python -m pip install -e ".[mcp]"     # .venv/bin/python on macOS/Linux
-.venv/Scripts/curatune auth login                   # opens Spotify's consent page in your browser
+.venv/Scripts/curatune auth login                   # opens Spotify's consent page; .venv/bin/curatune on macOS/Linux
 .venv/Scripts/curatune playlists list               # your playlists, as JSON
 ```
 
@@ -100,14 +103,15 @@ Claude Desktop, LM Studio, and the other settings are in [api/docs/mcp.md](api/d
 2. Configure and start the app:
 
    ```bash
-   cd web
+   cd web                       # from the repository root
    cp .env.example .env.local   # set VITE_SPOTIFY_CLIENT_ID, VITE_LLM_BASE_URL, VITE_LLM_MODEL
    npm ci
    npm run dev                  # then open http://127.0.0.1:5173 (127.0.0.1, not localhost)
    ```
 
    `VITE_LLM_BASE_URL` is the server's OpenAI-compatible address, including `/v1`: for example
-   `http://127.0.0.1:1234/v1` (LM Studio) or `http://127.0.0.1:11434/v1` (Ollama).
+   `http://127.0.0.1:1234/v1` (LM Studio) or `http://127.0.0.1:11434/v1` (Ollama). `npm run dev` reads
+   `.env.local` when it starts: restart it after changing the file.
 3. Log in with Spotify, pick a playlist on the left, and chat.
 
 ## How it works
@@ -204,14 +208,14 @@ flowchart LR
 ## Development
 
 ```bash
-# api/
+# api/ (from the repository root)
 cd api
 .venv/Scripts/python -m pip install -e ".[dev,mcp]"   # .venv/bin/python on macOS/Linux
 .venv/Scripts/python -m pytest
 .venv/Scripts/python -m ruff check src tests
 
 # web/
-cd web
+cd ../web
 npm ci
 npm test
 npm run build      # typecheck and production build

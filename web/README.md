@@ -17,7 +17,7 @@ A zero-install sibling of [curatune](../api/), the Python CLI, MCP server, and a
 Requires Node 22+ and a Spotify app whose redirect URIs include `http://127.0.0.1:5173/callback`.
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local   # then fill in VITE_SPOTIFY_CLIENT_ID
 npm run dev                  # http://127.0.0.1:5173 (use 127.0.0.1, not localhost)
 npm test
