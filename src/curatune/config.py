@@ -130,11 +130,24 @@ def _parse_port(raw: str | None) -> int:
     return port
 
 
+def _repository_root(project_root: Path) -> Path:
+    """The repository the checkout belongs to: the checkout itself, or its parent when the package is one
+    folder of a larger repository (curatune's `api/`). Only those two levels: a `.git` further up (say, a
+    home directory under version control) is not this project's."""
+    for folder in (project_root, project_root.parent):
+        if (folder / ".git").exists():
+            return folder
+    return project_root
+
+
 def _outside_checkout(path: Path, root: Path | None, what: str, setting: str) -> None:
-    if root is not None and path.resolve().is_relative_to(root):
+    if root is None:
+        return
+    repository = _repository_root(root)
+    if path.resolve().is_relative_to(repository):
         raise ConfigError(
             f"The {what} must be outside the project repository (it is meant to be published).",
-            details={setting: str(path), "project_root": str(root)},
+            details={setting: str(path), "project_root": str(root), "repository_root": str(repository)},
         )
 
 
