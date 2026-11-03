@@ -1,7 +1,8 @@
 # curatune-web — curate your playlists in the browser (for Spotify)
 
 curatune-web is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is a trademark of Spotify
-AB.
+AB. The Spotify logo in `public/brand/` is Spotify AB's trademark, used for attribution as Spotify's
+Branding Guidelines require, and is not covered by this project's license.
 
 Curate your own Spotify playlists by chatting in the browser. An LLM served through an OpenAI-compatible
 endpoint (LM Studio or Ollama) chooses the operations; they run in your browser with your own Spotify
