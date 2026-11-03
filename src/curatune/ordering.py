@@ -1,7 +1,7 @@
 """Deterministic sort orders for reorder plans: title, artist, album, released, duration.
 
-Computed here, not by the agent: models sort long lists unreliably (spotikit-web's evaluation). The
-rules match spotikit-web's `sortedOrder` (an `Intl.Collator("en", {sensitivity: "base", numeric: true})`),
+Computed here, not by the agent: models sort long lists unreliably (curatune-web's evaluation). The
+rules match curatune-web's `sortedOrder` (an `Intl.Collator("en", {sensitivity: "base", numeric: true})`),
 written out so both projects can test the same cases:
 
 - Text keys are the title, the **first** artist, and the album name.

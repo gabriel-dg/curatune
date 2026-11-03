@@ -1,5 +1,5 @@
 """Sort orders for reorder plans. Each case is a rule documented in `ordering.py` and docs/reference.md;
-the table is written so spotikit-web can check the same vectors."""
+the table is written so curatune-web can check the same vectors."""
 
 import pytest
 

@@ -1,7 +1,7 @@
 # curatune — a playlist toolkit for Spotify
 
-Formerly spotikit. curatune is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is a
-trademark of Spotify AB.
+curatune is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is a trademark of
+Spotify AB.
 
 Work with your own Spotify playlists by asking an AI agent in plain language. curatune is the deterministic
 part: a Python library (`src/curatune`) plus a thin CLI that prints one JSON document per call, and an
@@ -177,7 +177,7 @@ flowchart LR
   existing data there is an explicit, verified copy (`curatune data migrate`), never silent.
 - **Local only.** The MCP server runs on your machine over stdio ([why](#why-the-mcp-server-isnt-remote)).
 
-The full reasoning, with the alternatives discarded, is in [PLAN-mcp.md](PLAN-mcp.md).
+The full reasoning, with the alternatives discarded, is in [docs/plan-mcp.md](docs/plan-mcp.md).
 
 ### How a plan gets applied through MCP
 
@@ -373,6 +373,7 @@ docs/mcp-demo-script.md            a 60–90 s video script, on demo mode
 ```bash
 .venv/Scripts/python -m pip install -e ".[dev,mcp]"   # .venv/bin/python on macOS/Linux
 .venv/Scripts/python -m pytest
+.venv/Scripts/python -m ruff check src tests
 ```
 
 Plan logic runs against an in-memory fake of the playlist API (including snapshot read lag), the HTTP

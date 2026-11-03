@@ -185,7 +185,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
 
 ### Sort orders
 
-`plan reorder --sort-by` computes the order in code (`ordering.py`), with the same rules as spotikit-web:
+`plan reorder --sort-by` computes the order in code (`ordering.py`), with the same rules as curatune-web:
 
 - Text keys are the title, the **first** artist, and the album name.
 - Leading characters that are neither letters nor digits are ignored (`'Round Midnight` sorts as

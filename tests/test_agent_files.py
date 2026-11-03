@@ -37,5 +37,5 @@ def test_claude_entry_point_defers_to_shared_skill():
 
 @pytest.mark.parametrize("name", ["CLAUDE.md", "GEMINI.md"])
 def test_agent_context_files_only_import_agents_md(name):
-    lines = [l for l in (ROOT / name).read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [line for line in (ROOT / name).read_text(encoding="utf-8").splitlines() if line.strip()]
     assert lines == ["@AGENTS.md", "@AGENTS.local.md"]

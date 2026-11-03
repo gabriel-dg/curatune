@@ -2,7 +2,7 @@
 
 The library, plan files, the CLI, and docs/reference.md use 0-based positions, like the Spotify API.
 What the model sees through MCP uses `number`, 1-based, like the track numbers in the Spotify app:
-small models confuse 0-based positions with track numbers (spotikit-web's evaluation), and every
+small models confuse 0-based positions with track numbers (curatune-web's evaluation), and every
 model talks to the user in 1-based numbers anyway.
 
 Conversion happens once, at the MCP boundary:

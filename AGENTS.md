@@ -44,7 +44,7 @@ Architecture: library package `src/curatune/` with all logic; two thin entry poi
 (`cli.py`) and a local MCP server (`mcp_server/`, optional extra `curatune[mcp]`, script `curatune-mcp`).
 Keep the library usable on its own. Any new CLI command must be documented in `docs/reference.md` (and
 listed in README.md) and in the skill; any new MCP tool in `docs/mcp.md`. The MCP plan, its decisions, and
-its phases are in `PLAN-mcp.md`.
+its phases are in `docs/plan-mcp.md`.
 
 ## Confirmation rules (enforced in code — keep them that way)
 
@@ -189,7 +189,7 @@ its phases are in `PLAN-mcp.md`.
 - **snapshot_id read lag** (observed live): after a write, reads return the previous `snapshot_id` for a
   few minutes while items are already current; the write's snapshot is what reads converge to. Handled
   by `writelog.py` (`write_log.json` in the data dir, `SNAPSHOT_READ_LAG`).
-- The playlist list lags too (observed 2026-09-29 by spotikit-web): right after creating a playlist and
+- The playlist list lags too (observed 2026-09-29 by curatune-web): right after creating a playlist and
   adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
   all 20. `playlists list` reports the count left by curatune's own writes of the last 15 minutes when
   the list disagrees (`writelog.py`, `ITEM_COUNT_READ_LAG`); `playlist show` counts the items it reads.
@@ -220,5 +220,8 @@ its phases are in `PLAN-mcp.md`.
 - No test may touch the user's data dir or open a browser: `tests/conftest.py` points `CURATUNE_DATA_DIR`
   at each test's `tmp_path` and refuses `webbrowser.open`. Tests of the default location delete the
   variable and point `LOCALAPPDATA` / `XDG_DATA_HOME` at `tmp_path`.
-- CI (`.github/workflows/tests.yml`): Windows and Linux, Python 3.10 and 3.14, with and without the extra.
+- Lint: `ruff check src tests` (core rules only: pyflakes and pycodestyle's errors; `ruff` is in the `dev`
+  extra).
+- CI (`.github/workflows/tests.yml`): Windows and Linux, Python 3.10 and 3.14, with and without the extra;
+  lint, then tests.
   Actions are pinned to commit SHAs; the workflow has read-only permissions and needs no secrets.

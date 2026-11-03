@@ -3,7 +3,7 @@
 `curatune-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server (stdio) over the
 same library the CLI uses. MCP clients such as Claude Code, Claude Desktop, or LM Studio can work with your
 playlists through it, with no repository-specific skill: the tool descriptions and the server's
-instructions carry the rules. For the design and its decisions, see [PLAN-mcp.md](../PLAN-mcp.md).
+instructions carry the rules. For the design and its decisions, see [plan-mcp.md](plan-mcp.md).
 
 It reads playlists and the catalog, creates playlists, adds tracks, keeps recording dates, and removes,
 reorders, or renames through **plans**: a plan changes nothing until the user confirms it outside the chat,
@@ -224,7 +224,7 @@ the route:
 | `elicitation` | The dialog only; without it, `CONFIRMATION_UNAVAILABLE`. |
 | `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
-Clients verified so far (see PLAN-mcp.md): Claude Code declares form and URL elicitation in both protocol
+Clients verified so far (see plan-mcp.md): Claude Code declares form and URL elicitation in both protocol
 eras, and both routes were checked live in it. Claude Desktop is not verified yet. LM Studio documents tools
 only. If a client's `plan_apply` waits and no dialog appears (a client that declares dialogs but doesn't
 show them), nothing is applied: set `CURATUNE_MCP_CONFIRM=browser` in that server's entry to use the page.
@@ -255,7 +255,7 @@ itself (for example a Claude Code `Elicitation` hook that auto-accepts).
 
 | CLI | MCP server | Why |
 |---|---|---|
-| 0-based `position` | 1-based `number` | Small models read 0-based positions as track numbers (spotikit-web's evaluation), and every model talks to the user in 1-based numbers anyway. |
+| 0-based `position` | 1-based `number` | Small models read 0-based positions as track numbers (curatune-web's evaluation), and every model talks to the user in 1-based numbers anyway. |
 | `playlist create --public` | No visibility option | Visibility is never the model's choice; Spotify ignores it anyway. |
 | `--from-file` inputs | JSON arguments only, never a path | A path argument could send a local file's contents to Spotify as search queries. |
 | `recordings set` overwrites | `recordings_set` (additive) and `recordings_update` | Accurate annotations, and curated dates protected in code. |
