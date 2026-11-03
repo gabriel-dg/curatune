@@ -29,8 +29,8 @@ export class Sidebar {
   private readonly filterButtons: Record<"all" | "mine", HTMLButtonElement>;
   private playlists: Playlist[] = [];
   /** One row per playlist, built once per load: filtering and marking reuse them, so covers are not refetched. */
-  private rows: { playlist: Playlist; link: HTMLAnchorElement; glyph: HTMLElement; meta: HTMLElement }[] = [];
-  private readonly busy = h("span", { class: "glyph-busy", attrs: { role: "status", "aria-label": "Loading" } }, [h("span", { class: "spinner" })]);
+  private rows: { playlist: Playlist; link: HTMLAnchorElement; meta: HTMLElement }[] = [];
+  private readonly busy = h("span", { class: "row-busy", attrs: { role: "status", "aria-label": "Loading" } }, [h("span", { class: "spinner" })]);
   private filter: "all" | "mine" = "all";
   private activeId: string | null = null;
   /** The playlist whose panel is loading: its row shows a spinner. */
@@ -84,7 +84,7 @@ export class Sidebar {
         glyph,
         h("span", { class: "playlist-text" }, [h("span", { class: "playlist-name", text: playlist.name || "(untitled)" }), meta]),
       ]);
-      return { playlist, link, glyph, meta };
+      return { playlist, link, meta };
     });
     this.renderList();
     this.mark();
@@ -152,14 +152,14 @@ export class Sidebar {
 
   /** Highlight the playlist on screen and put the spinner on the one loading. */
   private mark(): void {
-    let busyGlyph: HTMLElement | null = null;
-    for (const { playlist, link, glyph } of this.rows) {
+    let busyLink: HTMLElement | null = null;
+    for (const { playlist, link } of this.rows) {
       const loading = playlist.id !== null && playlist.id === this.loadingId;
       link.classList.toggle("active", playlist.id !== null && playlist.id === this.activeId);
       link.classList.toggle("loading", loading);
-      if (loading) busyGlyph = glyph;
+      if (loading) busyLink = link;
     }
-    if (!busyGlyph) this.busy.remove();
-    else if (this.busy.parentElement !== busyGlyph) busyGlyph.append(this.busy);
+    if (!busyLink) this.busy.remove();
+    else if (this.busy.parentElement !== busyLink) busyLink.append(this.busy);
   }
 }

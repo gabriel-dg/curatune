@@ -5,7 +5,7 @@ import { lookup, type RecordingMap, type RecordingStore } from "../recordings/re
 import type { SpotifyClient } from "../spotify/http";
 import { formatDuration, type Playlist, type PlaylistItem } from "../spotify/models";
 import { getPlaylist } from "../spotify/playlists";
-import { spotifyPlaylistLink } from "./cards";
+import { spotifyPlaylistLink, trackNameLink } from "./cards";
 import { cover } from "./covers";
 import { h } from "./dom";
 import { icon } from "./icons";
@@ -154,7 +154,10 @@ function trackRow(item: PlaylistItem, recordings: RecordingMap): HTMLTableRowEle
   return h("tr", { class: unavailable ? "unavailable" : undefined }, [
     h("td", { class: "num muted", text: String(item.position + 1) }),
     h("td", { class: "title-cell" }, [
-      h("div", { class: "track-name", text: `${item.name ?? (unavailable ? "(unavailable)" : "")}${item.is_local ? " (local)" : ""}` }),
+      h("div", { class: "track-name" }, [
+        trackNameLink(item.name ?? (unavailable ? "(unavailable)" : ""), item.is_local ? null : item.id),
+        item.is_local ? " (local)" : null,
+      ]),
       h("div", { class: "track-artists" }, [
         item.artists.map((a) => a.name ?? "").join(", "),
         item.album?.name ? h("span", { class: "track-album", text: ` · ${item.album.name}${item.album.release_date ? ` (${item.album.release_date.slice(0, 4)})` : ""}` }) : null,

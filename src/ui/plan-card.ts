@@ -8,6 +8,7 @@ import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { KeyValueStore } from "../storage/kv";
 import type { WriteReport } from "../tools";
+import { spotifyPlaylistLink } from "./cards";
 import { h } from "./dom";
 import { icon } from "./icons";
 import { userWarnings } from "./warnings";
@@ -141,6 +142,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
     plan.reason ? h("div", { class: "plan-reason", text: plan.reason }) : null,
     plan.kind === "details" ? detailsDiff(plan) : plan.kind === "remove" ? removeDiff(plan) : reorderDiff(plan),
     summary,
+    h("div", { class: "card-actions" }, [spotifyPlaylistLink(plan.playlist.id)]),
     ...userWarnings(plan.warnings).map((text) => h("div", { class: "warning", text })),
     h("div", { class: "plan-actions" }, [status, discardButton, applyButton]),
   ]);

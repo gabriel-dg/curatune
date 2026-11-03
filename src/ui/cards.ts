@@ -5,13 +5,26 @@ import { timeLabel } from "./activity";
 import { h } from "./dom";
 import { icon } from "./icons";
 
-/** Link to a playlist in the Spotify app, only for well-formed IDs. */
-export function spotifyPlaylistLink(id: string | null, label = "Open in Spotify"): HTMLElement | null {
-  if (!id || !/^[A-Za-z0-9]{22}$/.test(id)) return null;
-  return h("a", { class: "link-external", attrs: { href: `https://open.spotify.com/playlist/${id}`, target: "_blank", rel: "noopener noreferrer" } }, [
-    label,
-    icon("external", 14),
-  ]);
+/**
+ * The page of a playlist, track, or album on Spotify, only for well-formed IDs. Spotify's Developer Policy
+ * (II.4.2) asks that metadata and cover art link back to Spotify.
+ */
+export function spotifyUrl(kind: "playlist" | "track" | "album", id: string | null | undefined): string | null {
+  return id && /^[A-Za-z0-9]{22}$/.test(id) ? `https://open.spotify.com/${kind}/${id}` : null;
+}
+
+const external = { target: "_blank", rel: "noopener noreferrer" };
+
+/** Link to a playlist in the Spotify app. "Open Spotify" is one of the labels Spotify's design guidelines allow. */
+export function spotifyPlaylistLink(id: string | null, label = "Open Spotify"): HTMLElement | null {
+  const href = spotifyUrl("playlist", id);
+  return href ? h("a", { class: "link-external", attrs: { href, ...external } }, [label, icon("external", 14)]) : null;
+}
+
+/** A track's name, linked to the track on Spotify when it has an ID (local files and unavailable items don't). */
+export function trackNameLink(name: string, trackId: string | null | undefined): HTMLElement {
+  const href = spotifyUrl("track", trackId);
+  return href ? h("a", { class: "track-link", text: name, attrs: { href, ...external, title: "Open Spotify" } }) : h("span", { text: name });
 }
 
 /** A write performed (on Spotify or locally): always expanded, never folded like reads. */
