@@ -27,6 +27,10 @@ curatune-mcp = "curatune.mcp_server:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Spotify's official logo, for the attribution on the MCP confirmation page (a trademark of Spotify AB).
+"curatune.mcp_server" = ["assets/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

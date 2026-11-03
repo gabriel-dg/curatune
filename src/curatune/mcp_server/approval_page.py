@@ -17,9 +17,13 @@ Pure standard library, like `confirm.py`.
 
 from __future__ import annotations
 
+import base64
+import functools
 import html
+import re
 import secrets
 import threading
+from importlib import resources
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs
@@ -85,12 +89,12 @@ def _handler(page: ApprovalPage) -> type[BaseHTTPRequestHandler]:
             style = f"style-src 'nonce-{style_nonce}'" if style_nonce else "style-src 'none'"
             self.send_header(
                 "Content-Security-Policy",
-                f"default-src 'none'; {style}; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+                f"default-src 'none'; img-src data:; {style}; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
             )
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
             # Not "no-referrer": with it, browsers send `Origin: null` on the form POSTs, which the Origin
-            # check refuses (seen in Chromium). The page links nowhere, so nothing leaves the machine.
+            # check refuses (seen in Chromium). The page's one link (Spotify's attribution) is rel=noreferrer.
             self.send_header("Referrer-Policy", "same-origin")
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
@@ -195,6 +199,10 @@ button.approve { background: var(--ok); border-color: var(--ok); color: #fff; }
         background: var(--code-bg); border-radius: 10px; padding: 1rem; text-align: center; margin: 1rem 0; }
 .ok { color: var(--ok); } .no { color: var(--no); }
 .id { color: var(--muted); font-size: .85rem; margin-top: 1.5rem; overflow-wrap: anywhere; }
+.attribution { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .75rem;
+               color: var(--muted); font-size: .9rem; }
+.attribution img { display: block; width: 80px; height: auto; }
+.attribution a { color: inherit; }
 """
 
 
@@ -207,6 +215,29 @@ def _page(title: str, body: str, nonce: str) -> str:
     )
 
 
+@functools.lru_cache(maxsize=None)
+def _logo(variant: str) -> str:
+    """Spotify's official full logo (assets/, unmodified), as a data URI: the page loads nothing else."""
+    data = resources.files(__package__).joinpath(f"assets/spotify-full-logo-{variant}.svg").read_bytes()
+    return "data:image/svg+xml;base64," + base64.b64encode(data).decode("ascii")
+
+
+def _attribution(c: Confirmation) -> str:
+    """Spotify's attribution under the plan (Developer Policy II.4): its full logo, at least 70 px wide, black
+    on the light page and white on the dark one, and a link back to the playlist."""
+    playlist_id = str(c.plan.get("playlist", {}).get("id") or "")
+    link = (
+        f'<a href="https://open.spotify.com/playlist/{playlist_id}" target="_blank" rel="noopener noreferrer">Open Spotify</a>'
+        if re.fullmatch(r"[A-Za-z0-9]{22}", playlist_id)
+        else ""
+    )
+    logo = (
+        f'<picture><source media="(prefers-color-scheme: dark)" srcset="{_logo("white")}">'
+        f'<img src="{_logo("black")}" alt="Spotify" width="80" height="22"></picture>'
+    )
+    return f'<p class="attribution">Track data from {logo}{link}</p>'
+
+
 def _plan_block(c: Confirmation) -> str:
     s = summarize(c.plan, max_lines=PAGE_MAX_LINES)
     items = "".join(f"<li>{_E(line)}</li>" for line in s.lines)
@@ -214,7 +245,7 @@ def _plan_block(c: Confirmation) -> str:
     reason = (
         f'<div class="reason"><p class="label">{_E(REASON_LABEL)}</p><p>“{_E(s.reason)}”</p></div>' if s.reason else ""
     )
-    return f'<div class="box"><p><strong>{_E(s.head)}</strong></p><ul>{items}</ul>{notes}{reason}</div>'
+    return f'<div class="box"><p><strong>{_E(s.head)}</strong></p><ul>{items}</ul>{notes}{reason}</div>{_attribution(c)}'
 
 
 def render(c: Confirmation, shown: str, nonce: str) -> str:
