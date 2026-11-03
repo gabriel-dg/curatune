@@ -1,6 +1,7 @@
-# The test suite on Windows and Linux, on the oldest and newest supported Python, with and without the
-# optional MCP extra. MCP tests run in both protocol eras (2025-11-25 handshake and 2026-07-28) through
-# their parametrized fixture. No test calls Spotify, so no secrets are needed.
+# Lint (ruff, core rules) and the test suite on Windows and Linux, on the oldest and newest supported
+# Python, with and without the optional MCP extra. MCP tests run in both protocol eras (2025-11-25
+# handshake and 2026-07-28) through their parametrized fixture. No test calls Spotify, so no secrets are
+# needed.
 name: tests
 
 on:
@@ -45,6 +46,9 @@ jobs:
           else
             python -c "import mcp"
           fi
+
+      - name: Lint
+        run: python -m ruff check src tests
 
       - name: Test
         run: python -m pytest -ra

@@ -8,7 +8,6 @@ account: several playlists, a small catalog (search, track, album), create and a
 from __future__ import annotations
 
 import html
-import re
 from typing import Any
 
 from curatune.demo import FakeAccount, demo_account, synthetic_id  # noqa: F401 - re-exported for the tests
@@ -24,7 +23,7 @@ def track_uri(n: int) -> str:
 class FakeSpotify:
     """With `lag=True`, reads keep returning the pre-write snapshot_id until `propagate()` is
     called, while items are always current (the behaviour observed live). The playlist list's
-    item total lags the same way (observed live by spotikit-web)."""
+    item total lags the same way (observed live by curatune-web)."""
 
     def __init__(self, uris: list[str], owner_id: str = "me", lag: bool = False, write_log=None):
         self.uris = list(uris)
