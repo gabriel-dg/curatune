@@ -1,0 +1,23 @@
+# The repository root. api/ and web/ have their own .gitignore files for their builds, caches, and data.
+
+# --- Secrets and local configuration ---
+.env
+.env.*
+!.env.example
+
+# --- Personal / local notes and agent-local settings ---
+AGENTS.local.md
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+scratch/
+tmp/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/

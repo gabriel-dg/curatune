@@ -45,7 +45,7 @@ purpose, for safety; see [What curatune won't do](#what-curatune-wont-do).
 
 ## Using it with an AI agent
 
-Open your agent in this repository and ask, as in the examples above. The agent learns the commands,
+Open your agent in this folder (`api/`) and ask, as in the examples above. The agent learns the commands,
 workflows, and safety rules from the project skill; on first use it walks you through setup, and you only
 create the Spotify app, fill in `.env`, and approve the browser login.
 
@@ -61,7 +61,7 @@ GitHub Copilot also scans `.claude/skills/`, so it lists two `curatune` skills. 
 The skill uses the open [Agent Skills](https://agentskills.io) format. Agents that sandbox commands must
 allow curatune network access to `accounts.spotify.com` and `api.spotify.com`, and let it write its token
 outside the repository (see `CURATUNE_TOKEN_DIR` below). Personal preferences, such as your language or
-per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` at the repository root.
+per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` next to `AGENTS.md`.
 
 ### Through MCP
 

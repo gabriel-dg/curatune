@@ -229,6 +229,6 @@ its phases are in `docs/plan-mcp.md`.
   variable and point `LOCALAPPDATA` / `XDG_DATA_HOME` at `tmp_path`.
 - Lint: `ruff check src tests` (core rules only: pyflakes and pycodestyle's errors; `ruff` is in the `dev`
   extra).
-- CI (`.github/workflows/tests.yml`): Windows and Linux, Python 3.10 and 3.14, with and without the extra;
+- CI (the repository's `.github/workflows/tests.yml`, which also runs `web/`): Windows and Linux, Python 3.10 and 3.14, with and without the extra;
   lint, then tests.
   Actions are pinned to commit SHAs; the workflow has read-only permissions and needs no secrets.

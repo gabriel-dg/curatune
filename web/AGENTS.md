@@ -18,6 +18,7 @@ IP addresses, hostnames, local paths) in versioned files.
 
 ## Relationship to curatune
 
+- In this repository, curatune is [`../api/`](../api/).
 - No shared code. curatune's `docs/reference.md`, `plans.py`, and tests are the **specification** for the
   port; behaviour must match unless a difference is deliberate and documented here.
 - Each ported module records, in a header comment, the curatune commit it follows. curatune was named
