@@ -27,3 +27,8 @@ npm run eval                 # model evaluation against VITE_LLM_MODEL (EVAL_MOD
 
 The chat needs `VITE_LLM_BASE_URL` and `VITE_LLM_MODEL`, and the model loaded with a context length of at
 least 32768 tokens (LM Studio loads models on demand with 4096 unless the model's default is changed).
+
+## License
+
+MIT © 2026 Gabriel de Giuli. See [LICENSE](../LICENSE). The Spotify logo in `public/brand/` is a trademark
+of Spotify AB and is not covered by it ([NOTICE](../NOTICE)).

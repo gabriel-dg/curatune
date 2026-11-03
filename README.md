@@ -223,5 +223,5 @@ instructions for coding agents are in [`api/AGENTS.md`](api/AGENTS.md) and [`web
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The Spotify logos in this repository are trademarks of Spotify AB and are not
-covered by it.
+MIT © 2026 Gabriel de Giuli. See [LICENSE](LICENSE). The Spotify logos in this repository are trademarks of
+Spotify AB and are not covered by it ([NOTICE](NOTICE)).

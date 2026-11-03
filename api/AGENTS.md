@@ -12,7 +12,7 @@ no playback, library, or listening history.
 covers **developing** curatune.
 
 Personal context (conversation language, reference playlists, curation criteria) lives in the gitignored
-`AGENTS.local.md` at the repository root; read it when present. Never put personal data (user IDs, playlist IDs, names, emails, local paths) in
+`AGENTS.local.md` next to this file; read it when present. Never put personal data (user IDs, playlist IDs, names, emails, local paths) in
 versioned files.
 
 ## Agent files
@@ -151,7 +151,8 @@ its phases are in `docs/plan-mcp.md`.
   Run first-time setup and migrations from a terminal, or set `CURATUNE_DATA_DIR` outside AppData.
 - Gitignored: `.env`, `plans/` and `data/` (older checkouts), `AGENTS.local.md`.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
-  IDs). The repo is intended to be published.
+  IDs). The repo is intended to be published. The one exception is the author's name as the copyright
+  holder (`LICENSE`, `NOTICE`, the READMEs, `pyproject.toml`).
 
 ## Data limitations
 
