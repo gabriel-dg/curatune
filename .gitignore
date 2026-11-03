@@ -15,6 +15,7 @@ token.json
 plans/
 data/
 backups/
+*.zip
 *.tmp
 *.log
 
@@ -22,6 +23,7 @@ backups/
 AGENTS.local.md
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/worktrees/
 scratch/
 tmp/
 
