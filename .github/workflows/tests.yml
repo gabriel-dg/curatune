@@ -1,0 +1,86 @@
+# Both projects of the monorepo. api/: lint (ruff, core rules) and the test suite on Windows and Linux, on
+# the oldest and newest supported Python, with and without the optional MCP extra; MCP tests run in both
+# protocol eras (2025-11-25 handshake and 2026-07-28) through their parametrized fixture. web/: typecheck,
+# tests, and the production build. No test calls Spotify or an LLM, so no secrets are needed.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: api / ${{ matrix.os }} / Python ${{ matrix.python }} / ${{ matrix.extras == 'dev' && 'without MCP' || 'with MCP' }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: api
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.14"]
+        extras: ["dev", "dev,mcp"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: python -m pip install -e ".[${{ matrix.extras }}]"
+
+      # Without the extra, nothing may pull in `mcp`; with it, the MCP tests must run, not skip.
+      - name: Check the MCP extra
+        shell: bash
+        run: |
+          if [ "${{ matrix.extras }}" = "dev" ]; then
+            python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('mcp') is not None)"
+          else
+            python -c "import mcp"
+          fi
+
+      - name: Lint
+        run: python -m ruff check src tests
+
+      - name: Test
+        run: python -m pytest -ra
+
+  web:
+    name: web / Node 22
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
