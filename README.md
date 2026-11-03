@@ -1,7 +1,8 @@
 # curatune — a playlist toolkit for Spotify
 
 curatune is not affiliated with, endorsed by, or sponsored by Spotify. Spotify is a trademark of
-Spotify AB.
+Spotify AB. The Spotify logos in `src/curatune/mcp_server/assets/` are Spotify AB's trademarks, used for
+attribution as Spotify's Branding Guidelines require, and are not covered by this project's license.
 
 Work with your own Spotify playlists by asking an AI agent in plain language. curatune is the deterministic
 part: a Python library (`src/curatune`) plus a thin CLI that prints one JSON document per call, and an
