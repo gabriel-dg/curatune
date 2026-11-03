@@ -116,6 +116,18 @@ describe("SpotifyClient.request", () => {
     expect(ctx.sleeps).toEqual([2000]);
   });
 
+  it.each([
+    [{ error: { status: 429, message: "Quota exceeded", reason: "QUOTA_EXCEEDED" } }],
+    [{ reason: "QUOTA_EXCEEDED" }],
+  ])("fails at once when the 429 is the account's quota (%j)", async (body) => {
+    let calls = 0;
+    const ctx = setup(() => (++calls === 1 ? json(body, 429, { "Retry-After": "1" }) : json({ ok: 1 })));
+    const err = await fail(ctx.client.get("/me"));
+    expect(err.code).toBe("API_QUOTA_EXCEEDED");
+    expect(calls).toBe(1); // no retry: it would only spend what is left
+    expect(ctx.sleeps).toEqual([]);
+  });
+
   it("does not wait for a Retry-After over 60 s", async () => {
     const ctx = setup(() => json({}, 429, { "Retry-After": "120" }));
     const err = await fail(ctx.client.get("/me"));

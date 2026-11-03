@@ -1,5 +1,5 @@
 // Local record of this app's own writes, used to compensate Spotify's snapshot_id read lag.
-// Follows curatune commit 590cd87, src/spotikit/writelog.py. Difference: stored in IndexedDB through an
+// Follows curatune commit 60aff60, src/curatune/writelog.py. Difference: stored in IndexedDB through an
 // async KeyValueStore instead of a JSON file. The web app and the curatune CLI keep separate logs, so do
 // not write the same playlist from both within minutes.
 //
@@ -27,8 +27,17 @@ export class WriteLog {
   ) {}
 
   async record(playlistId: string, snapshotId: string, uris: (string | null)[]): Promise<void> {
+    await this.prune();
     const entry: Entry = { snapshot_id: snapshotId, uris, recorded_at: this.now() };
     await this.store.set(playlistId, entry);
+  }
+
+  /** Drop expired entries: they vouch for nothing, so the log never keeps track URIs past their use. */
+  async prune(): Promise<void> {
+    for (const playlistId of await this.store.keys()) {
+      const entry = await this.store.get<Entry>(playlistId);
+      if (!entry || this.now() - entry.recorded_at > this.ttlMs) await this.store.delete(playlistId);
+    }
   }
 
   async forget(playlistId: string): Promise<void> {

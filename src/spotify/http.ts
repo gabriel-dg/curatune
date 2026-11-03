@@ -1,5 +1,5 @@
 // Thin HTTP client for the Spotify Web API: auth header, retries, error mapping, pagination.
-// Follows curatune commit b3531aa, src/spotikit/http.py. Differences, all deliberate:
+// Follows curatune commit 60aff60, src/curatune/http.py. Differences, all deliberate:
 // - fetch is called with `redirect: "error"`, so a redirect can never carry the bearer token elsewhere.
 // - Errors carry only the status, method, path, and Spotify's message; never headers or tokens.
 // - The write log (for snapshot_id read lag) is optional and set by the app; reads use it through
@@ -61,6 +61,22 @@ export function resolveUrl(path: string): URL {
     });
   }
   return url;
+}
+
+/**
+ * A 429 for the developer account's quota (`"reason": "QUOTA_EXCEEDED"`, top level or under `error`), not the
+ * short-term rate limit: waiting for Retry-After would not help.
+ */
+async function quotaExceeded(resp: Response): Promise<boolean> {
+  let body: unknown;
+  try {
+    body = await resp.clone().json();
+  } catch {
+    return false;
+  }
+  if (!body || typeof body !== "object") return false;
+  const { reason, error } = body as { reason?: unknown; error?: { reason?: unknown } };
+  return reason === "QUOTA_EXCEEDED" || (typeof error === "object" && error !== null && error.reason === "QUOTA_EXCEEDED");
 }
 
 export class SpotifyClient {
@@ -140,6 +156,14 @@ export class SpotifyClient {
       }
 
       if (status === 429) {
+        if (await quotaExceeded(resp)) {
+          // Shared by every Development Mode app of the developer account (Spotify, 2026-07-23): retrying
+          // only spends what is left of it.
+          throw new CuratuneError("API_QUOTA_EXCEEDED", "The Spotify API quota of this app's developer account is used up; try again later.", {
+            method,
+            path: logPath,
+          });
+        }
         const retryAfter = Number.parseInt(resp.headers.get("Retry-After") ?? "1", 10) || 1;
         if (attempt < this.maxRetries && retryAfter <= MAX_RETRY_AFTER_SECONDS) {
           attempt += 1;

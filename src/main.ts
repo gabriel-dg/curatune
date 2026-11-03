@@ -1,6 +1,7 @@
 import { loadConfig } from "./config";
 import { SpotifyAuth, takeCallbackParams } from "./spotify/auth";
 import { SpotifyClient } from "./spotify/http";
+import { pruneBackups } from "./plans/plans";
 import { WriteLog } from "./spotify/writelog";
 import { indexedDbSupported, isPersistent, openStore } from "./storage/kv";
 import { RecordingStore } from "./recordings/recordings";
@@ -32,6 +33,10 @@ async function start(root: HTMLElement): Promise<void> {
   // and recording dates.
   const [writeLogStore, backups, recordingsStore] = await Promise.all([openStore("write-log"), openStore("plan-backups"), openStore("recordings")]);
   const writeLog = new WriteLog(writeLogStore);
+  // Copies of Spotify metadata are not kept indefinitely (Developer Terms IV.3): old backups and expired
+  // write-log entries go now, in the background.
+  void pruneBackups(backups).catch(() => {});
+  void writeLog.prune().catch(() => {});
   const recordings = new RecordingStore(recordingsStore);
   const persistent = [writeLogStore, backups, recordingsStore].every(isPersistent);
   const client = new SpotifyClient(auth, { fetch: (input, init) => window.fetch(input, init), writeLog });

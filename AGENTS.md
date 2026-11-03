@@ -42,6 +42,12 @@ IP addresses, hostnames, local paths) in versioned files.
   - The UI hides warnings the app already compensates (`SNAPSHOT_READ_LAG`, `ITEM_COUNT_READ_LAG`) and words
     the rest plainly; the model gets them as curatune reports them. The sidebar also takes track counts from
     writes and from reading a playlist.
+  - Retention: backups older than 90 days are deleted when the app starts (a fixed period; curatune reads
+    `CURATUNE_RETENTION_DAYS`). As in curatune, recording entries never store names or artists.
+  - The UI follows Spotify's design guidelines for the Spotify content it shows: the official full logo as
+    attribution in the top bar (`public/brand/`, unmodified, a trademark of Spotify AB), links back to
+    Spotify on playlists and tracks ("Open Spotify"), and covers shown whole (never cropped), with 4 or 8 px
+    corners and nothing on top.
   - Not ported: market-dependent reads (`--market`, `is_playable`), `plan show --check` (the UI renders the
     plan; applying re-checks), per-process HTTP metrics, and the CLI and its configuration.
 
@@ -128,8 +134,11 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 
 ## Spotify Web API facts (copied from curatune; verified September 2026)
 
-- Development Mode: app owner needs Premium; max 5 users per app; 1 client ID per developer; quota shared
-  per developer account.
+- Development Mode: app owner needs Premium; apps created since 2026-02-11 allow 5 users (an allowlist;
+  others get 403); up to 25 client IDs per developer (since 2026-07-23, was 1), all sharing one quota per
+  developer account. A used-up quota is a 429 with `"reason": "QUOTA_EXCEEDED"` (`API_QUOTA_EXCEEDED`,
+  not retried). Extended quota is only for organizations (registered business, launched service, 250k
+  MAU; since 2025-05-15).
 - No audio features; since the 2026 migration no `popularity`, `followers`, `label`, or
   `available_markets`. `release_date` is the **edition** date, not the recording date.
 - ISRC (`external_ids`) helps match the same recording across editions (not fully reliable across

@@ -1,7 +1,8 @@
 // Plans for destructive or order-changing operations: remove, reorder, and details (name, description).
 // Follows curatune commit b3531aa, src/spotikit/plans.py. Differences, all deliberate:
 // - Plans live in memory (a PlanRegistry in the app), not in files; backups go to an async KeyValueStore
-//   (IndexedDB in the app).
+//   (IndexedDB in the app), and those older than BACKUP_RETENTION_DAYS are deleted when the app starts, as
+//   curatune's retention.py (commit 60aff60) does with its files; here the period is fixed.
 // - Besides curatune's explicit order, move, and order by recording date (from the recordings store), a
 //   deterministic sort by title, artist, album, edition date, or duration (sortedOrder).
 // - Checksums use SHA-256 from Web Crypto over the same canonical JSON (sorted keys, no spaces).
@@ -112,6 +113,27 @@ export interface ApplyResult {
 
 const planError = (message: string, details: Record<string, unknown> = {}, code: "PLAN_INVALID" | "PLAN_INCONSISTENT" | "PLAN_CHECKSUM_MISMATCH" | "PLAN_ALREADY_APPLIED" | "NO_CHANGES" = "PLAN_INVALID") =>
   new CuratuneError(code, message, details);
+
+/**
+ * Backups hold copies of Spotify metadata (track names, artists), which Spotify's Developer Terms (IV.3)
+ * don't allow storing indefinitely.
+ */
+export const BACKUP_RETENTION_DAYS = 90;
+
+/** Delete backups made more than BACKUP_RETENTION_DAYS ago; returns how many. */
+export async function pruneBackups(backups: KeyValueStore, now: number = Date.now()): Promise<number> {
+  const cutoff = now - BACKUP_RETENTION_DAYS * 86_400_000;
+  let removed = 0;
+  for (const key of await backups.keys()) {
+    const backup = await backups.get<{ created_at?: string }>(key);
+    const made = Date.parse(backup?.created_at ?? "");
+    if (Number.isFinite(made) && made < cutoff) {
+      await backups.delete(key);
+      removed += 1;
+    }
+  }
+  return removed;
+}
 
 function isoNow(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
