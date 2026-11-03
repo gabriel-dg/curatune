@@ -23,7 +23,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, Resource, TextContent
 
-from .. import __version__, datadir
+from .. import __version__, datadir, retention
 from ..auth import TokenManager
 from ..config import Settings, load_settings
 from ..errors import CuratuneError
@@ -162,7 +162,9 @@ class Runtime:
     def settings(self) -> Settings:
         with self._init_lock:
             if self._settings is None:
-                self._settings = load_settings()
+                settings = load_settings()
+                retention.prune(settings)  # once per server process: plans and backups past the retention period
+                self._settings = settings
             return self._settings
 
     def tokens(self) -> Any:

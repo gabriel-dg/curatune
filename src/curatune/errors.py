@@ -57,6 +57,12 @@ class RateLimited(CuratuneError):
     code = "RATE_LIMITED"
 
 
+class ApiQuotaExceeded(CuratuneError):
+    """The quota of the app's developer account (shared by all its Development Mode apps) is used up."""
+
+    code = "API_QUOTA_EXCEEDED"
+
+
 class ApiError(CuratuneError):
     code = "API_ERROR"
 

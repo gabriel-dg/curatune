@@ -215,8 +215,6 @@ Spotify only knows an edition's release date. Recording dates are researched els
     "confidence": "high",
     "source": "AllMusic session notes",
     "note": "master take",
-    "name": "Nostalgia",
-    "artists": ["Fats Navarro"],
     "isrc": "…"
   }
 }
@@ -227,6 +225,10 @@ Spotify only knows an edition's release date. Recording dates are researched els
 - `source` is required.
 - The other fields are optional.
 - An entry's `isrc` also matches the same recording on another edition.
+- Track names and artists are not stored: they are Spotify metadata, which Spotify's Developer Terms (IV.3)
+  don't allow keeping indefinitely, and commands read them live from the playlist. Input entries may carry
+  `name` and `artists` (older files do); they are accepted and dropped. Entries stored with them by older
+  versions load as they are.
 - Write entries with `recordings set` (input: a JSON array of entries with a `uri` field).
 
 ## Playlist visibility
@@ -298,7 +300,12 @@ token; the process environment wins over both, and the repository's file over th
 `PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `DESCRIPTION_NOT_CLEARABLE`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
 `LEGACY_DATA_NOT_MIGRATED`, `DATA_DIR_VIRTUALIZED`, `TOKEN_DIR_VIRTUALIZED` (MCP `auth_login`), `NOTHING_TO_MIGRATE`, `ALREADY_MIGRATED`, `MIGRATION_CONFLICT`,
 `MIGRATION_FAILED`,
-`VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`.
+`VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`,
+`API_QUOTA_EXCEEDED`.
+
+`API_QUOTA_EXCEEDED`: Spotify answered 429 with `"reason": "QUOTA_EXCEEDED"`. The quota belongs to the
+developer account and is shared by all its Development Mode apps (since July 2026); unlike `RATE_LIMITED`,
+waiting for `Retry-After` doesn't help, so it is not retried.
 
 `UNTRUSTED_URL`: a response pointed to a URL (such as a pagination `next` link) outside
 `https://api.spotify.com`. The request is refused so the access token is never sent elsewhere.

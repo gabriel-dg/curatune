@@ -131,6 +131,10 @@ its phases are in `docs/plan-mcp.md`.
   the repository: `%LOCALAPPDATA%\curatune\data` or `~/.local/share/curatune`; `CURATUNE_DATA_DIR` overrides,
   and a path inside the repo is rejected. `config.py` resolves it; the checkout itself is optional (installed
   servers have none), and `.env` is read from the checkout and from the config dir (process env wins).
+- Retention (`retention.py`): plan files and backups hold copies of Spotify metadata, which Spotify's
+  Developer Terms (IV.3) don't allow storing indefinitely; the ones older than `CURATUNE_RETENTION_DAYS`
+  (default 90) are deleted when a data command or the MCP server starts. The write log drops expired
+  entries on every write. Recording entries keep the user's data and identifiers, never names or artists.
 - Data left in a checkout's `data/` and `plans/` (where curatune kept it before) blocks commands with
   `LEGACY_DATA_NOT_MIGRATED` until `curatune data migrate` copies it (`datadir.py`: backup, copy, SHA-256
   check, marker; never moves or overwrites). With an explicit `CURATUNE_DATA_DIR` it only warns.
@@ -160,8 +164,11 @@ its phases are in `docs/plan-mcp.md`.
 
 ## Spotify Web API facts (verified September 2026)
 
-- Development Mode: app owner needs Premium; max 5 users per app; 1 client ID per developer; quota shared
-  per developer account.
+- Development Mode: app owner needs Premium; apps created since 2026-02-11 allow 5 users (an allowlist;
+  others get 403); up to 25 client IDs per developer (since 2026-07-23, was 1), all sharing one quota per
+  developer account. A used-up quota is a 429 with `"reason": "QUOTA_EXCEEDED"` (`API_QUOTA_EXCEEDED`,
+  not retried). Extended quota is only for organizations (registered business, launched service, 250k
+  MAU; since 2025-05-15).
 - Playlist items: `/playlists/{id}/items` (GET/POST/PUT/DELETE); old `/tracks` endpoints return 403. In
   responses `tracks` → `items`, `track` → `item`. Items are only returned for playlists the user owns or
   collaborates on. `GET …/items` limit max 50.

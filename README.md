@@ -322,6 +322,7 @@ MSIX package, such as Claude Desktop (see `CURATUNE_DATA_DIR` below).
 | `CURATUNE_MARKET` | none | Default market for `playlist show`, `search`, `track`, `album`. |
 | `CURATUNE_TOKEN_DIR` | `%LOCALAPPDATA%\curatune` / `~/.config/curatune` | Token location (the config directory; a `.env` there is read too). Must be outside the repo (enforced). |
 | `CURATUNE_DATA_DIR` | `%LOCALAPPDATA%\curatune\data` / `~/.local/share/curatune` | Plans, backups, the write log, and recording dates, shared by the CLI and the MCP server. Must be outside the repo (enforced). If curatune is first started by an app installed as an MSIX package (such as Claude Desktop), Windows can keep a new AppData folder private to that app; curatune refuses that (`DATA_DIR_VIRTUALIZED`): run it once from a terminal, or set this to a folder outside AppData. |
+| `CURATUNE_RETENTION_DAYS` | `90` | Plans and backups older than this many days are deleted when a data command or the MCP server starts: they hold copies of Spotify track metadata, which Spotify's Developer Terms don't allow keeping indefinitely. |
 
 curatune used to keep its data in the repository's `data/` and `plans/`. If yours still has files there,
 commands stop with `LEGACY_DATA_NOT_MIGRATED` until you run `curatune data migrate`, which backs them up,

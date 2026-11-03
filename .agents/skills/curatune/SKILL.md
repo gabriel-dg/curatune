@@ -265,6 +265,7 @@ the chronological workflow above.
 | `APPLY_FAILED` / `VERIFICATION_FAILED` | Report it with `backup_path`. Do not retry blindly. |
 | `AUTH_REQUIRED` / `AUTH_EXPIRED` / `CONFIG_ERROR` | Follow "First-time setup". |
 | `RATE_LIMITED` | Wait `retry_after_seconds`, then retry. Avoid large bursts: the quota is shared by the developer account. |
+| `API_QUOTA_EXCEEDED` | The developer account's Spotify quota is used up. Don't retry; tell the user to try again later. |
 
 ## Reporting
 
