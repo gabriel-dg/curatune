@@ -3,7 +3,7 @@
 import type { RecordingStore } from "../recordings/recordings";
 import { CuratuneError } from "../spotify/errors";
 import type { ActivityLog } from "./activity";
-import { writeCard } from "./cards";
+import { trackNameLink, writeCard } from "./cards";
 import { h } from "./dom";
 import { icon } from "./icons";
 
@@ -38,7 +38,7 @@ export async function renderRecordingsPanel(store: RecordingStore, onError: (exc
       ...shown.map(([uri, e]) =>
         h("tr", {}, [
           h("td", {}, [h("span", { class: `date-pill ${e.confidence}`, text: e.recorded, attrs: { title: `${e.confidence} confidence` } })]),
-          h("td", { class: "title-cell" }, [h("div", { class: "track-name", text: e.name ?? uri }), h("div", { class: "track-artists", text: (e.artists ?? []).join(", ") })]),
+          h("td", { class: "title-cell" }, [h("div", { class: "track-name" }, [trackNameLink(e.name ?? uri, uri.startsWith("spotify:track:") ? uri.slice(14) : null)]), h("div", { class: "track-artists", text: (e.artists ?? []).join(", ") })]),
           h("td", { class: "muted small hide-narrow", text: [e.source, e.note].filter(Boolean).join(" · ") }),
           h("td", { class: "num" }, [
             h("button", {

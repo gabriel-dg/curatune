@@ -16,6 +16,19 @@ import { renderPlaylistPanel } from "./playlist-panel";
 import { renderActivityPanel, renderRecordingsPanel } from "./side-panels";
 import { Sidebar } from "./sidebar";
 
+/**
+ * Spotify's attribution, once in the app shell so it covers every view that shows Spotify content (the
+ * playlists, the panel, the chat). Spotify's Developer Policy (II.4.1) requires it, with the official full
+ * logo (public/brand/, unmodified): at least 70 px wide, monochrome white on a dark background, with clear
+ * space of half the icon's height around it.
+ */
+function spotifyAttribution(): HTMLElement {
+  return h("span", { class: "attribution" }, [
+    h("span", { class: "attribution-label hide-narrow", text: "Content from" }),
+    h("img", { attrs: { src: `${import.meta.env.BASE_URL}brand/spotify-full-logo-white.svg`, alt: "Spotify", width: "80", height: "22" } }),
+  ]);
+}
+
 type Route = { view: "home" } | { view: "playlist"; id: string } | { view: "recordings" } | { view: "activity" };
 
 function parseRoute(hash: string): Route {
@@ -174,6 +187,7 @@ export class App {
       h("button", { class: "ghost icon-button only-narrow", attrs: { "aria-label": "Show playlists" }, on: { click: toggleSidebar } }, [icon("menu", 20)]),
       h("a", { class: "brand", attrs: { href: "#/" } }, [icon("logo", 24), h("span", { text: "curatune" })]),
       h("span", { class: "spacer" }),
+      spotifyAttribution(),
       this.userLabel,
       h("button", { class: "ghost small", attrs: { title: "Log out" }, on: { click: () => this.logout() } }, [icon("logout", 15), h("span", { class: "hide-narrow", text: "Log out" })]),
     ]);

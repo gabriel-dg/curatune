@@ -464,6 +464,23 @@ textarea::placeholder {
   margin-right: 4px;
 }
 
+/* Spotify's attribution (src/ui/app.ts): the official full logo, at least 70 px wide, with clear space of
+   half the icon's height on each side. */
+.attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  color: var(--muted);
+  font-size: 0.78em;
+}
+
+.attribution img {
+  display: block;
+  width: 80px;
+  height: auto;
+}
+
 .workspace {
   position: relative;
   display: grid;
@@ -604,7 +621,7 @@ textarea::placeholder {
   flex: none;
   width: 36px;
   height: 36px;
-  border-radius: 9px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -619,7 +636,9 @@ textarea::placeholder {
   border-color: transparent;
 }
 
-/* Covers: the image sits over the initial, which shows while it loads or if it fails. */
+/* Covers: the image sits over the initial, which shows while it loads or if it fails. Spotify's design
+   guidelines: artwork whole (never cropped: contain, not cover), corners rounded 4 px (small) or 8 px
+   (large), nothing on top of it. */
 .playlist-glyph,
 .panel-cover {
   position: relative;
@@ -632,20 +651,25 @@ textarea::placeholder {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.playlist-glyph.has-cover,
+.panel-cover.has-cover,
+.playlist-link.active .playlist-glyph.has-cover {
+  background: var(--bg);
 }
 
 .playlist-link.active .playlist-glyph.has-cover {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-.glyph-busy {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
+/* The loading spinner goes at the end of the row, beside the name: never over the cover. */
+.row-busy {
+  flex: none;
+  margin-left: auto;
   display: grid;
   place-items: center;
-  background: rgba(18, 16, 20, 0.62);
 }
 
 .playlist-text {
@@ -1356,7 +1380,7 @@ button.free-hint:hover {
   flex: none;
   width: 96px;
   height: 96px;
-  border-radius: 12px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   font-size: 2.2em;
@@ -1584,6 +1608,15 @@ table.tracks tr:hover td {
 
 .track-name {
   font-weight: 500;
+}
+
+/* A track's name links to it on Spotify; it reads as a name until hovered. */
+.track-link {
+  color: inherit;
+}
+
+.track-link:hover {
+  color: var(--accent);
 }
 
 .track-artists {
