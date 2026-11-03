@@ -183,6 +183,15 @@ def test_the_page_shows_the_plan_escaped_with_a_strict_csp(page, store, plan):
     assert resp.getheader("Referrer-Policy") == "same-origin" and "no-referrer" not in text
 
 
+def test_the_plan_carries_spotifys_attribution_and_a_link_back(page, store, plan):
+    # Developer Policy II.4: Spotify's logo (data URIs, the page loads nothing else) and a link to the playlist.
+    c = started(store, plan)
+    resp, text = request(page, "GET", path_of(page, c))
+    assert "img-src data:" in resp.getheader("Content-Security-Policy")
+    assert 'alt="Spotify"' in text and text.count("data:image/svg+xml;base64,") == 2  # black and white
+    assert f'href="https://open.spotify.com/playlist/{PLAYLIST_ID}"' in text and 'rel="noopener noreferrer"' in text
+
+
 def test_each_response_has_its_own_style_nonce(page, store, plan):
     c = started(store, plan)
     nonces = {request(page, "GET", path_of(page, c))[0].getheader("Content-Security-Policy") for _ in range(2)}
