@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from . import catalog, connect, datadir, metrics, playlists, plans, recordings
+from . import catalog, connect, datadir, metrics, playlists, plans, recordings, retention
 from .auth import TokenManager
 from .config import Settings, load_settings
 from .errors import InvalidArgument, PlanError, CuratuneError
@@ -454,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
         settings = load_settings()
         # Commands that use the data dir first make sure data left in a checkout isn't silently ignored.
         data_warnings = [] if args.group in _NO_DATA_GROUPS else datadir.check(settings)
+        if args.group not in _NO_DATA_GROUPS:
+            retention.prune(settings)  # plans and backups older than the retention period (Spotify's terms)
         data = args.handler(args, settings)
         warnings = data_warnings + (data.pop("warnings", []) if isinstance(data, dict) else [])
         _emit(

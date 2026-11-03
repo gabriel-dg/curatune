@@ -53,8 +53,8 @@ class RecordingEntry(_In):
         "Not your memory.",
     )
     note: str | None = Field(None, description="Optional note, e.g. 'master take'.")
-    name: str | None = Field(None, description="Optional track title, for reference.")
-    artists: list[str] | None = Field(None, description="Optional artist names, for reference.")
+    name: str | None = Field(None, description="Optional track title, shown back with the stored date (not stored).")
+    artists: list[str] | None = Field(None, description="Optional artist names (not stored).")
     isrc: str | None = Field(None, description="Optional ISRC: also matches the same recording on another edition.")
 
 

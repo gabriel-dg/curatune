@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import requests
 
 from . import metrics
-from .errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
+from .errors import ApiError, ApiQuotaExceeded, Forbidden, InvalidArgument, NotFound, RateLimited
 from .writelog import WriteLog
 
 API_HOST = "api.spotify.com"
@@ -82,6 +82,13 @@ class SpotifyClient:
                 continue
 
             if status == 429:
+                if _quota_exceeded(resp):
+                    # Shared by every Development Mode app of the developer account (Spotify, 2026-07-23):
+                    # retrying only spends what is left of it.
+                    raise ApiQuotaExceeded(
+                        "The Spotify API quota of this app's developer account is used up; try again later.",
+                        details={"method": method, "path": path},
+                    )
                 retry_after = int(resp.headers.get("Retry-After", "1") or "1")
                 if attempt < self.max_retries and retry_after <= MAX_RETRY_AFTER_SECONDS:
                     attempt += 1
@@ -149,6 +156,19 @@ def _resolve_url(path: str) -> str:
             details={"scheme": parsed.scheme, "host": parsed.netloc},
         )
     return path
+
+
+def _quota_exceeded(resp: requests.Response) -> bool:
+    """A 429 for the developer account's quota (`"reason": "QUOTA_EXCEEDED"`, top level or under `error`),
+    not the short-term rate limit: waiting for Retry-After would not help."""
+    try:
+        body = resp.json() if resp.content else None
+    except ValueError:
+        return False
+    if not isinstance(body, dict):
+        return False
+    error = body.get("error")
+    return "QUOTA_EXCEEDED" in (body.get("reason"), error.get("reason") if isinstance(error, dict) else None)
 
 
 def _map_error(resp: requests.Response, method: str, path: str) -> ApiError:

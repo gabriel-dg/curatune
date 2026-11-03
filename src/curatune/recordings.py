@@ -7,7 +7,12 @@ deciding a date is the caller's job; this module only validates, stores, and joi
 
 Entry shape:
     {"recorded": "1947-12-05" | "1947-12" | "1947", "confidence": "high" | "medium" | "low",
-     "source": "...", "note": "...", "name": "...", "artists": [...], "isrc": "..."}
+     "source": "...", "note": "...", "isrc": "..."}
+
+Entries keep the user's data and identifiers only. Track names and artists are Spotify metadata, which
+Spotify's Developer Terms (IV.3) don't allow storing indefinitely: they are read live from the playlist
+when shown. Input entries may still carry `name` and `artists` (older files have them); they are accepted
+and not stored. Entries already stored with them are left as they are until rewritten.
 """
 
 from __future__ import annotations
@@ -25,7 +30,7 @@ from .refs import normalize_item_uri
 
 CONFIDENCE_LEVELS = ("high", "medium", "low")
 _DATE_RE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
-_OPTIONAL_TEXT = ("note", "name", "isrc")
+_OPTIONAL_TEXT = ("note", "isrc")
 
 
 def validate_recorded(value: Any) -> str:
@@ -61,9 +66,7 @@ def validate_entry(raw: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     for key in _OPTIONAL_TEXT:
         if raw.get(key):
             entry[key] = str(raw[key])
-    if raw.get("artists"):
-        entry["artists"] = [str(a) for a in raw["artists"]]
-    return uri, entry
+    return uri, entry  # `name` and `artists`, if given, are not stored (see the module docstring)
 
 
 class RecordingStore:

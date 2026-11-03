@@ -129,3 +129,15 @@ def test_chronological_order_descending_keeps_ties_in_current_order(store):
     store.upsert([entry(0, "1947"), entry(1, "1945-11-26"), entry(2, "1945-11-26"), entry(3, "1939")])
     assert recordings.chronological_order(items, store.load(), descending=True) == [0, 1, 2, 3]
     assert recordings.chronological_order(items, store.load()) == [3, 1, 2, 0]
+
+
+def test_names_and_artists_are_accepted_but_not_stored(store):
+    # Spotify metadata isn't kept indefinitely (Developer Terms IV.3): only the user's data and identifiers.
+    store.upsert([entry(1, "1947", name="Ko-Ko", artists=["Charlie Parker"], isrc="USSV10000001", note="master take")])
+    stored = json.loads(store.path.read_text(encoding="utf-8"))[track_uri(1)]
+    assert stored == {"recorded": "1947", "confidence": "high", "source": "test", "isrc": "USSV10000001", "note": "master take"}
+
+
+def test_entries_stored_with_names_by_older_versions_still_load(store):
+    store.path.write_text(json.dumps({track_uri(1): {**entry(1, "1947"), "name": "Ko-Ko", "artists": ["Charlie Parker"]}}), encoding="utf-8")
+    assert store.load()[track_uri(1)]["name"] == "Ko-Ko"

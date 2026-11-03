@@ -35,8 +35,10 @@ class WriteLog:
         tmp.replace(self.path)
 
     def record(self, playlist_id: str, snapshot_id: str, uris: list[str | None]) -> None:
-        data = self._load()
-        data[playlist_id] = {"snapshot_id": snapshot_id, "uris": uris, "recorded_at": time.time()}
+        now = time.time()
+        # Expired entries vouch for nothing: drop them, so the log never keeps track URIs past their use.
+        data = {pid: e for pid, e in self._load().items() if now - e["recorded_at"] <= self.ttl_seconds}
+        data[playlist_id] = {"snapshot_id": snapshot_id, "uris": uris, "recorded_at": now}
         self._save(data)
 
     def forget(self, playlist_id: str) -> None:

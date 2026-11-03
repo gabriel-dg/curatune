@@ -226,9 +226,11 @@ def register(server: MCPServer, rt: Runtime) -> None:
     def stored_view(store: RecordingStore, raw: list[dict[str, Any]], skipped: list[str]) -> dict[str, Any]:
         """What the call stored, read back from the store (not echoed from the request), for the user to check."""
         uris = list(dict.fromkeys(normalize_item_uri(e["uri"]) for e in raw))
+        # Names are not stored (Spotify metadata); the title the request gave labels the line for the user.
+        labels = {normalize_item_uri(e["uri"]): e.get("name") for e in raw}
         data = store.load()
         stored = [
-            {"uri": uri, "name": data[uri].get("name"), **{k: data[uri][k] for k in ("recorded", "confidence", "source")}}
+            {"uri": uri, "name": data[uri].get("name") or labels.get(uri), **{k: data[uri][k] for k in ("recorded", "confidence", "source")}}
             for uri in uris
             if uri not in skipped and uri in data
         ]

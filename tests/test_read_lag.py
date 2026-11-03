@@ -1,5 +1,7 @@
 """Snapshot read lag: reads return the pre-write snapshot_id for a while after a write."""
 
+import json
+
 import pytest
 
 from curatune import plans, playlists
@@ -121,3 +123,10 @@ def test_list_without_write_log_reports_what_spotify_says():
     fake = _lagging(None)
     playlists.add_items(fake, PLAYLIST_ID, [track_uri(10)])
     assert _listed(fake) == (4, [])
+
+def test_recording_drops_expired_entries(tmp_path):
+    # An expired entry vouches for nothing, so the log doesn't keep its track URIs around.
+    log = WriteLog(tmp_path / "write_log.json", ttl_seconds=-1)
+    log.record("old", "snap-1", ["spotify:track:a"])
+    log.record("new", "snap-2", ["spotify:track:b"])
+    assert list(json.loads((tmp_path / "write_log.json").read_text(encoding="utf-8"))) == ["new"]

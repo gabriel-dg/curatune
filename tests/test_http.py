@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from curatune import http, metrics
-from curatune.errors import ApiError, Forbidden, InvalidArgument, NotFound, RateLimited
+from curatune.errors import ApiError, ApiQuotaExceeded, Forbidden, InvalidArgument, NotFound, RateLimited
 
 
 class Resp:
@@ -79,6 +79,27 @@ def test_429_waits_retry_after_then_succeeds(no_sleep):
     c, s = client(Resp(429, headers={"Retry-After": "3"}), Resp(200, {"ok": 1}))
     assert c.get("/x") == {"ok": 1}
     assert no_sleep == [3] and len(s.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"error": {"status": 429, "message": "Quota exceeded", "reason": "QUOTA_EXCEEDED"}},
+        {"reason": "QUOTA_EXCEEDED"},
+    ],
+)
+def test_429_for_the_account_quota_fails_at_once(no_sleep, body):
+    c, s = client(Resp(429, body, headers={"Retry-After": "1"}), Resp(200, {"ok": 1}))
+    with pytest.raises(ApiQuotaExceeded) as exc:
+        c.get("/x")
+    assert exc.value.code == "API_QUOTA_EXCEEDED"
+    assert no_sleep == [] and len(s.calls) == 1  # no retry: it would only spend what is left
+
+
+def test_429_with_another_reason_is_still_retried(no_sleep):
+    c, s = client(Resp(429, {"error": {"status": 429, "message": "Too many requests"}}, headers={"Retry-After": "2"}), Resp(200, {"ok": 1}))
+    assert c.get("/x") == {"ok": 1}
+    assert no_sleep == [2] and len(s.calls) == 2
 
 
 def test_429_gives_up_after_max_retries():
