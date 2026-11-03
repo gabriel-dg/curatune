@@ -1,0 +1,20 @@
+import webbrowser
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_real_browser(monkeypatch):
+    """No test may open the user's browser: the confirmation page's tests pass their own `open_browser`."""
+
+    def refuse(url, *args, **kwargs):
+        raise AssertionError("a test tried to open a real browser")
+
+    monkeypatch.setattr(webbrowser, "open", refuse)
+
+
+@pytest.fixture(autouse=True)
+def no_real_data_dir(monkeypatch, tmp_path):
+    """No test may read or write the user's data dir: CURATUNE_DATA_DIR points inside the test's tmp_path.
+    Tests of the default location delete it and point LOCALAPPDATA / XDG_DATA_HOME at tmp_path too."""
+    monkeypatch.setenv("CURATUNE_DATA_DIR", str(tmp_path / "curatune-data"))
