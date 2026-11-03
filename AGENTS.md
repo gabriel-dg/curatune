@@ -10,7 +10,7 @@ browser** against the Spotify Web API with the user's own token. Scope: **playli
 edit, analyze); no playback, library, or listening history.
 
 Current stage: single-user prototype (the operator is the only user). The plan and progress live in
-`PLAN.md`.
+`docs/plan.md`.
 
 Personal context (conversation language, local network setup, test playlist) lives in the gitignored
 `AGENTS.local.md`; read it when present. Never put personal data (user IDs, playlist IDs, names, emails,
@@ -151,7 +151,7 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   items are already current. curatune handles it with a write log; ported in `src/spotify/writelog.ts`
   (stored in IndexedDB). The web app and the curatune CLI keep separate write logs, so do not write the same playlist
   from both within minutes.
-- The playlist list lags too (observed 2026-09-29 by spotikit-web): right after creating a playlist and
+- The playlist list lags too (observed 2026-09-29 by curatune-web): right after creating a playlist and
   adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
   all 20. Listing reports the count left by the app's own writes of the last 15 minutes when the list
   disagrees (write log, `ITEM_COUNT_READ_LAG`, as in curatune 590cd87).

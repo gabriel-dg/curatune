@@ -1,6 +1,7 @@
 // Evaluation scenarios for phase 2: real kinds of requests (from curatune usage), run against the fake
-// Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in Spanish, the
-// operator's language; one is in English.
+// Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in Spanish on purpose
+// (one is in English): they simulate the operator, a Spanish speaker, the app answers in the user's language,
+// and the results recorded in docs/plan.md come from these prompts. The answer patterns accept Spanish.
 
 import type { ItemPlan, Plan } from "../src/plans/plans";
 import type { RecordingMap } from "../src/recordings/recordings";
