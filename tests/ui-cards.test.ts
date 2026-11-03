@@ -3,7 +3,7 @@ import { spotifyUrl } from "../src/ui/cards";
 
 describe("spotifyUrl", () => {
   it("links playlists, tracks, and albums back to Spotify", () => {
-    expect(spotifyUrl("playlist", "37i9dQZF1DXcBWIGoYBM5M")).toBe("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M");
+    expect(spotifyUrl("playlist", "PlaylistIdForTests0001")).toBe("https://open.spotify.com/playlist/PlaylistIdForTests0001");
     expect(spotifyUrl("track", "0000000000000000000001")).toBe("https://open.spotify.com/track/0000000000000000000001");
     expect(spotifyUrl("album", "AbCdEfGhIjKlMnOpQrStUv")).toBe("https://open.spotify.com/album/AbCdEfGhIjKlMnOpQrStUv");
   });
