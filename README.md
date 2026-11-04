@@ -161,7 +161,7 @@ flowchart LR
   Spotify Content into a machine learning or AI model". curatune sends playlist and track metadata
   (names, artists, durations) to the model you choose, so that it can work with your playlists. Read
   those terms and decide for yourself: **you are responsible for using your Spotify app within them.** A
-  local model keeps that metadata on your machine. The web app uses its local model by default; a hosted
+  local model keeps that metadata on your own computers. The web app uses its local model by default; a hosted
   one is optional, and while it is selected the chat says, citing those terms, that this metadata leaves
   your computer.
 - **No indefinite storage.** Plans and backups keep copies of track metadata, so they are deleted after 90
