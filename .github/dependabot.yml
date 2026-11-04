@@ -1,0 +1,35 @@
+# Weekly update checks for the CI actions (pinned to commit SHAs, version in a comment), api/'s Python
+# dependencies (pyproject.toml), and web/'s npm dependencies (package.json and its lockfile). Each ecosystem
+# gets one grouped pull request. New releases wait 7 days before Dependabot proposes them: web/'s
+# dependencies run in a page that holds a Spotify token, so a compromised release has time to be caught.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /api
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ["*"]
