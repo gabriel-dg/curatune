@@ -6,7 +6,7 @@ import { SpotifyAuth } from "../src/spotify/auth";
 import { SpotifyClient } from "../src/spotify/http";
 import { READ_TOOLS } from "../src/tools";
 import { loadConfig } from "../src/config";
-import { buildProviders, LlmSettings, pickProvider } from "../src/ui/llm-providers";
+import { buildProviders, hostedDataNotice, LlmSettings, pickProvider, SPOTIFY_AI_TERMS } from "../src/ui/llm-providers";
 import { buildFixture, FakeSpotify } from "./fake-spotify";
 import { fakeFetch, json, MemoryStorage, noSleep } from "./helpers";
 
@@ -81,6 +81,19 @@ describe("providers", () => {
     expect(pickProvider(providers, "hosted").model).toBe("gemini-3.8-flash");
     expect(pickProvider(providers, "hosted:gone-model").id).toBe("local");
     expect(pickProvider(providers, null).id).toBe("local");
+  });
+
+  it("defaults to the local model, and says what leaves the machine only for hosted ones", () => {
+    const providers = buildProviders(config, async () => json({}));
+    expect(providers[0]).toMatchObject({ id: "local", hosted: false });
+    expect(providers.slice(1).every((p) => p.hosted)).toBe(true);
+    expect(pickProvider(providers, "unknown").id).toBe("local");
+    expect(hostedDataNotice(providers[0]!)).toBeNull();
+    const notice = hostedDataNotice(providers[1]!)!;
+    expect(notice).toContain("Gemini · gemini-3.8-flash is a hosted model");
+    expect(notice).toContain("playlist names, track names, and artists");
+    expect(notice).toContain("leave this computer and go to generativelanguage.googleapis.com");
+    expect(SPOTIFY_AI_TERMS.map((t) => t.label)).toEqual(["Developer Terms, section IV.2.1", "Developer Policy, section III.14"]);
   });
 });
 

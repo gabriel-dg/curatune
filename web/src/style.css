@@ -1127,6 +1127,35 @@ button.free-hint:hover {
   color: var(--faint);
 }
 
+/* Shown while a hosted model is selected: playlist data leaves the machine. */
+.hosted-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: var(--content);
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  line-height: 1.45;
+}
+
+.hosted-notice[hidden] {
+  display: none;
+}
+
+.hosted-notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.hosted-notice a,
+.key-form a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .context-bar {
   display: inline-flex;
   align-items: center;

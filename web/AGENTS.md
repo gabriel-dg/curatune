@@ -101,8 +101,10 @@ IP addresses, hostnames, local paths) in versioned files.
   after the plan has been rendered to the user. Only `src/plans/` imports `plans/ops.ts`, and only `src/ui/`
   calls `applyPlan` (both checked in `tests/invariants.test.ts`). The model learns what the user did with a
   plan from an `[App notice: …]` prepended to the user's next message.
-- Optional hosted LLM (`VITE_HOSTED_LLM_*`, e.g. Gemini): selectable in the chat, never the default.
-  `VITE_HOSTED_LLM_MODEL` may list several models (comma separated), each one in the selector. Their shared
+- Optional hosted LLM (`VITE_HOSTED_LLM_*`, e.g. Gemini): selectable in the chat, never the default (the
+  local model is, in every new tab). While one is selected, the chat shows that playlist names, track names,
+  and artists leave the machine, citing Spotify's Developer Terms IV.2.1 and Developer Policy III.14
+  (`hostedDataNotice` in `src/ui/llm-providers.ts`, tested). `VITE_HOSTED_LLM_MODEL` may list several models (comma separated), each one in the selector. Their shared
   API key is pasted by the user in the app and kept only in the tab's `sessionStorage`; it is never in the
   build, a file, or the repository, and is sent only as `Authorization` to that provider's origin (which
   the CSP allows). Choosing it sends the conversation and trimmed playlist data to the provider; the
