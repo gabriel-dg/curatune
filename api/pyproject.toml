@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "curatune"
 version = "0.1.0"
-description = "A playlist toolkit for Spotify: a deterministic library plus a thin JSON CLI."
+description = "A playlist toolkit for Spotify: a deterministic library, a thin JSON CLI, and a local MCP server."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
@@ -15,6 +15,12 @@ dependencies = [
     "requests>=2.31",
     "python-dotenv>=1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/gabriel-dg/curatune"
+Repository = "https://github.com/gabriel-dg/curatune"
+Documentation = "https://github.com/gabriel-dg/curatune/tree/main/api#readme"
+Issues = "https://github.com/gabriel-dg/curatune/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.17"]
