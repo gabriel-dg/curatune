@@ -172,7 +172,7 @@ export function buildFixture(): FakeData & { ids: Record<string, string> } {
       t.unPocoLoco, t.koko, t.roundMiles, t.manteca, t.swingToBop, t.roundMonk, t.koko,
       t.boplicity, t.saltPeanuts, t.ladyBird, t.koko2, t.woodyNYou,
     ]),
-    playlist("study", "Jazz para estudiar", INJECTION_DESCRIPTION, [
+    playlist("study", "Jazz for studying", INJECTION_DESCRIPTION, [
       coolTracks["Moon Dreams"]!, coolTracks["Darn That Dream"]!, coolTracks["Israel"]!, coolTracks["Rouge"]!, coolTracks["Jeru"]!,
     ]),
     playlist("big", "Pop mix grande", "", bigItems),

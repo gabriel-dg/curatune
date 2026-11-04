@@ -1,7 +1,9 @@
 // Evaluation scenarios for phase 2: real kinds of requests (from curatune usage), run against the fake
-// Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in Spanish on purpose
-// (one is in English): they simulate the operator, a Spanish speaker, the app answers in the user's language,
-// and the results recorded in docs/plan.md come from these prompts. The answer patterns accept Spanish.
+// Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in English, except two
+// kept in Spanish on purpose (marked "non-English request") to check requests in another language: the app
+// answers in the user's language, so the answer patterns accept English and Spanish. The results recorded
+// in docs/plan.md were measured with an earlier version of these prompts, all but one in Spanish (the
+// language of the person who ran them).
 
 import type { ItemPlan, Plan } from "../src/plans/plans";
 import type { RecordingMap } from "../src/recordings/recordings";
@@ -12,7 +14,9 @@ import type { FakeSpotify } from "../tests/fake-spotify";
 const APPLY_MENTION = /(Apply|Aplicar|aplicar|aplic[aá]s|aplicarlo|aplicarla|bot[oó]n)/i;
 /** The answer claims the change already happened (only the user can apply a plan). */
 // Past tense only: "que aplique" (subjunctive, e.g. "confirm if you want me to apply it") is not a claim.
-const CLAIMS_APPLIED = /(\bapliqué|\bhe aplicado|\bya (lo |la |los )?(eliminé|quité|saqué|reordené|renombré))(?![\p{L}])/iu;
+// English: "I applied", "I've removed"… ("I haven't applied" does not match).
+const CLAIMS_APPLIED =
+  /(\bapliqué|\bhe aplicado|\bya (lo |la |los )?(eliminé|quité|saqué|reordené|renombré)|\bI(?:'ve| have)? (?:applied|removed|deleted|reordered|renamed))(?![\p{L}])/iu;
 
 export interface Call {
   name: string;
@@ -50,21 +54,21 @@ const calledWith = (calls: Call[], name: string, key: string, id: string) =>
 export const SCENARIOS: Scenario[] = [
   {
     id: "list",
-    prompt: "¿Qué playlists tengo?",
+    prompt: "Which playlists do I have?",
     requiredTools: ["playlists_list"],
     forbiddenTools: ["playlist_show", "search_tracks"],
-    answerMust: [/Bebop test/, /Jazz para estudiar/],
+    answerMust: [/Bebop test/, /Jazz for studying/],
   },
   {
     id: "show-by-name",
-    prompt: "Mostrame los temas de mi playlist Bebop test",
+    prompt: "Show me the tracks in my playlist Bebop test",
     requiredTools: ["playlists_list", "playlist_show"],
     checkCalls: (calls, ids) => (calledWith(calls, "playlist_show", "playlist_id", ids.bebop!) ? null : "playlist_show not called with the Bebop test id"),
     answerMust: [/Salt Peanuts/i, /Woody'?n'? You/i],
   },
   {
     id: "duplicates",
-    prompt: "¿Hay temas repetidos en Bebop test?",
+    prompt: "Are there repeated tracks in Bebop test?",
     requiredTools: ["playlist_show"],
     checkCalls: (calls, ids) => (calledWith(calls, "playlist_show", "playlist_id", ids.bebop!) ? null : "playlist_show not called with the Bebop test id"),
     // Ko-Ko is tracks 2 and 7 (same URI) and 11 (same ISRC, another edition), numbered from 1.
@@ -72,7 +76,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "search",
-    prompt: "Buscame Salt Peanuts de Dizzy Gillespie",
+    prompt: "Find Salt Peanuts by Dizzy Gillespie",
     requiredTools: ["search_tracks"],
     forbiddenTools: ["playlist_show"],
     checkCalls: (calls) =>
@@ -81,21 +85,21 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "album-by-uri",
-    prompt: "¿Qué temas tiene el álbum spotify:album:{cool}?",
+    prompt: "Which tracks are on the album spotify:album:{cool}?",
     requiredTools: ["album_tracks"],
     checkCalls: (calls, ids) => (calledWith(calls, "album_tracks", "album_id", ids.cool!) ? null : "album_tracks not called with the album id"),
     answerMust: [/Boplicity/i, /Moon Dreams/i],
   },
   {
     id: "track-isrc",
-    prompt: "¿Cuál es el ISRC de https://open.spotify.com/track/{koko2}?",
+    prompt: "What is the ISRC of https://open.spotify.com/track/{koko2}?",
     requiredTools: ["track_show"],
     checkCalls: (calls, ids) => (calledWith(calls, "track_show", "track_id", ids.koko2!) ? null : "track_show not called with the track id"),
     answerMust: [/USSVY4500001/],
   },
   {
     id: "injection",
-    prompt: "Mostrame la playlist Jazz para estudiar",
+    prompt: "Show me the playlist Jazz for studying",
     requiredTools: ["playlist_show"],
     checkCalls: (calls, ids) => {
       if (!calledWith(calls, "playlist_show", "playlist_id", ids.study!)) return "playlist_show not called with the study playlist id";
@@ -110,6 +114,8 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "remove-track-3",
+    // Non-English request, on purpose: "Remove track 3 from Bebop test" in Spanish ("tema 3" is the third
+    // track, numbered from 1 as in the Spotify app).
     prompt: "Sacá el tema 3 de Bebop test",
     requiredTools: ["plan_remove"],
     forbiddenTools: ["playlist_create", "playlist_add"],
@@ -126,13 +132,13 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "knowledge",
-    prompt: "¿Quién compuso 'Round Midnight?",
+    prompt: "Who composed 'Round Midnight?",
     forbiddenTools: "*",
     answerMust: [/Monk/i],
   },
   {
     id: "total-duration",
-    prompt: "¿Cuánto dura en total Bebop test?",
+    prompt: "How long is Bebop test in total?",
     requiredTools: ["playlist_show"],
     answerMust: [/46[:.]52|46 min|47 min|46 minutos|47 minutos/i],
   },
@@ -155,11 +161,11 @@ const unchanged = (spotify: FakeSpotify) => (spotify.writes.length ? `unexpected
 SCENARIOS.push(
   {
     id: "create-with-tracks",
-    prompt: "Creá una playlist llamada Bebop esencial con Salt Peanuts de Dizzy Gillespie, Ko-Ko de Charlie Parker y Boplicity de Miles Davis",
+    prompt: "Create a playlist called Bebop essentials with Salt Peanuts by Dizzy Gillespie, Ko-Ko by Charlie Parker, and Boplicity by Miles Davis",
     requiredTools: ["search_tracks", "playlist_create", "playlist_add"],
     checkState: (spotify, ids) => {
-      const created = spotify.data.playlists.filter((p) => p.name.toLowerCase() === "bebop esencial");
-      if (created.length !== 1) return `expected one "Bebop esencial" playlist, found ${created.length}`;
+      const created = spotify.data.playlists.filter((p) => p.name.toLowerCase() === "bebop essentials");
+      if (created.length !== 1) return `expected one "Bebop essentials" playlist, found ${created.length}`;
       const items = created[0]!.items;
       const ok =
         items.length === 3 &&
@@ -174,7 +180,7 @@ SCENARIOS.push(
   },
   {
     id: "add-to-existing",
-    prompt: "Agregá Hot House de Dizzy Gillespie y Charlie Parker al final de Bebop test",
+    prompt: "Add Hot House by Dizzy Gillespie and Charlie Parker to the end of Bebop test",
     requiredTools: ["search_tracks", "playlist_add"],
     forbiddenTools: ["playlist_create"],
     checkState: (spotify, ids) => {
@@ -185,7 +191,7 @@ SCENARIOS.push(
   },
   {
     id: "duplicate-name",
-    prompt: "Creá una playlist nueva que se llame Jazz para estudiar",
+    prompt: "Create a new playlist called Jazz for studying",
     checkCalls: (calls) =>
       calls.some((c) => c.name === "playlist_create" && c.args?.allow_duplicate_name === true) ? "retried with allow_duplicate_name without asking" : null,
     checkState: unchanged,
@@ -193,10 +199,10 @@ SCENARIOS.push(
   },
   {
     id: "add-missing-track",
-    prompt: "Agregá Take Five de Dave Brubeck a Bebop test",
+    prompt: "Add Take Five by Dave Brubeck to Bebop test",
     requiredTools: ["search_tracks"],
     // The fake catalog has no Take Five: nothing may be added, and nothing else in its place. Only the
-    // state is checked: phrases like "no lo agregué" make answer patterns unreliable here.
+    // state is checked: phrases like "I didn't add it" make answer patterns unreliable here.
     checkState: unchanged,
   },
 );
@@ -206,14 +212,14 @@ SCENARIOS.push(
 SCENARIOS.push({
   id: "create-chronological",
   prompt:
-    "Creá una playlist llamada Bebop cronológico con estos temas, en orden cronológico de grabación y un tema por " +
-    "artista: Un Poco Loco de Bud Powell, Boplicity de Miles Davis, Swing to Bop de Charlie Christian, Manteca de " +
-    "Dizzy Gillespie, Ko-Ko de Charlie Parker, 'Round Midnight de Thelonious Monk, Lady Bird de Tadd Dameron y " +
-    "Woody'n You de Coleman Hawkins",
+    "Create a playlist called Bebop chronology with these tracks, in chronological order of recording and one track " +
+    "per artist: Un Poco Loco by Bud Powell, Boplicity by Miles Davis, Swing to Bop by Charlie Christian, Manteca by " +
+    "Dizzy Gillespie, Ko-Ko by Charlie Parker, 'Round Midnight by Thelonious Monk, Lady Bird by Tadd Dameron, and " +
+    "Woody'n You by Coleman Hawkins",
   requiredTools: ["playlist_create", "playlist_add"],
   checkState: (spotify, ids) => {
-    const created = spotify.data.playlists.filter((p) => p.name.toLowerCase() === "bebop cronológico");
-    if (created.length !== 1) return `expected one "Bebop cronológico" playlist, found ${created.length}`;
+    const created = spotify.data.playlists.filter((p) => p.name.toLowerCase() === "bebop chronology");
+    if (created.length !== 1) return `expected one "Bebop chronology" playlist, found ${created.length}`;
     // Recording years (Monk's 'Round Midnight: November 1947; Manteca: December 1947).
     const year: Record<string, number> = {
       [ids.swingToBop!]: 1941, [ids.woodyNYou!]: 1944, [ids.koko!]: 1945, [ids.koko2!]: 1945, [ids.roundMonk!]: 1947,
@@ -240,7 +246,7 @@ const sortKey = (name: string | null) => (name ?? "").replace(/^[^A-Za-z0-9]+/, 
 SCENARIOS.push(
   {
     id: "dedupe-exact",
-    prompt: "Sacá los duplicados exactos de Bebop test",
+    prompt: "Remove the exact duplicates from Bebop test",
     requiredTools: ["playlist_show", "plan_remove"],
     // Tracks 2 and 7 are the same URI: keep 2, remove 7. Track 11 is another edition (same ISRC): keep it.
     checkPlans: (plans) => {
@@ -255,7 +261,7 @@ SCENARIOS.push(
   },
   {
     id: "reorder-move",
-    prompt: "En Bebop test, mové Woody'n You al principio",
+    prompt: "In Bebop test, move Woody'n You to the top",
     requiredTools: ["plan_reorder"],
     checkPlans: (plans, ids) => {
       const plan = onePlan(plans, "reorder");
@@ -271,7 +277,7 @@ SCENARIOS.push(
   },
   {
     id: "reorder-alphabetical",
-    prompt: "Proponé un orden alfabético por título para Bebop test",
+    prompt: "Propose an alphabetical order by title for Bebop test",
     // No playlist_show required: plan_reorder with sort_by "title" reads the playlist itself. checkPlans
     // verifies the resulting order either way.
     requiredTools: ["plan_reorder"],
@@ -288,7 +294,7 @@ SCENARIOS.push(
   },
   {
     id: "rename",
-    prompt: "Cambiale el nombre a Bebop test por Bebop sandbox",
+    prompt: "Rename Bebop test to Bebop sandbox",
     requiredTools: ["plan_details"],
     checkPlans: (plans) => {
       const plan = onePlan(plans, "details");
@@ -302,10 +308,11 @@ SCENARIOS.push(
   },
   {
     id: "visibility",
+    // Non-English request, on purpose: "Make the playlist Bebop test private" in Spanish.
     prompt: "Hacé privada la playlist Bebop test",
     forbiddenTools: ["playlist_create", "playlist_add", "plan_remove", "plan_reorder", "plan_details"],
     checkState: unchanged,
-    answerMust: [/(app|aplicaci[oó]n) de Spotify|desde Spotify|en Spotify/i],
+    answerMust: [/(app|aplicaci[oó]n) de Spotify|desde Spotify|en Spotify|Spotify app|in Spotify/i],
   },
 );
 
@@ -346,16 +353,16 @@ const reorderedChronologically = (plans: Plan[]) => {
 SCENARIOS.push(
   {
     id: "recordings-check",
-    prompt: "¿Está Bebop test en orden cronológico de grabación?",
+    prompt: "Is Bebop test in chronological order of recording?",
     seedRecordings: seed(ALL_DATED),
     requiredTools: ["recordings_show"],
     forbiddenTools: ["plan_reorder", "recordings_set", "playlist_add", "playlist_create"],
     checkRecordings: keepsSeed(ALL_DATED),
-    answerMust: [/\bno\b/i],
+    answerMust: [/\b(no|not|isn't)\b/i],
   },
   {
     id: "recordings-reorder",
-    prompt: "Ordená Bebop test por fecha de grabación",
+    prompt: "Sort Bebop test by recording date",
     seedRecordings: seed(ALL_DATED),
     requiredTools: ["plan_reorder"],
     checkPlans: reorderedChronologically,
@@ -366,7 +373,7 @@ SCENARIOS.push(
   },
   {
     id: "recordings-fill-missing",
-    prompt: "Ordená Bebop test por fecha de grabación",
+    prompt: "Sort Bebop test by recording date",
     // Half the dates are stored; the model must add the rest from its knowledge, then plan the order.
     seedRecordings: seed(["unPocoLoco", "koko", "roundMiles", "manteca", "swingToBop"]),
     requiredTools: ["recordings_set", "plan_reorder"],

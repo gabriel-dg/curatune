@@ -199,9 +199,9 @@ describe("write tools", () => {
 
   it("playlist_create reports the new playlist, public", async () => {
     const { client } = setup();
-    const execution = await executeTool(ALL_TOOLS, "playlist_create", JSON.stringify({ name: "Bebop esencial" }), { client });
-    expect(execution.outcome).toMatchObject({ ok: true, result: { playlist: { name: "Bebop esencial", public: true, items: 0 } } });
-    expect(execution.write).toMatchObject({ title: 'Created playlist "Bebop esencial"', lines: ["Public (Spotify ignores private on creation)."], itemCount: 0 });
+    const execution = await executeTool(ALL_TOOLS, "playlist_create", JSON.stringify({ name: "Bebop essentials" }), { client });
+    expect(execution.outcome).toMatchObject({ ok: true, result: { playlist: { name: "Bebop essentials", public: true, items: 0 } } });
+    expect(execution.write).toMatchObject({ title: 'Created playlist "Bebop essentials"', lines: ["Public (Spotify ignores private on creation)."], itemCount: 0 });
   });
 });
 
