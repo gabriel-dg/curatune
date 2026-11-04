@@ -36,3 +36,6 @@ desktop.ini
 *~
 .vscode/
 .idea/
+
+# --- Claude Code desktop preview configuration (local) ---
+.claude/launch.json
