@@ -3,13 +3,13 @@
 ## Goal
 
 A browser version of curatune (in `../api/`: a Python library, CLI, MCP server, and agent skill, installed
-locally). The user chats in the browser; an LLM served by the operator through an
+locally). The user chats in the browser; an LLM you serve through an
 OpenAI-compatible endpoint (LM Studio or Ollama; optionally a hosted API such as Gemini, chosen per chat)
 decides which tools to call; the tools run **in the
 browser** against the Spotify Web API with the user's own token. Scope: **playlists only** (create, read,
 edit, analyze); no playback, library, or listening history.
 
-Current stage: single-user prototype (the operator is the only user). How models were evaluated for it,
+Current stage: single-user prototype (it has a single user). How models were evaluated for it,
 and the results, are in `docs/evaluation.md`.
 
 Personal context (conversation language, local network setup, test playlist) lives in the gitignored
@@ -193,5 +193,6 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   0-based positions with track numbers in the evaluation, `docs/evaluation.md`). Convert only at the tool
   boundary (`src/tools/`); `spotify/`, plans, and stored data stay 0-based.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
-  IDs, IP addresses, and hostnames). The repo is intended to be published. The one exception is the
-  author's name as the copyright holder (`LICENSE`, `NOTICE`, the READMEs, `package.json`).
+  IDs, IP addresses, and hostnames). The repo is intended to be published. The exceptions are the
+  author's name as the copyright holder (`LICENSE`, `NOTICE`, the READMEs, `package.json`) and the
+  repository's own URL.
