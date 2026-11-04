@@ -46,6 +46,17 @@ function describeError(exc: unknown): string {
 
 const isAuthError = (exc: unknown) => exc instanceof CuratuneError && (exc.code === "AUTH_REQUIRED" || exc.code === "AUTH_EXPIRED");
 
+/** A button on a lasting warning. Its result replaces the warning's text; `retry: false` removes the button. */
+export interface WarningAction {
+  label: string;
+  run: () => Promise<{ text: string; retry: boolean }>;
+}
+
+interface AppWarning {
+  text: string;
+  action?: WarningAction;
+}
+
 export class App {
   private readonly root: HTMLElement;
   private readonly auth: SpotifyAuth;
@@ -60,8 +71,8 @@ export class App {
   private notice: HTMLElement | null = null;
   private userLabel: HTMLElement | null = null;
   private loginError: unknown = null;
-  /** A lasting warning (unlike errors, not cleared on navigation), e.g. storage not persistent. */
-  private warning: string | null = null;
+  /** Lasting warnings (unlike errors, not cleared on navigation), e.g. storage not persistent. */
+  private readonly warnings: AppWarning[] = [];
   private renderId = 0;
   private route: Route = { view: "home" };
   /** What the panel shows (e.g. "playlist:<id>"): opening something else replaces it with a skeleton. */
@@ -101,8 +112,8 @@ export class App {
     this.notice.hidden = false;
   }
 
-  showWarning(text: string): void {
-    this.warning = text;
+  showWarning(text: string, action?: WarningAction): void {
+    this.warnings.push({ text, action });
   }
 
   clearError(): void {
@@ -176,6 +187,41 @@ export class App {
 
   // --- Shell ------------------------------------------------------------------------------------
 
+  private warningElement(warning: AppWarning): HTMLElement {
+    const text = h("span", { text: warning.text });
+    const element = h("div", { class: "notice warn-notice", attrs: { role: "status" } }, [text]);
+    if (warning.action) {
+      const { label, run } = warning.action;
+      const button = h("button", { class: "ghost small", text: label });
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const result = await run();
+          warning.text = result.text;
+          text.textContent = result.text;
+          if (!result.retry) {
+            warning.action = undefined;
+            button.remove();
+          }
+          // Moved data shows at once (the Recordings panel reads the store again).
+          void this.renderPanel();
+        } catch (exc) {
+          this.showError(exc);
+        } finally {
+          button.disabled = false;
+        }
+      });
+      element.append(button);
+    }
+    const dismiss = () => {
+      element.remove();
+      const i = this.warnings.indexOf(warning);
+      if (i >= 0) this.warnings.splice(i, 1);
+    };
+    element.append(h("button", { class: "ghost tiny", attrs: { "aria-label": "Dismiss" }, on: { click: dismiss } }, [icon("close", 13)]));
+    return element;
+  }
+
   private buildShell(): void {
     this.sidebar = new Sidebar(this.client);
     this.sidebar.setActivityCount(this.activity.entries.length);
@@ -199,13 +245,7 @@ export class App {
     ]);
     this.shell = h("div", { class: "shell" }, [topbar, workspace]);
     this.layout = new ResizableLayout(this.shell, workspace);
-    const warning = this.warning
-      ? h("div", { class: "notice warn-notice", attrs: { role: "status" } }, [
-          h("span", { text: this.warning }),
-          h("button", { class: "ghost tiny", attrs: { "aria-label": "Dismiss" }, on: { click: (e) => (e.currentTarget as HTMLElement).parentElement!.remove() } }, [icon("close", 13)]),
-        ])
-      : null;
-    if (warning) this.notice.before(warning);
+    for (const warning of this.warnings) this.notice.before(this.warningElement(warning));
     this.root.replaceChildren(this.shell);
     void this.sidebar.load();
     this.client.currentUser().then(

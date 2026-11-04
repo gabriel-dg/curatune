@@ -3,13 +3,14 @@ import { SpotifyAuth, takeCallbackParams } from "./spotify/auth";
 import { SpotifyClient } from "./spotify/http";
 import { pruneBackups } from "./plans/plans";
 import { WriteLog } from "./spotify/writelog";
-import { indexedDbSupported, isPersistent, openStore } from "./storage/kv";
+import { indexedDbSupported, isPersistent, mergeLegacyDatabase, migrationOutcome, openStore } from "./storage/kv";
 import { RecordingStore } from "./recordings/recordings";
 import { ActivityLog } from "./ui/activity";
 import { App } from "./ui/app";
 import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
 import { buildProviders, LlmSettings } from "./ui/llm-providers";
+import { storageMoveNotice, storageRetryNotice } from "./ui/warnings";
 
 async function start(root: HTMLElement): Promise<void> {
   // Strip `code` and `state` from the address bar and the session history before anything else runs.
@@ -51,9 +52,16 @@ async function start(root: HTMLElement): Promise<void> {
 
   if (!persistent && indexedDbSupported()) {
     app.showWarning(
-      "Local storage is unavailable, probably because another curatune-web tab runs an older version. Recording " +
-        "dates and backups will not be saved: close the other curatune-web tabs and reload this one.",
+      "Local storage is unavailable, probably because another curatune-web tab runs an older version (close the other " +
+        "curatune-web tabs), or the one-time move of older data is still running; reload in a moment. Until then, recording " +
+        "dates and backups are not saved.",
     );
+  }
+  // Data saved under the app's former name moves to its storage once, as the stores open (storage/kv.ts).
+  const moveNotice = storageMoveNotice(migrationOutcome());
+  if (moveNotice) {
+    const retry = { label: "Try again", run: async () => storageRetryNotice(await mergeLegacyDatabase()) };
+    app.showWarning(moveNotice.text, moveNotice.retry ? retry : undefined);
   }
   if (callback) {
     try {
