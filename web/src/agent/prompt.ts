@@ -1,4 +1,4 @@
-// System prompt, adapted from curatune's skill (curatune commit b3531aa, .agents/skills/spotikit/SKILL.md)
+// System prompt, adapted from curatune's skill (curatune commit b3531aa, .agents/skills/curatune/SKILL.md)
 // for a local model with read tools, direct writes (create, add), and plans (remove, reorder, rename) that
 // only the user applies. Keep it short: small models follow short prompts better, and it is sent with
 // every request.

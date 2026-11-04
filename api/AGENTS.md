@@ -211,8 +211,8 @@ its phases are in `docs/plan-mcp.md`.
 
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
 - Naming: Spotify's developer guidelines forbid "Spotify", or anything similar in sound or spelling, in a
-  product's name, but allow "for Spotify". The project is curatune (renamed from spotikit for this
-  reason); describe it as "a playlist toolkit for Spotify", never "Spotify playlist toolkit".
+  product's name, but allow "for Spotify". The project is named curatune for this
+  reason; describe it as "a playlist toolkit for Spotify", never "Spotify playlist toolkit".
 - The package is installed in editable mode: other sessions using curatune run this working tree
   **live**. A half-finished edit breaks their commands (seen 2026-09-24: `NameError` in `cli.py` mid-edit).
   When another session may be using curatune, develop in a separate git worktree, or make every save

@@ -1,5 +1,5 @@
 // Read-only catalog lookups: track search, single track, album track listing.
-// Follows curatune commit b3531aa, src/spotikit/catalog.py. Not ported: market-dependent reads. Batch search
+// Follows curatune commit b3531aa, src/curatune/catalog.py. Not ported: market-dependent reads. Batch search
 // lives in the `search_many` tool (src/tools/read.ts): up to 25 searches per call, 4 at a time.
 
 import { CuratuneError } from "./errors";

@@ -21,9 +21,9 @@ IP addresses, hostnames, local paths) in versioned files.
 - In this repository, curatune is [`../api/`](../api/).
 - No shared code. curatune's `docs/reference.md`, `plans.py`, and tests are the **specification** for the
   port; behaviour must match unless a difference is deliberate and documented here.
-- Each ported module records, in a header comment, the curatune commit it follows. curatune was named
-  spotikit until its commit d62b466 (its package was `src/spotikit/`); headers give paths as they are at the
-  cited commit, so `git show <commit>:<path>` resolves them.
+- Each ported module records, in a header comment, the curatune commit it follows and the file, by its path
+  in `api/` today (`src/curatune/…`). Before commit d62b466 the package directory had the project's former
+  name: `git ls-tree -r --name-only <commit> src` shows the path to use with `git show <commit>:<path>`.
 - The "Spotify Web API facts" below are copied from curatune. When either project verifies something new,
   update both.
 - Deliberate differences (keep this list current; module headers give the details):
@@ -179,10 +179,10 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
 - Naming: Spotify's developer guidelines forbid "Spotify", or anything similar in sound or spelling (such as
-  a "Spoti-" prefix), in a product's name, but allow "for Spotify". The project is curatune-web (renamed
-  from spotikit-web for this reason, like its sibling); describe it as "playlist curation for Spotify",
-  never "Spotify playlist curation". Exception, on purpose: the IndexedDB database keeps the former name
-  `spotikit-web` (`src/storage/kv.ts`), since renaming it would orphan the data already stored in browsers;
+  a "Spoti-" prefix), in a product's name, but allow "for Spotify". The project is curatune-web, named for this
+  reason; describe it as "playlist curation for Spotify",
+  never "Spotify playlist curation". Exception, on purpose: the IndexedDB database keeps the project's former
+  name (`DB_NAME` in `src/storage/kv.ts`), since renaming it would orphan the data already stored in browsers;
   sessionStorage and localStorage keys start with `curatune-web.`.
 - Test against a dedicated test playlist, never against the user's curated playlists.
 - Positions in JSON are **0-based** (same as the API and curatune). Deliberate exception: what the model

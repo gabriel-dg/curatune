@@ -1,5 +1,5 @@
 // Plans for destructive or order-changing operations: remove, reorder, and details (name, description).
-// Follows curatune commit b3531aa, src/spotikit/plans.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/curatune/plans.py. Differences, all deliberate:
 // - Plans live in memory (a PlanRegistry in the app), not in files; backups go to an async KeyValueStore
 //   (IndexedDB in the app), and those older than BACKUP_RETENTION_DAYS are deleted when the app starts, as
 //   curatune's retention.py (commit 60aff60) does with its files; here the period is fixed.

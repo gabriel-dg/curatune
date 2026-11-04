@@ -1,12 +1,11 @@
 # PLAN-mcp: a local MCP server for curatune
 
-Status: approved with adjustments (2026-10-01). Phases 0 and 1 done (Claude Desktop's live check
-deferred; see section 2.2). Phase 2a done (live check 2026-10-01). Phase 2b done in Claude Code
-(2026-10-02); its Claude Desktop check is deferred.
-Branch: this worktree's own branch (not `main`). Merge to `main` only with the user's explicit OK.
+Status: carried out (October 2026). This is the plan as approved and executed, kept as the design
+record: the decisions, the alternatives discarded, and the checks behind them. Dates, versions, and
+"deferred" checks are those of the time; [mcp.md](mcp.md) describes the server as it is.
 All sources were accessed on 2026-10-01 and are listed at the end.
 
-**Naming.** The project is renamed from spotikit to **curatune** (section 2.3). This plan uses the new
+**Naming.** The project is renamed to **curatune** (section 2.3). This plan uses the new
 names throughout:
 - package and module `curatune`, CLI `curatune`;
 - extra `curatune[mcp]`;
@@ -18,7 +17,8 @@ The rename of the library itself is **not** part of this plan. It happens on `ma
 session, before phase 1. This branch then syncs with `main` (section 10).
 - `SPOTIFY_CLIENT_ID` and `SPOTIFY_REDIRECT_PORT` name Spotify settings, not the product, so they keep
   their names unless the rename session decides otherwise.
-- The sibling project is still called spotikit-web here; its own name is decided there.
+- The sibling web app (then a separate repository, now `web/`) decides its own name; it became
+  curatune-web.
 
 ## 0. Context
 
@@ -48,7 +48,7 @@ Goals
 
 Non-goals
 - A remote MCP server (see D1). Playback, library, or listening history. Changing visibility. Deleting
-  playlists. Any change to `../spotikit-web` (impacts are only listed in section 9). The library rename
+  playlists. Any change to the web app (impacts are only listed in section 9). The library rename
   (done on `main` separately).
 
 ## 2. Verified facts
@@ -101,7 +101,7 @@ Non-goals
 | **Claude Code** (CLI) | host | **Verified (observed, phase 1)**: declares `elicitation: {form: {}, url: {}}` in **both eras**: 2.1.286 on 2026-07-28 (default session) and 2.1.287 on 2025-11-25 (`MCP_PROTOCOL_NEGOTIATION=legacy`), as recorded by the probe in `mcp_clients.json`. Also declares `roots: {listChanged: true}`, even on 2026-07-28, which removed that notification. Documented: a dialog appears automatically ([cc-mcp]). | Not documented as changing permissions | Every elicitation can be auto-answered by an **`Elicitation` hook** ([cc-hooks]). `_meta["anthropic/requiresUserInteraction"]: true` forces a permission prompt on every call, even in bypass modes (v2.1.199+). Default tool-result limit is 25,000 tokens. **Observed (2.1.286, phase 1):** over stdio it negotiated **2026-07-28 in both sessions, with and without `MCP_PROTOCOL_NEGOTIATION=auto`**, although the docs say stdio stays on the legacy handshake unless that is set ([cc-mcp], [cc-env]); a live legacy-era check needs `MCP_PROTOCOL_NEGOTIATION=legacy`. It **truncates server instructions at 2048 characters** (a test now holds them under it). Its per-server MCP log records connections and tool calls, not results or stderr. |
 | **Claude Desktop** (chat) | host | **No evidence of support** | **Documented for connectors**: "`readOnlyHint` … `destructiveHint` … determine auto-permissions in Claude. Read-only tools can run without per-call confirmation, and destructive tools always prompt" ([claude-review]). Phase 1 checks it for a local server. | The connector guide lists tools, prompts, and resources, and doesn't mention elicitation ([claude-building]). Release notes to September 2026 don't mention it ([claude-notes]). The feature request was closed as "invalid" (wrong repository), not resolved ([issue-41110]). That is absence of evidence, not proof: phase 1 checks what Desktop actually declares. **MCP Apps supported** ([ext-matrix]). Tool results are capped at about 150,000 characters, with a 240 s timeout ([claude-building]). |
 | **Cowork** (Claude Desktop) | host | **Known broken**: declares `elicitation` but drops the request, and the call hangs 180 s (open since 2026-09-16, [issue-1046]) | — | Capability detection can't catch this case. |
-| **LM Studio** ≥ 0.3.17 | host (Cursor's `mcp.json` format; local and remote servers) | **Not documented**: docs cover tools only ([lms-docs], [lms-0317]) | Not documented | Shows a per-call confirmation dialog with editable arguments and an "always allow" option ([lms-0317]). A stdio server must run on the same machine as LM Studio. spotikit-web's evaluations show that small local models confuse 0-based positions and invent IDs. |
+| **LM Studio** ≥ 0.3.17 | host (Cursor's `mcp.json` format; local and remote servers) | **Not documented**: docs cover tools only ([lms-docs], [lms-0317]) | Not documented | Shows a per-call confirmation dialog with editable arguments and an "always allow" option ([lms-0317]). A stdio server must run on the same machine as LM Studio. curatune-web's evaluations show that small local models confuse 0-based positions and invent IDs. |
 | MCP Inspector, Python SDK `Client` | test clients | Supported | — | Used in tests only. |
 
 Consequence: today **only Claude Code in a terminal confirms through elicitation**. In Claude Desktop and LM
@@ -121,7 +121,7 @@ The [spotify-design] guidelines say:
 The old name's "Spoti-" prefix conflicted with this, so the user renamed the project **curatune**. A
 description such as "curatune, a playlist toolkit for Spotify" stays within the guidelines.
 - The rename happens on `main` in a separate session, before phase 1. This branch then syncs (section 10).
-- The repository's name and spotikit-web's name are affected too, and are decided outside this plan.
+- The repository's name and the web app's name are affected too, and are decided outside this plan.
 - The phase 5 PyPI step re-checks the published name and description against the guidelines.
 
 ## 3. Decisions
@@ -143,7 +143,7 @@ A remote server would need all of the following:
 - **Live within Spotify's caps.** Development Mode allows at most 5 users per app, and the quota is shared
   per developer account. A public server would serve at most five people.
 
-spotikit-web already covers "zero install for someone else". Discarded: a remote server behind Cloudflare
+curatune-web already covers "zero install for someone else". Discarded: a remote server behind Cloudflare
 Access for the user alone, which is all operational cost and teaches nothing new about MCP.
 
 **D2. A thin entry point in the same package, as an optional extra.**
@@ -183,7 +183,7 @@ Discarded:
 - **No fallback, apply through the CLI:** Desktop and LM Studio could never apply.
 - **The client's own tool-approval prompt alone:** it shows only `plan_id`, and LM Studio offers "always
   allow".
-- **No apply tool, as in spotikit-web:** MCP has no UI of ours except elicitation, the page, or an App.
+- **No apply tool, as in curatune-web:** MCP has no UI of ours except elicitation, the page, or an App.
 - **A native OS dialog (tkinter):** missing on some Python builds and unreliable from background
   processes on macOS.
 
@@ -194,7 +194,7 @@ Discarded:
   `from_position`), and range checks.
 - The library, plan files, the CLI, and `docs/reference.md` stay 0-based.
 - Search `offset` is a count, not a position, and stays as is.
-- Evidence: spotikit-web's evaluation, where a 9B model read 0-based positions as track numbers; the web
+- Evidence: curatune-web's evaluation, where a 9B model read 0-based positions as track numbers; the web
   uses 1-based `number` too.
 
 Discarded: 0-based for consistency with the CLI. Every model would have to convert, and small local models
@@ -243,11 +243,11 @@ Discarded:
 
 Discarded: keeping the cwd fallback, which is wrong for any client-launched process.
 
-**D7. Tool surface: the same names as spotikit-web, and safety enforced in code.**
-- Names mirror spotikit-web: `playlists_list`, `playlist_show`, `search_tracks`, `search_many`, …, so the
+**D7. Tool surface: the same names as curatune-web, and safety enforced in code.**
+- Names mirror curatune-web: `playlists_list`, `playlist_show`, `search_tracks`, `search_many`, …, so the
   two projects can share evaluation scenarios.
 - **No visibility parameter anywhere.** `playlist_create` has no `public` option and always requests
-  private, as in spotikit-web.
+  private, as in curatune-web.
 - **No file-path inputs.** Data goes as JSON arrays, which removes the `--from-file` exfiltration class.
 - `plan_apply` and `plan_show` take only a `plan_id` that matches the plan-ID pattern, never a path.
 - Write tools are split by action type, as Anthropic's connector review criteria recommend, so each
@@ -286,7 +286,7 @@ Discarded: keeping the cwd fallback, which is wrong for any client-launched proc
 | Read compactly (`--brief`) | Brief results by default; `full: true` adds the extra fields. |
 | 0-based in JSON, 1-based when talking to the user | Replaced by D4: the model sees only 1-based numbers. |
 | Never mutate Spotify outside the commands | **Code**: no tool reaches `_writes` (static test). |
-| Never overwrite a stored recording date unless the user asks (spotikit-web's rule) | **Code**: `recordings_set` is additive only; overwriting needs the separate destructive `recordings_update`. |
+| Never overwrite a stored recording date unless the user asks (curatune-web's rule) | **Code**: `recordings_set` is additive only; overwriting needs the separate destructive `recordings_update`. |
 | What curatune won't do: explain it is deliberate | Instructions, plus a short sentence in the descriptions of the nearest tools. |
 | Warning and error handling table | Errors carry `{code, message, details}` and a `next_step` per code (for example, `SNAPSHOT_MISMATCH`: "nothing changed; rebuild the plan and ask again"). Instructions summarize the rest. |
 | First-time setup | `auth_status`; error `next_step`s point to `curatune auth login` (v1) or `auth_login` (v3). |
@@ -296,7 +296,7 @@ Tests check that the instructions and the relevant descriptions contain these ru
 `tests/test_agent_files.py`.
 
 **D11. Considered and not adopted.**
-- **Only accept IDs seen earlier in the conversation** (a spotikit-web guard). The server cannot see the
+- **Only accept IDs seen earlier in the conversation** (a curatune-web guard). The server cannot see the
   conversation, and in Claude Desktop one process serves every chat. Instead, `playlist_add` re-reads the
   playlist and returns the name of each added track, so a wrong ID is visible at once.
 - **A live applicability check before the question.** Under MRTR the resolver re-runs every round, which
@@ -380,7 +380,7 @@ menu in Desktop. LM Studio has no prompts.
 - `SNAPSHOT_MISMATCH` means nothing changed.
 
 The rules that must reach clients that ignore instructions are repeated in the tool descriptions.
-spotikit-web's evaluations show that LM Studio models rely on tool descriptions.
+curatune-web's evaluations show that LM Studio models rely on tool descriptions.
 
 ## 5. Confirmation model
 
@@ -445,7 +445,7 @@ spotikit-web's evaluations show that LM Studio models rely on tool descriptions.
 **MCP App route (phase 3, only if its gate passes).** In Claude Desktop, `plan_apply` returns a plan
 viewer. Its Apply button calls an app-only tool (`visibility: ["app"]`) with a per-render nonce, and that
 tool applies the plan. The outcome reaches the model through the app's context update, much like
-spotikit-web's Apply button and `[App notice]`. For Claude Desktop this replaces the page and the code; the
+curatune-web's Apply button and `[App notice]`. For Claude Desktop this replaces the page and the code; the
 page stays for LM Studio and as the override.
 
 **Security properties and the threat model**
@@ -488,7 +488,7 @@ page stays for LM Studio and as the override.
 | v1/v2 development writes mix with the user's real data | During v1 and v2 the worktree's server and CLI use the worktree's own gitignored `data/`, separate from the main checkout's. From phase 3 on, `CURATUNE_DATA_DIR` points to a test directory. |
 | The data-dir change (phase 3) hides the user's curated recording dates | Legacy guard, `data migrate` with a backup and verification, a cutover without other sessions open, deletion only with an OK (D5). |
 | Installed servers (uvx, `.mcpb`) resolve configuration against the cwd | D6 lands in phase 3, before packaging. v1 and v2 run only from the checkout. |
-| Live tests touch the user's curated playlists | Writes go only to the "curatune test" playlist recorded in this repository's `AGENTS.local.md` (its ID, initial state, and URIs in order). Restore that state after each test. spotikit-web keeps its own test playlist, and curatune never writes it. |
+| Live tests touch the user's curated playlists | Writes go only to the "curatune test" playlist recorded in this repository's `AGENTS.local.md` (its ID, initial state, and URIs in order). Restore that state after each test. curatune-web keeps its own test playlist, and curatune never writes it. |
 | SDK churn (v2 is weeks old) | Pin `mcp>=2.2,<3`. Tests and CI cover both protocol eras. |
 | The rename lands on `main` while this branch is in progress | The rename is done only on `main` before phase 1. This branch holds only `PLAN-mcp.md` until then, so the sync is trivial. After syncing: reinstall the editable package, rename the worktree `.env` variables to `CURATUNE_*`, and re-run the baseline. |
 | The new name or its descriptions drift toward Spotify's marks | Phase 5 re-checks the published name, description, and logo against [spotify-design] before publishing. |
@@ -540,7 +540,7 @@ Each item lists its phase and CLI-visible effect, and every item gets tests.
    `recordings_update` passes `True`.
 7. **`sort_by` for reorders** (**phase 2a**; new `ordering.py`; `plan reorder --sort-by` with `title`,
    `artist`, `album`, `released`, `duration`, or `recorded`, plus `--descending`; `--by-recording-date`
-   stays as an alias of `--sort-by recorded`). The comparison rules follow spotikit-web's `sortedOrder`
+   stays as an alias of `--sort-by recorded`). The comparison rules follow curatune-web's `sortedOrder`
    and are documented in `docs/reference.md`:
    - text keys: title, the **first** artist, the album name;
    - leading characters that are neither letters nor digits are ignored (`'Round Midnight` sorts as
@@ -565,7 +565,7 @@ Each item lists its phase and CLI-visible effect, and every item gets tests.
 8. **Visibility, the confirmation rules, and the plan file format are unchanged.** Confirmations live in
    the MCP layer, so plan files carry no approval fields.
 
-## 9. Impact on spotikit-web
+## 9. Impact on the web app (curatune-web)
 
 To be evaluated by the web project; this repository does not change it.
 
@@ -580,7 +580,7 @@ To be evaluated by the web project; this repository does not change it.
   - recording dates split into an additive `recordings_set` and a destructive `recordings_update`, where
     the web relies on the prompt not to overwrite;
   - `RecordingStore.upsert(overwrite=…)`.
-- **Wording:** "spotikit's `data/` files" becomes "curatune's data directory" (`CURATUNE_DATA_DIR`) once
+- **Wording:** "the library's `data/` files" becomes "curatune's data directory" (`CURATUNE_DATA_DIR`) once
   phase 3 lands. `LEGACY_DATA_*` and `data migrate` are CLI-only.
 - **Applying plans:** the web has no apply tool (UI button). curatune MCP has `plan_apply`, gated by
   elicitation, the page code, or the MCP App. With the App, the model learns the outcome like the web's
@@ -597,8 +597,8 @@ To be evaluated by the web project; this repository does not change it.
     (`DESCRIPTION_NOT_CLEARABLE`), and its MCP `playlist_create` and instructions tell the model to propose
     a description and ask before creating, never writing one on its own. The web should check any path
     that offers to clear a description, and its create prompt.
-- **Name:** the library's rename to curatune changes every reference the web makes to spotikit (module
-  headers, the "Relationship to spotikit" section). The web's own name is decided there.
+- **Name:** the library's rename to curatune changes every reference the web makes to the former name
+  (module headers, the "Relationship to" section). The web's own name is decided there.
 
 ## 10. Phases, checklists, and "done when"
 
@@ -678,7 +678,7 @@ phase 3).
 - Live, protocol level: `curatune-mcp` started as a real stdio subprocess from an unrelated working
   directory negotiates 2026-07-28, lists 12 tools, reports `authorized: true`, and lists the account's
   playlists. The probe logged the SDK client as `mcp 0.1.0`, `capabilities={}`.
-- The test playlists recorded for spotikit-web returned `NOT_FOUND` (also through the CLI); the user
+- The test playlists recorded for curatune-web returned `NOT_FOUND` (also through the CLI); the user
   recovers that one. With the user's OK, curatune got its own: "curatune test", created over stdio with
   `playlist_create` (`VISIBILITY_NOT_APPLIED`: public, as expected) and loaded with the 12-track shuffled
   state in one `playlist_add` (`allow_duplicates`: the exact duplicate at numbers 2 and 7). The URIs came

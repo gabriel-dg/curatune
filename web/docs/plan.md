@@ -131,7 +131,7 @@ Findings:
 - **Done when:** "create a playlist X with these 5 tracks" works end to end.
 
 Result (2026-09-28): done. In the browser, against the real account, Ornith turned "create a playlist
-spotikit-web phase 3 with Salt Peanuts, Ko-Ko, Boplicity, Manteca, and Lady Bird" into five parallel
+<name> with Salt Peanuts, Ko-Ko, Boplicity, Manteca, and Lady Bird" into five parallel
 searches, `playlist_create`, and one `playlist_add`; it picked the 1940s recordings, rejected soundtrack,
 alternate, cover, and vocal versions, and said the playlist is public. An independent read confirmed the
 five tracks in order. About 3 minutes end to end, 8.8k tokens of context.

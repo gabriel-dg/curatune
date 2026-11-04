@@ -1,5 +1,5 @@
 // OAuth 2.0 Authorization Code flow with PKCE, entirely in the browser (no client secret, no backend).
-// Follows curatune commit b3531aa, src/spotikit/auth.py. Differences, all deliberate:
+// Follows curatune commit b3531aa, src/curatune/auth.py. Differences, all deliberate:
 // - The callback is a page of this app instead of a local HTTP server; `takeCallbackParams` strips `code`
 //   and `state` from the address bar and the session history before anything else runs.
 // - Tokens and the pending login (verifier, state) live in the injected storage (sessionStorage in the

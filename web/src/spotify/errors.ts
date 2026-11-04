@@ -1,4 +1,4 @@
-// Typed errors with the stable codes used by curatune (curatune commit b3531aa, src/spotikit/errors.py).
+// Typed errors with the stable codes used by curatune (curatune commit b3531aa, src/curatune/errors.py).
 // Messages and details must never contain tokens, authorization codes, or PKCE verifiers.
 
 export type ErrorCode =

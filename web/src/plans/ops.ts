@@ -1,5 +1,5 @@
 // Low-level mutating calls: remove URIs, move a range, change name/description.
-// Follows curatune commit b3531aa, src/spotikit/_writes.py. Only src/plans/ may import this module
+// Follows curatune commit b3531aa, src/curatune/_writes.py. Only src/plans/ may import this module
 // (tests/invariants.test.ts checks it): removals, reorders, and renames happen only by applying a plan
 // that was validated against the live playlist first, and only from the UI's Apply button.
 
