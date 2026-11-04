@@ -13,7 +13,7 @@ import type { ActivityLog } from "./activity";
 import { writeCard } from "./cards";
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
-import { pickProvider, type LlmSettings, type ProviderOption } from "./llm-providers";
+import { hostedDataNotice, pickProvider, SPOTIFY_AI_TERMS, type LlmSettings, type ProviderOption } from "./llm-providers";
 import { renderMarkdown } from "./markdown";
 import { planCard } from "./plan-card";
 
@@ -78,6 +78,18 @@ function describeCall(name: string, rawArgs: string): { label: string; icon: Ico
   }
 }
 
+/** Spotify's clauses on AI models, with links, after a hosted model's data notice. */
+function aiTermsNote(): (string | HTMLElement)[] {
+  const link = (t: (typeof SPOTIFY_AI_TERMS)[number]) => h("a", { text: t.label, attrs: { href: t.url, target: "_blank", rel: "noopener noreferrer" } });
+  return [
+    " Spotify restricts feeding its content into AI models (",
+    link(SPOTIFY_AI_TERMS[0]),
+    "; ",
+    link(SPOTIFY_AI_TERMS[1]),
+    "): you are responsible for using your Spotify app within those terms. The local model keeps this data on your machine.",
+  ];
+}
+
 function seconds(ms: number): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
@@ -111,6 +123,8 @@ export class ChatView {
   private readonly forgetKeyButton: HTMLButtonElement;
   private readonly status: HTMLElement;
   private readonly contextBar: HTMLElement;
+  /** Visible while a hosted model is selected. */
+  private readonly hostedNotice: HTMLElement;
   private controller: AbortController | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private thinking: HTMLElement | null = null;
@@ -158,6 +172,7 @@ export class ChatView {
     }, [icon("key", 14), "Forget key"]);
     this.status = h("span", { class: "composer-status muted small" });
     this.contextBar = h("div", { class: "context-bar", attrs: { hidden: "" } });
+    this.hostedNotice = h("div", { class: "hosted-notice small", attrs: { role: "note", hidden: "" } });
 
     this.element = h("section", { class: "chat" }, [
       h("header", { class: "chat-header" }, [
@@ -166,6 +181,7 @@ export class ChatView {
       ]),
       this.transcript,
       h("div", { class: "composer" }, [
+        this.hostedNotice,
         h("div", { class: "composer-box" }, [
           this.contextBar,
           this.input,
@@ -226,6 +242,9 @@ export class ChatView {
   private updateControls(): void {
     this.forgetKeyButton.hidden = !(this.provider.requiresKey && this.settings.apiKey(this.provider));
     if (this.providers.length < 2) this.status.textContent = this.provider.model ? `Model: ${this.provider.model}` : "";
+    const notice = hostedDataNotice(this.provider);
+    this.hostedNotice.hidden = notice === null;
+    this.hostedNotice.replaceChildren(...(notice ? [icon("alert", 16), h("span", {}, [notice, ...aiTermsNote()])] : []));
   }
 
   private switchProvider(id: string): void {
@@ -260,10 +279,11 @@ export class ChatView {
       h("p", {
         class: "muted",
         text:
-          `It stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}` +
+          `The key stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}` +
           `${this.providers.filter((p) => p.keyId !== null && p.keyId === this.provider.keyId).length > 1 ? `, for every ${this.provider.name} model in the list` : ""}. ` +
-          "Using this model sends the conversation and your playlist data (names, tracks, artists) to that provider; your Spotify token is never sent.",
+          "Your Spotify token is never sent.",
       }),
+      h("p", {}, [hostedDataNotice(this.provider) ?? "", ...aiTermsNote()]),
       h("div", { class: "inline-form" }, [input, h("button", { class: "primary", text: "Use this key", on: { click: save } })]),
     ]);
   }

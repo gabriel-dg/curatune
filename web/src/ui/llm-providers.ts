@@ -14,6 +14,8 @@ export interface ProviderOption {
   /** Shown in the model selector, e.g. "Local · ornith-1.5-9b-mlx". */
   label: string;
   model: string;
+  /** A hosted provider: playlist data leaves the user's machine (see hostedDataNotice). Never the default. */
+  hosted: boolean;
   /** Hosted providers need an API key from the user. */
   requiresKey: boolean;
   /** Where the API key is kept: shared by every model of the same provider; null when none is needed. */
@@ -70,6 +72,7 @@ export function buildProviders(
       name: "Local",
       label: `Local · ${config.llmModel || "not configured"}`,
       model: config.llmModel,
+      hosted: false,
       requiresKey: false,
       keyId: null,
       host: hostOf(config.llmBaseUrl),
@@ -83,6 +86,7 @@ export function buildProviders(
       name: hosted!.name,
       label: `${hosted!.name} · ${model}`,
       model,
+      hosted: true,
       requiresKey: true,
       keyId: "hosted",
       host: hostOf(hosted!.baseUrl),
@@ -92,7 +96,23 @@ export function buildProviders(
   return providers;
 }
 
-/** The provider saved as selected; "hosted" (before several hosted models) means the first hosted one; else the local one. */
+/** Spotify's clauses on feeding its content to AI models, cited wherever a hosted model is in use. */
+export const SPOTIFY_AI_TERMS = [
+  { label: "Developer Terms, section IV.2.1", url: "https://developer.spotify.com/terms" },
+  { label: "Developer Policy, section III.14", url: "https://developer.spotify.com/policy" },
+] as const;
+
+/** For a hosted model, what leaves the user's machine and where it goes; null for the local model. */
+export function hostedDataNotice(provider: ProviderOption): string | null {
+  if (!provider.hosted) return null;
+  return (
+    `${provider.label} is a hosted model: your messages and the playlist data the assistant reads ` +
+    `(playlist names, track names, and artists) leave this computer and go to ${provider.host}.`
+  );
+}
+
+/** The provider saved as selected in this tab; "hosted" (before several hosted models) means the first hosted
+ * one; anything else, or nothing saved, means the local one, which is always the default. */
 export function pickProvider(providers: ProviderOption[], selected: string | null): ProviderOption {
   return providers.find((p) => p.id === selected) ?? (selected === "hosted" ? providers.find((p) => p.keyId === "hosted") : undefined) ?? providers[0]!;
 }
