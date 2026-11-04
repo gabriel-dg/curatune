@@ -29,9 +29,9 @@ IP addresses, hostnames, local paths) in versioned files.
 - Deliberate differences (keep this list current; module headers give the details):
   - Auth: PKCE with the callback as a page of this app, tokens in `sessionStorage` (curatune: a local
     callback server and an owner-only token file). HTTP uses `redirect: "error"`.
-  - Storage: write log, plan backups, and recording dates in IndexedDB, separate from curatune's `data/`
-    files (nothing is shared; recording dates move by importing or exporting the same JSON). Plans live in
-    memory, not in files.
+  - Storage: write log, plan backups, and recording dates in IndexedDB (database `curatune-web`), separate
+    from curatune's `data/` files (nothing is shared; recording dates move by importing or exporting the
+    same JSON). Plans live in memory, not in files.
   - Tools, not commands: the model sees 1-based `number` (see Development); results are trimmed for the
     model instead of `--brief`; batch search is `search_many` (up to 25 searches per call, 4 at a time).
   - Plans are applied only by the UI's Apply button; there is no apply tool (curatune: `plan apply`, run by
@@ -183,10 +183,15 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 - Everything in the repository (code, comments, identifiers, docs, commit messages) is in **English**.
 - Naming: Spotify's developer guidelines forbid "Spotify", or anything similar in sound or spelling (such as
   a "Spoti-" prefix), in a product's name, but allow "for Spotify". The project is curatune-web, named for this
-  reason; describe it as "playlist curation for Spotify",
-  never "Spotify playlist curation". Exception, on purpose: the IndexedDB database keeps the project's former
-  name (`DB_NAME` in `src/storage/kv.ts`), since renaming it would orphan the data already stored in browsers;
-  sessionStorage and localStorage keys start with `curatune-web.`.
+  reason; describe it as "playlist curation for Spotify", never "Spotify playlist curation". The IndexedDB
+  database, and the sessionStorage and localStorage keys' prefix, are `curatune-web` too. Browsers that ran
+  the app under its former name keep their data: on start, `migrateLegacyDatabase` (`src/storage/kv.ts`)
+  copies the old database into the new one once, checks the copy, and only then deletes the old one. Tabs
+  take turns through `navigator.locks` ("curatune-web-migrate"), and no database open inside the lock waits
+  more than a second ("busy"). When the move can't finish, or another tab keeps the old database open, the
+  app says so (`storageMoveNotice` in `src/ui/warnings.ts`); its retry,
+  `mergeLegacyDatabase`, only adds records whose keys are missing and keeps the old database while any of
+  it differs from the new one.
 - Test against a dedicated test playlist, never against the user's curated playlists.
 - Positions in JSON are **0-based** (same as the API and curatune). Deliberate exception: what the model
   sees and sends through tools uses `number`, **1-based** as in the Spotify app (a 9B model confused
