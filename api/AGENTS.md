@@ -43,8 +43,8 @@ Cursor, Gemini CLI, and GitHub Copilot, as well as Claude Code. Keep a single so
 Architecture: library package `src/curatune/` with all logic; two thin entry points on top: the CLI
 (`cli.py`) and a local MCP server (`mcp_server/`, optional extra `curatune[mcp]`, script `curatune-mcp`).
 Keep the library usable on its own. Any new CLI command must be documented in `docs/reference.md` (and
-listed in README.md) and in the skill; any new MCP tool in `docs/mcp.md`. The MCP plan, its decisions, and
-its phases are in `docs/plan-mcp.md`.
+listed in README.md) and in the skill; any new MCP tool in `docs/mcp.md`. The MCP server's design, its
+decisions, and its threat boundary are in `docs/design.md`.
 
 ## Confirmation rules (enforced in code — keep them that way)
 
@@ -139,20 +139,20 @@ its phases are in `docs/plan-mcp.md`.
   `LEGACY_DATA_NOT_MIGRATED` until `curatune data migrate` copies it (`datadir.py`: backup, copy, SHA-256
   check, marker; never moves or overwrites). With an explicit `CURATUNE_DATA_DIR` it only warns.
 - **Claude Desktop, installed as an MSIX package, virtualizes AppData** for the programs it starts (its Code
-  sessions, the MCP servers it launches); on this machine it is a sideloaded package (`SignatureKind:
-  Developer`), not the Microsoft Store, and Microsoft documents the behaviour for packaged desktop apps
-  (https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes). Verified live 2026-10-02 from a Code-tab session: a **new
-  top-level folder** under `%LOCALAPPDATA%` resolved to `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\
-  Local\…`, while a new subfolder and a new file inside the existing `%LOCALAPPDATA%\curatune` (created
-  earlier from a terminal) resolved in place, like the token. A terminal never sees redirected files, and
-  uninstalling the app deletes them. So the default data dir is fine once `%LOCALAPPDATA%\curatune`
-  exists, but not on a first run started by such an app. `datadir.ensure_not_virtualized` refuses a data
-  dir that resolves into a package (`DATA_DIR_VIRTUALIZED`), and `data migrate` checks it before copying.
-  Run first-time setup and migrations from a terminal, or set `CURATUNE_DATA_DIR` outside AppData.
+  sessions, the MCP servers it launches). Microsoft documents the behaviour for packaged desktop apps
+  (https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes). Verified live
+  2026-10-02 from a Code-tab session: a **new top-level folder** under `%LOCALAPPDATA%` resolved to
+  `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Local\…`, while a new subfolder and a new file inside the
+  existing `%LOCALAPPDATA%\curatune` (created earlier from a terminal) resolved in place, like the token. A
+  terminal never sees redirected files, and uninstalling the app deletes them. So the default data dir is
+  fine once `%LOCALAPPDATA%\curatune` exists, but not on a first run started by such an app.
+  `datadir.ensure_not_virtualized` refuses a data dir that resolves into a package (`DATA_DIR_VIRTUALIZED`),
+  and `data migrate` checks it before copying. Run first-time setup and migrations from a terminal, or set
+  `CURATUNE_DATA_DIR` outside AppData.
 - Gitignored: `.env`, `plans/` and `data/` (older checkouts), `AGENTS.local.md`.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
-  IDs). The repo is intended to be published. The one exception is the author's name as the copyright
-  holder (`LICENSE`, `NOTICE`, the READMEs, `pyproject.toml`).
+  IDs). The repo is intended to be published. The exceptions are the author's name as the copyright
+  holder (`LICENSE`, `NOTICE`, the READMEs, `pyproject.toml`) and the repository's own URL.
 
 ## Data limitations
 
@@ -163,49 +163,12 @@ its phases are in `docs/plan-mcp.md`.
 - ISRC (`external_ids`, restored March 2026) helps match the same recording across editions (not fully
   reliable across remasters).
 
-## Spotify Web API facts (verified September 2026)
+## Spotify Web API facts
 
-- Development Mode: app owner needs Premium; apps created since 2026-02-11 allow 5 users (an allowlist;
-  others get 403); up to 25 client IDs per developer (since 2026-07-23, was 1), all sharing one quota per
-  developer account. A used-up quota is a 429 with `"reason": "QUOTA_EXCEEDED"` (`API_QUOTA_EXCEEDED`,
-  not retried). Extended quota is only for organizations (registered business, launched service, 250k
-  MAU; since 2025-05-15).
-- Playlist items: `/playlists/{id}/items` (GET/POST/PUT/DELETE); old `/tracks` endpoints return 403. In
-  responses `tracks` → `items`, `track` → `item`. Items are only returned for playlists the user owns or
-  collaborates on. `GET …/items` limit max 50.
-- Verified live (2026-09-23): reads with and without a market returned identical URIs (no relinking); ISRC
-  present on items; `is_playable` only with a market. Plans always read without a market.
-- Create playlist: `POST /me/playlists`. **Visibility cannot be set to private through the API**: create
-  ignores `public: false` while echoing it back, and `PUT /playlists/{id}` with `public: false` returns
-  200 without effect (confirmed in the app too). `create_playlist` re-reads and reports real visibility.
-- `PUT /playlists/{id}` with `name` and/or `description` **is** applied, and visible on the first read-back
-  (both verified live 2026-09-24, including a rename and description change in a single call).
-- **A description can't be cleared through the API** (verified live 2026-10-01): `PUT /playlists/{id}` with
-  `description: ""` answers 200 and keeps the old text (unchanged on reads over several minutes). A
-  description can only be replaced; clearing it needs the Spotify app (after which the API reads `""`, not
-  `"null"`; verified the same day). `plan details` refuses an empty
-  description (`DESCRIPTION_NOT_CLEARABLE`), and agents propose a description and ask before creating a
-  playlist with one, never writing one on their own.
-- A playlist created through the API without a description (no `description` key in `POST /me/playlists`)
-  reads back with the **literal string `"null"`** as its description (verified live 2026-10-01; the
-  user's other playlists without a description read back `""`). `models.normalize_playlist` reports it
-  as `""`. Whether sending `"description": ""` on create avoids it is unverified.
-- Batch fetch endpoints (`GET /tracks?ids=` etc.) were removed; only single-item fetches remain.
-- `GET /search`: max `limit` 10; paginate with `offset`. Batch search runs ≤4 requests concurrently.
-- `DELETE …/items` takes URIs only and removes **every** occurrence of a URI (verified live); plans
-  re-insert kept occurrences.
-- **snapshot_id read lag** (observed live): after a write, reads return the previous `snapshot_id` for a
-  few minutes while items are already current; the write's snapshot is what reads converge to. Handled
-  by `writelog.py` (`write_log.json` in the data dir, `SNAPSHOT_READ_LAG`).
-- The playlist list lags too (observed 2026-09-29 by curatune-web): right after creating a playlist and
-  adding 20 tracks, `GET /me/playlists` still returned `items.total` 0 for it while `GET …/items` returned
-  all 20. `playlists list` reports the count left by curatune's own writes of the last 15 minutes when
-  the list disagrees (`writelog.py`, `ITEM_COUNT_READ_LAG`); `playlist show` counts the items it reads.
-- `snapshot_id` is not a lock: Spotify applies changes even on a stale snapshot; `plan apply` checks itself.
-- `PUT …/items` either replaces (max 100, loses `added_at`) or moves a range; curatune only uses moves.
-- Refresh tokens expire 6 months after the original authorization (not extended by refreshing); on
-  `invalid_grant` the token is discarded and `AUTH_EXPIRED` is raised.
-- Scopes: `playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`.
+The Spotify Web API facts curatune relies on, each with the date it was verified, are in
+`docs/reference.md` ("Spotify API notes"). Read them before changing code that talks to Spotify. When a new
+fact is verified, record it there with its date, copy it to `web/AGENTS.md`, and keep `curatune/demo.py` in
+step.
 
 ## Development
 
@@ -213,15 +176,15 @@ its phases are in `docs/plan-mcp.md`.
 - Naming: Spotify's developer guidelines forbid "Spotify", or anything similar in sound or spelling, in a
   product's name, but allow "for Spotify". The project is named curatune for this
   reason; describe it as "a playlist toolkit for Spotify", never "Spotify playlist toolkit".
-- The package is installed in editable mode: other sessions using curatune run this working tree
-  **live**. A half-finished edit breaks their commands (seen 2026-09-24: `NameError` in `cli.py` mid-edit).
-  When another session may be using curatune, develop in a separate git worktree, or make every save
-  leave the package importable (define helpers before the code that calls them).
+- The package is installed in editable mode: other agents or terminals using curatune run this working
+  tree **live**, so a half-finished edit can break their commands (for example a `NameError` in `cli.py`
+  mid-edit). When something else may be using curatune, develop in a separate git worktree, or make every
+  save leave the package importable (define helpers before the code that calls them).
 - Positions in JSON are **0-based** (same as the API). The MCP server alone shows 1-based `number`s (above).
 - Tests: `.venv/Scripts/python -m pytest` (Windows) or `.venv/bin/python -m pytest`, after installing
   `-e ".[dev,mcp]"`. `curatune/demo.py` is the in-memory account that both the tests and `curatune-mcp
-  --demo` use; it mirrors the live API behaviour recorded below (keep it in step when a new fact is
-  verified), and never touches the network. Plan logic is tested against an in-memory fake of the playlist API
+  --demo` use; it mirrors the live API behaviour recorded in `docs/reference.md` ("Spotify API notes"; keep
+  it in step when a new fact is verified), and never touches the network. Plan logic is tested against an in-memory fake of the playlist API
   (`tests/fakes.py:FakeSpotify`); the MCP server through an in-memory MCP client in both protocol eras
   against a fake account (`FakeAccount`, `jazz_account()`: synthetic IDs, public track names); HTTP
   behaviour against a scripted session (`tests/test_http.py`). MCP tests are skipped without the extra.
@@ -230,6 +193,7 @@ its phases are in `docs/plan-mcp.md`.
   variable and point `LOCALAPPDATA` / `XDG_DATA_HOME` at `tmp_path`.
 - Lint: `ruff check src tests` (core rules only: pyflakes and pycodestyle's errors; `ruff` is in the `dev`
   extra).
-- CI (the repository's `.github/workflows/tests.yml`, which also runs `web/`): Windows and Linux, Python 3.10 and 3.14, with and without the extra;
-  lint, then tests.
+- CI (the repository's `.github/workflows/tests.yml`, which also runs `web/` on Node 22): on pushes to
+  `main` and on pull requests; Windows and Linux, Python 3.10 and 3.14, with and without the extra; lint,
+  then tests.
   Actions are pinned to commit SHAs; the workflow has read-only permissions and needs no secrets.

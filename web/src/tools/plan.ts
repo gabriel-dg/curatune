@@ -1,4 +1,4 @@
-// Plan tools (phase 4): the model proposes removals, reorders, and renames as plans. A tool only builds
+// Plan tools: the model proposes removals, reorders, and renames as plans. A tool only builds
 // the plan (reading the playlist) and hands it to the UI through ctx.onPlan; the user reviews it and
 // applies it with the UI's Apply button. There is deliberately no tool that applies a plan, and this
 // module never imports applyPlan (tests/invariants.test.ts).

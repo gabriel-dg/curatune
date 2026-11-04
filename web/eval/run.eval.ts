@@ -1,5 +1,6 @@
-// Runs the phase 2 scenarios against real models served by the configured LLM endpoint, with the fake
-// Spotify (no token needed). Usage (Git Bash):
+// Runs the evaluation scenarios (scenarios.ts) against real models served by the configured LLM endpoint,
+// with the fake Spotify (no token needed); docs/evaluation.md explains them and records results.
+// Usage (Git Bash):
 //   npm run eval                                      # VITE_LLM_MODEL, 1 run
 //   EVAL_MODELS=model-a,model-b EVAL_RUNS=2 npm run eval
 //   EVAL_ONLY=injection,pagination npm run eval
@@ -80,7 +81,7 @@ async function runScenario(llm: LlmClient, scenarioIndex: number): Promise<Scena
 }
 
 it(
-  "evaluates models on the phase 2 scenarios",
+  "evaluates models on the scenarios",
   async () => {
     expect(baseUrl, "VITE_LLM_BASE_URL is not set").not.toBe("");
     expect(models.length, "set VITE_LLM_MODEL or EVAL_MODELS").toBeGreaterThan(0);

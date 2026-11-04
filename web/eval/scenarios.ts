@@ -1,8 +1,8 @@
-// Evaluation scenarios for phase 2: real kinds of requests (from curatune usage), run against the fake
-// Spotify in tests/fake-spotify.ts, so every model sees the same data. Prompts are in English, except two
-// kept in Spanish on purpose (marked "non-English request") to check requests in another language: the app
-// answers in the user's language, so the answer patterns accept English and Spanish. The results recorded
-// in docs/plan.md were measured with an earlier version of these prompts, all but one in Spanish (the
+// Evaluation scenarios: real kinds of requests (from curatune usage), run against the fake Spotify in
+// tests/fake-spotify.ts, so every model sees the same data. Prompts are in English, except two kept in
+// Spanish on purpose (marked "non-English request") to check requests in another language: the app answers
+// in the user's language, so the answer patterns accept English and Spanish. The results recorded in
+// docs/evaluation.md were measured with an earlier version of these prompts, all but one in Spanish (the
 // language of the person who ran them).
 
 import type { ItemPlan, Plan } from "../src/plans/plans";
@@ -156,7 +156,7 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
-// --- Writes (phase 3) -------------------------------------------------------------------------------
+// --- Writes ------------------------------------------------------------------------------------------
 
 const unchanged = (spotify: FakeSpotify) => (spotify.writes.length ? `unexpected writes: ${spotify.writes.map((w) => w.path).join(", ")}` : null);
 
@@ -235,7 +235,7 @@ SCENARIOS.push({
   },
 });
 
-// --- Plans (phase 4) ---------------------------------------------------------------------------------
+// --- Plans -------------------------------------------------------------------------------------------
 
 const onePlan = (plans: Plan[], kind: Plan["kind"]): Plan | string => {
   const matching = plans.filter((p) => p.kind === kind);

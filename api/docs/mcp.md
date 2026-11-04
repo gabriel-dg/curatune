@@ -3,7 +3,7 @@
 `curatune-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server (stdio) over the
 same library the CLI uses. MCP clients such as Claude Code, Claude Desktop, or LM Studio can work with your
 playlists through it, with no repository-specific skill: the tool descriptions and the server's
-instructions carry the rules. For the design and its decisions, see [plan-mcp.md](plan-mcp.md).
+instructions carry the rules. For the design and its decisions, see [design.md](design.md).
 
 It reads playlists and the catalog, creates playlists, adds tracks, keeps recording dates, and removes,
 reorders, or renames through **plans**: a plan changes nothing until the user confirms it outside the chat,
@@ -15,6 +15,7 @@ in a dialog the client shows or, for clients without one, on a local page that g
 The server is an optional extra; the library and the CLI never need it.
 
 ```bash
+cd api                                            # from the repository root
 .venv/Scripts/python -m pip install -e ".[mcp]"   # .venv/bin/python on macOS/Linux
 ```
 
@@ -25,10 +26,12 @@ client starts it in.
 
 | Client | Configuration |
 |---|---|
-| Claude Code | `claude mcp add curatune -- <repo>/.venv/Scripts/curatune-mcp.exe` (`<repo>/.venv/bin/curatune-mcp` on macOS/Linux) |
-| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop is installed as an MSIX package and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
+| Claude Code | `claude mcp add curatune -- <repo>/api/.venv/Scripts/curatune-mcp.exe` (`<repo>/api/.venv/bin/curatune-mcp` on macOS/Linux) |
+| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/api/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop is installed as an MSIX package and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
 | LM Studio (0.3.17+) | Program tab → Install → Edit `mcp.json`, same `mcpServers` entry as Claude Desktop |
-| Any, without the repository | `"command": "uvx", "args": ["--from", "curatune[mcp] @ <source>", "curatune-mcp"]`, or `"command": "curatune-mcp"` after `pipx install "curatune[mcp] @ <source>"` (see the README: `.env` in the config directory) |
+| Any, without the repository (not verified from GitHub yet) | `"command": "uvx", "args": ["--from", "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api", "curatune-mcp"]`, or `"command": "curatune-mcp"` after `pipx install "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api"` (see the [README](../README.md#without-cloning-the-repository-not-verified-yet): `.env` in the config directory) |
+
+`<repo>` is the absolute path of your clone of the repository.
 
 An MCP client starts the server with a reduced environment (variables set in your shell don't reach it):
 put curatune's settings in its `.env`, or in the `env` of the server's entry.
@@ -47,14 +50,13 @@ in the data directory. That file shows what each client really supports, whateve
 
 `curatune-mcp --demo` serves a synthetic account in memory instead of yours: a few playlists (one with
 an exact duplicate, the same recording on another edition, and a shuffled order; another, "Late-night
-picks", whose description tries to order the assistant around) and a small catalog. A
-[60–90 second video script](mcp-demo-script.md) is built on it. It
+picks", whose description tries to order the assistant around) and a small catalog. It
 needs no Spotify account, no `.env`, and no token, and it makes no network call. Every tool works, plans
 and their confirmation (dialog or page) included; plans and backups go to a temporary folder, and
 everything disappears when the server stops. The server's instructions tell the model it is a demo.
 
 ```bash
-claude mcp add curatune-demo -- <repo>/.venv/Scripts/curatune-mcp.exe --demo
+claude mcp add curatune-demo -- <repo>/api/.venv/Scripts/curatune-mcp.exe --demo
 ```
 
 (In Claude Desktop or LM Studio: the same `command`, with `"args": ["--demo"]`.) Track and album names
@@ -81,7 +83,6 @@ with a declared output schema, plus the same JSON as text.
 | `recordings_update` | Replace stored recording dates. Only when the user asks to correct one. Same source rules, and returns `stored` too. | | ✓ | ✓ | |
 | `playlist_create` | Create an empty playlist. There is no visibility option: curatune always requests private, Spotify makes it public, and the result says so. | | | | ✓ |
 | `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. Reads the playlist back: names each added track and reports `verified`. | | | | ✓ |
-
 | `plan_remove` | Plan removing tracks by number. Every plan tool requires a `reason` (shown in the dialog, below). Builds a plan file; changes nothing on Spotify. | ✓¹ | | | ✓ |
 | `plan_reorder` | Plan a new order: exactly one of `sort_by` (title, artist, album, released, duration, recorded; optional `descending`), `order` (every current number, in the new order), or `move_from` + `move_to`. | ✓¹ | | | ✓ |
 | `plan_details` | Plan a rename and/or a new description. Never visibility. | ✓¹ | | | ✓ |
@@ -224,10 +225,11 @@ the route:
 | `elicitation` | The dialog only; without it, `CONFIRMATION_UNAVAILABLE`. |
 | `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
-Clients verified so far (see plan-mcp.md): Claude Code declares form and URL elicitation in both protocol
-eras, and both routes were checked live in it. Claude Desktop is not verified yet. LM Studio documents tools
-only. If a client's `plan_apply` waits and no dialog appears (a client that declares dialogs but doesn't
-show them), nothing is applied: set `CURATUNE_MCP_CONFIRM=browser` in that server's entry to use the page.
+Clients verified so far (see [design.md](design.md#facts-the-design-rests-on-october-2026)): Claude Code
+declares form and URL elicitation in both protocol eras, and both routes were checked live in it. Claude
+Desktop is not verified yet. LM Studio documents tools only. If a client's `plan_apply` waits and no dialog
+appears (a client that declares dialogs but doesn't show them), nothing is applied: set
+`CURATUNE_MCP_CONFIRM=browser` in that server's entry to use the page.
 
 Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
 with the stored token, or read the page from the local machine), and a client set up to answer dialogs by
@@ -279,7 +281,9 @@ src/curatune/mcp_server/
   tools.py         tool registrations: validate → numbers → library (in a worker thread) → view
   views.py         what the model sees: compact views of the library's results
   numbering.py     the only 0-based ↔ 1-based conversion
-  confirm.py       the confirmation route and the question the user confirms (pure)
+  confirm.py       the confirmation route, the question the user confirms, and the one-time codes (pure)
+  approval_page.py the local confirmation page (127.0.0.1): render, Host/Origin/nonce checks, CSP (pure)
+  resources.py     resources and prompts: what the user attaches or picks
   schemas.py       nested inputs and every tool's (strict) output model
   instructions.py  the server instructions
 ```
@@ -293,5 +297,5 @@ src/curatune/mcp_server/
 - `tests/test_mcp_confirm.py` (pure) covers routes and the question's wording, cleaning, and cap;
   `tests/test_mcp_numbering.py` covers the conversion; `tests/test_mcp_invariants.py` checks that the
   server never imports `_writes` or `requests`, and that the library and the CLI never import `mcp`.
-- CI (`.github/workflows/tests.yml`) runs the suite on Windows and Linux, Python 3.10 and 3.14, with and
-  without the extra.
+- CI (`.github/workflows/tests.yml`) runs the suite on pushes to `main` and on pull requests, on Windows
+  and Linux, with Python 3.10 and 3.14, with and without the extra.

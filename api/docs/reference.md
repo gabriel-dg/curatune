@@ -7,7 +7,6 @@ them); see [mcp.md](mcp.md).
 
 ## Authorization
 
-
 OAuth 2.0 Authorization Code with PKCE (S256). `state` is random per login and validated (constant-time)
 before any other callback parameter is used. The token file lives outside the repository. Spotify refresh
 tokens expire 6 months after the original authorization; refreshing does not extend that. When Spotify
@@ -15,7 +14,6 @@ answers `invalid_grant`, the stored token is deleted and commands fail with `AUT
 `curatune auth login` again. `auth status` shows the estimated expiry.
 
 ## Output contract
-
 
 ```jsonc
 // success (exit 0)
@@ -39,7 +37,6 @@ Every envelope (success or failure) also carries timing:
   exceed `elapsed_ms`.
 
 ### Shared shapes
-
 
 **Track** (search, `track show`, `album tracks`); every key is always present, `null` when unknown:
 
@@ -69,7 +66,6 @@ about a third of the size, with every key always present:
 `{"id", "uri", "name", "description", "owner_id", "owner_name", "owned", "collaborative", "public", "item_count", "snapshot_id", "url"}`
 
 ## Commands
-
 
 | Command | `data` |
 |---|---|
@@ -101,7 +97,6 @@ about a third of the size, with every key always present:
 Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, items_after, operations}, changes}`.
 
 ## Plans (remove / reorder / details)
-
 
 `plan remove` and `plan reorder` only read the playlist and write `plans/<plan_id>.json` in the data directory:
 
@@ -204,7 +199,6 @@ ICU collation.
 
 ## Recording dates
 
-
 Spotify only knows an edition's release date. Recording dates are researched elsewhere and kept in
 `recordings.json` in the data directory, keyed by track URI:
 
@@ -233,7 +227,6 @@ Spotify only knows an edition's release date. Recording dates are researched els
 
 ## Playlist visibility
 
-
 Spotify ignores `public: false` when creating a playlist through the API, while its response echoes
 the requested value (a long-standing issue, confirmed live on 2026-09-23). A later
 `PUT /playlists/{id}` with `public: false` was also accepted (200) without effect. curatune therefore
@@ -242,7 +235,6 @@ re-reads visibility after creating a playlist and warns with `VISIBILITY_NOT_APP
 curatune never changes the visibility of existing playlists.
 
 ## Snapshot read lag
-
 
 After a write, Spotify keeps returning the previous `snapshot_id` on reads for a few minutes, while the
 item list is already current. curatune records the snapshot returned by each of its own writes (create,
@@ -255,6 +247,55 @@ The playlist list lags too: `GET /me/playlists` keeps the old `items.total` for 
 `playlists list` reports, for playlists written within the last 15 minutes, the item count the write left
 (the length of the recorded URI list) when it differs from the listed one, and emits
 `ITEM_COUNT_READ_LAG` with both counts. `playlist show` counts the items it reads and is always current.
+
+## Spotify API notes
+
+How the Spotify Web API behaves where curatune depends on it. "Verified live" means observed on a real
+account on that date; the rest is from Spotify's documentation and announcements, as of September 2026.
+
+Access and limits:
+- Development Mode: the app owner needs Premium. Apps created since 2026-02-11 allow 5 users, who must be
+  added to the app's allowlist (others get 403). A developer can have up to 25 client IDs (since
+  2026-07-23; it was 1), all sharing one quota per developer account. A used-up quota is a 429 with
+  `"reason": "QUOTA_EXCEEDED"` (`API_QUOTA_EXCEEDED`). Extended quota is granted only to organizations (a
+  registered business, a launched service, 250,000 monthly active users; since 2025-05-15).
+- Scopes: `playlist-read-private`, `playlist-modify-public`, `playlist-modify-private`.
+- Refresh tokens expire 6 months after the original authorization; refreshing doesn't extend that. Spotify
+  then answers `invalid_grant` (`AUTH_EXPIRED`).
+
+Catalog data:
+- No audio features; since the 2026 migration, no `popularity`, `followers`, `label`, or
+  `available_markets`.
+- `release_date` is the edition's date, not the recording date.
+- The ISRC (`external_ids`, restored in March 2026) helps match the same recording across editions, but it
+  isn't fully reliable across remasters.
+- The batch fetch endpoints (`GET /tracks?ids=` and the like) were removed; only single-item fetches remain.
+- `GET /search` returns at most 10 results per request (`limit`); later pages come with `offset`.
+
+Playlists:
+- Items live at `/playlists/{id}/items` (GET, POST, PUT, DELETE); the old `/tracks` endpoints return 403. In
+  responses, `tracks` became `items` and `track` became `item`. Items are returned only for playlists the
+  user owns or collaborates on, at most 50 per page.
+- Reads with and without a market returned identical URIs, so there is no relinking (verified live
+  2026-09-23); `is_playable` comes only with a market. Plans always read without one.
+- Visibility can't be set to private through the API (verified live 2026-09-23): see
+  [Playlist visibility](#playlist-visibility).
+- `PUT /playlists/{id}` with `name` and/or `description` is applied, and visible on the first read-back
+  (verified live 2026-09-24, both fields in one call).
+- A description can be replaced but not cleared: `description: ""` answers 200 and keeps the old text
+  (verified live 2026-10-01). After clearing it in the Spotify app, the API reads `""`.
+- A playlist created without a description reads back with the literal string `"null"` as its description
+  (verified live 2026-10-01); curatune reports `""`. Whether sending `"description": ""` on create avoids
+  it is unverified.
+- `DELETE …/items` takes URIs only and removes **every** occurrence of each (verified live), so removal plans
+  re-insert the copies you keep.
+- `PUT …/items` either replaces the whole list (at most 100 items, resetting `added_at`) or moves a range;
+  curatune only moves.
+- After a write, reads return the previous `snapshot_id` for a few minutes while the items are already
+  current, and the playlist list keeps the old item count (observed live, the list on 2026-09-29): see
+  [Snapshot read lag](#snapshot-read-lag).
+- `snapshot_id` is not a lock: Spotify applies changes made against a stale snapshot, so `plan apply`
+  checks the playlist itself.
 
 ## Data directory
 
@@ -292,7 +333,6 @@ delete them yourself once you've checked the result.
 token; the process environment wins over both, and the repository's file over the config directory's.
 
 ## Error codes
-
 
 `CONFIG_ERROR`, `AUTH_REQUIRED`, `AUTH_EXPIRED`, `AUTH_ERROR`, `AUTH_STATE_MISMATCH`, `INVALID_REFERENCE`,
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,

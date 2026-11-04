@@ -1,7 +1,7 @@
 """The data directory's guard against data left in a source checkout, and the migration out of it.
 
-Before phase 3 of docs/plan-mcp.md, curatune kept its data in the checkout's `data/` (backups, the write log,
-recording dates, MCP client records) and `plans/`. It now keeps them in the data dir (config.py). curatune
+Earlier versions of curatune kept their data in the checkout's `data/` (backups, the write log, recording
+dates, MCP client records) and `plans/`. It now keeps them in the data dir (config.py). curatune
 never starts empty without saying so:
 - with the **default** data dir, data still in the checkout blocks every command that uses data, with
   LEGACY_DATA_NOT_MIGRATED, until `curatune data migrate` has copied it;
