@@ -1,5 +1,5 @@
 // Playlist reads: list the user's playlists, read one playlist with all its items, read metadata only.
-// Follows curatune commit 590cd87, src/spotikit/playlists.py (list_playlists, get_playlist,
+// Follows curatune commit 590cd87, src/curatune/playlists.py (list_playlists, get_playlist,
 // get_playlist_meta). Not ported: market-dependent reads (plans always read without a market). Difference:
 // the metadata fields include `images` (the cover, shown in the UI).
 

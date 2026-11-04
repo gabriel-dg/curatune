@@ -1,6 +1,6 @@
 // Writes allowed without a plan: create a playlist, add items.
-// Follows curatune commit b3531aa, src/spotikit/playlists.py (create_playlist, add_items) and
-// src/spotikit/_writes.py (insert_uris). Differences, all deliberate:
+// Follows curatune commit b3531aa, src/curatune/playlists.py (create_playlist, add_items) and
+// src/curatune/_writes.py (insert_uris). Differences, all deliberate:
 // - create always requests a private playlist: the caller (the model) never chooses visibility.
 // - add re-reads the playlist after writing and reports whether the new items are where expected.
 // - Both record to the write log (when the client has one), so plans built right after still apply.

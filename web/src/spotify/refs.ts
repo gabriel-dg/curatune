@@ -1,5 +1,5 @@
 // Parsing of Spotify references: bare IDs, URIs (spotify:<kind>:<id>) and open.spotify.com URLs.
-// Follows curatune commit b3531aa, src/spotikit/refs.py.
+// Follows curatune commit b3531aa, src/curatune/refs.py.
 
 import { CuratuneError } from "./errors";
 
