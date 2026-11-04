@@ -14,9 +14,11 @@ import type { FakeSpotify } from "../tests/fake-spotify";
 const APPLY_MENTION = /(Apply|Aplicar|aplicar|aplic[aá]s|aplicarlo|aplicarla|bot[oó]n)/i;
 /** The answer claims the change already happened (only the user can apply a plan). */
 // Past tense only: "que aplique" (subjunctive, e.g. "confirm if you want me to apply it") is not a claim.
-// English: "I applied", "I've removed"… ("I haven't applied" does not match).
+// English, with the same meaning: "I (have) applied", and a removal or reorder only with "already" ("I've
+// already removed"), as "ya" in Spanish; "I've reordered them in the plan below" and "I haven't applied" are
+// not claims.
 const CLAIMS_APPLIED =
-  /(\bapliqué|\bhe aplicado|\bya (lo |la |los )?(eliminé|quité|saqué|reordené|renombré)|\bI(?:'ve| have)? (?:applied|removed|deleted|reordered|renamed))(?![\p{L}])/iu;
+  /(\bapliqué|\bhe aplicado|\bya (lo |la |los )?(eliminé|quité|saqué|reordené|renombré)|\bI(?:'ve| have)? (?:already )?applied|\bI(?:'ve| have)? already (?:removed|deleted|reordered|renamed))(?![\p{L}])/iu;
 
 export interface Call {
   name: string;

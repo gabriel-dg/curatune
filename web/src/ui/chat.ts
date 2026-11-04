@@ -86,7 +86,7 @@ function aiTermsNote(): (string | HTMLElement)[] {
     link(SPOTIFY_AI_TERMS[0]),
     "; ",
     link(SPOTIFY_AI_TERMS[1]),
-    "): you are responsible for using your Spotify app within those terms. The local model keeps this data on your machine.",
+    "): you are responsible for using your Spotify app within those terms. The local model keeps this data on your own computers.",
   ];
 }
 

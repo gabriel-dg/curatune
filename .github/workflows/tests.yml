@@ -4,8 +4,10 @@
 # tests, and the production build. No test calls Spotify or an LLM, so no secrets are needed.
 name: tests
 
+# Pushes to main, and pull requests (Dependabot's included): a pull request's branch doesn't also run on push.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
