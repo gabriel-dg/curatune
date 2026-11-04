@@ -3,6 +3,7 @@
 // Track numbers are 1-based, as in the Spotify app. Pure (no DOM), so it is tested in Node.
 
 import type { Warning } from "../spotify/playlists";
+import type { MigrationOutcome, MigrationReport } from "../storage/kv";
 
 /** Handled by the app itself; nothing for the user to do or know. */
 const INTERNAL = new Set(["SNAPSHOT_READ_LAG", "ITEM_COUNT_READ_LAG"]);
@@ -31,4 +32,54 @@ export function userWarning(w: Warning): string | null {
 
 export function userWarnings(warnings: Warning[]): string[] {
   return warnings.map(userWarning).filter((w): w is string => w !== null);
+}
+
+// --- The one-time move of stored data from the database's former name -----------------------------------
+
+/** A lasting notice, and whether a "Try again" button can still help. */
+export interface StorageNotice {
+  text: string;
+  retry: boolean;
+}
+
+const EXPORT_FIRST = "Export your recording dates (Recordings) before changing anything.";
+const NOT_MOVED = `Data saved by the app under its former name couldn't be moved to its new storage; it is still in this browser. ${EXPORT_FIRST}`;
+const OTHER_TABS =
+  "Your saved data moved to the app's new storage, but another curatune-web tab still holds the old copy open. Close the " +
+  "other curatune-web tabs so that it can be removed.";
+
+const items = (n: number): string => `${n} saved item${n === 1 ? "" : "s"}`;
+
+/** What to tell the user about the move the app tried when it opened its storage, or null if nothing. */
+export function storageMoveNotice(outcome: MigrationOutcome | undefined): StorageNotice | null {
+  switch (outcome) {
+    case "failed":
+    case "skipped":
+      return { text: NOT_MOVED, retry: true };
+    case "delete-blocked":
+      return { text: OTHER_TABS, retry: false };
+    default:
+      return null;
+  }
+}
+
+/** What a retry did. The button goes once trying again can't change anything. */
+export function storageRetryNotice(report: MigrationReport): StorageNotice {
+  switch (report.outcome) {
+    case "migrated":
+    case "no-legacy":
+      return { text: `Your saved data is now in the app's new storage${report.moved ? ` (${items(report.moved)} moved)` : ""}.`, retry: false };
+    case "delete-blocked":
+      return { text: OTHER_TABS, retry: false };
+    case "skipped":
+      return {
+        text:
+          `${report.moved ? `Moved ${items(report.moved)}, but ${items(report.kept)}` : `${items(report.kept)}`} stayed under the former ` +
+          "name: the new storage already holds different data under the same name (recording dates are stored as one item). " +
+          EXPORT_FIRST,
+        retry: false,
+      };
+    case "failed":
+      return { text: `Moving the data failed again; it is still in this browser. ${EXPORT_FIRST}`, retry: true };
+  }
 }

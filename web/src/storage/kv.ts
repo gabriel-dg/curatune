@@ -73,28 +73,46 @@ function openDatabase(factory: IDBFactory, onVersionChange?: () => void): Promis
   });
 }
 
-/** Opens a database at whatever version it has, only if it exists: never creates one. */
-async function openIfExists(factory: IDBFactory, name: string): Promise<IDBDatabase | null> {
+/**
+ * How long to wait for the old database to open. Opening it waits behind a pending deletion of it, and the
+ * deletion waits for the tabs that hold it open: past this, the move has run and only that deletion is left.
+ */
+const LEGACY_OPEN_WAIT_MS = 1000;
+
+/**
+ * Opens a database at whatever version it has, only if it exists: never creates one. "waiting" when the open
+ * doesn't complete within `waitMs` (see LEGACY_OPEN_WAIT_MS); a late open is closed at once.
+ */
+async function openIfExists(factory: IDBFactory, name: string, waitMs = LEGACY_OPEN_WAIT_MS): Promise<IDBDatabase | null | "waiting"> {
   if (typeof factory.databases === "function" && !(await factory.databases()).some((db) => db.name === name)) return null;
   // Without databases() (older browsers), or if the database went away since: an open that would create it
   // is aborted, which leaves nothing behind.
   return new Promise((resolve, reject) => {
     const req = factory.open(name);
     let creating = false;
+    let gaveUp = false;
+    const timer = setTimeout(() => {
+      gaveUp = true;
+      resolve("waiting");
+    }, waitMs);
     req.onupgradeneeded = (event) => {
       if (event.oldVersion !== 0) return;
       creating = true;
       req.transaction?.abort();
     };
     req.onsuccess = () => {
+      clearTimeout(timer);
       const db = req.result;
+      if (gaveUp) return db.close();
       db.onversionchange = () => db.close();
       resolve(db);
     };
     req.onerror = (event) => {
-      if (!creating) return reject(req.error);
-      event.preventDefault();
-      resolve(null);
+      clearTimeout(timer);
+      if (creating) event.preventDefault();
+      if (gaveUp) return;
+      if (creating) resolve(null);
+      else reject(req.error);
     };
   });
 }
@@ -118,15 +136,15 @@ async function readStores(db: IDBDatabase, names: string[]): Promise<Map<string,
   return contents;
 }
 
-/** Writes every record in one transaction: either all of them are stored, or none is. */
-async function writeStores(db: IDBDatabase, contents: Map<string, StoreContents>): Promise<void> {
+/** Adds records in one transaction with add(), which never replaces a record: all of them, or none. */
+async function addRecords(db: IDBDatabase, contents: Map<string, StoreContents>): Promise<void> {
   if (!contents.size) return;
   const tx = db.transaction([...contents.keys()], "readwrite");
   const done = finished(tx);
   try {
     for (const [name, { keys, values }] of contents) {
       const store = tx.objectStore(name);
-      keys.forEach((key, i) => store.put(values[i], key));
+      keys.forEach((key, i) => store.add(values[i], key));
     }
   } catch (exc) {
     try {
@@ -140,19 +158,11 @@ async function writeStores(db: IDBDatabase, contents: Map<string, StoreContents>
   await done;
 }
 
-async function isEmpty(db: IDBDatabase): Promise<boolean> {
-  const names = Array.from(db.objectStoreNames);
-  if (!names.length) return true;
-  const tx = db.transaction(names, "readonly");
-  const counts = await Promise.all(names.map((name) => request(tx.objectStore(name).count())));
-  return counts.every((count) => count === 0);
-}
-
-async function clearStores(db: IDBDatabase): Promise<void> {
-  const names = Array.from(db.objectStoreNames);
-  if (!names.length) return;
-  const tx = db.transaction(names, "readwrite");
-  for (const name of names) tx.objectStore(name).clear();
+/** Removes exactly these keys: what one run added, never anything that was there before it. */
+async function deleteKeys(db: IDBDatabase, contents: Map<string, StoreContents>): Promise<void> {
+  if (!contents.size) return;
+  const tx = db.transaction([...contents.keys()], "readwrite");
+  for (const [name, { keys }] of contents) for (const key of keys) tx.objectStore(name).delete(key);
   await finished(tx);
 }
 
@@ -171,69 +181,200 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return keys.length === Object.keys(right).length && keys.every((key) => Object.hasOwn(right, key) && deepEqual(left[key], right[key]));
 }
 
-function sameContents(factory: IDBFactory, original: Map<string, StoreContents>, copy: Map<string, StoreContents>): boolean {
-  for (const [name, { keys, values }] of original) {
-    const copied = copy.get(name);
-    if (!copied || copied.keys.length !== keys.length || copied.values.length !== values.length) return false;
+const recordCount = (contents: Map<string, StoreContents>): number => [...contents.values()].reduce((sum, { keys }) => sum + keys.length, 0);
+
+/** The value stored under `key`, or `absent` when there is no such record. */
+function lookup(factory: IDBFactory, contents: StoreContents | undefined, key: IDBValidKey): { value: unknown } | "absent" {
+  const i = contents?.keys.findIndex((k) => factory.cmp(k, key) === 0) ?? -1;
+  return i === -1 ? "absent" : { value: contents!.values[i] };
+}
+
+/**
+ * Sorts the old records against the new database: `missing` (no record under that key yet, so it can be
+ * added), already there with an equal value, or `conflicts` (the new database holds something else there).
+ */
+function compare(factory: IDBFactory, old: Map<string, StoreContents>, present: Map<string, StoreContents>) {
+  const missing = new Map<string, StoreContents>();
+  let conflicts = 0;
+  for (const [name, { keys, values }] of old) {
+    keys.forEach((key, i) => {
+      const found = lookup(factory, present.get(name), key);
+      if (found === "absent") {
+        const entry = missing.get(name) ?? { keys: [], values: [] };
+        entry.keys.push(key);
+        entry.values.push(values[i]);
+        missing.set(name, entry);
+      } else if (!deepEqual(found.value, values[i])) {
+        conflicts += 1;
+      }
+    });
+  }
+  return { missing, conflicts };
+}
+
+/** Whether every record of `expected` is in `actual` with an equal value. */
+function contains(factory: IDBFactory, actual: Map<string, StoreContents>, expected: Map<string, StoreContents>): boolean {
+  for (const [name, { keys, values }] of expected) {
     for (let i = 0; i < keys.length; i++) {
-      if (factory.cmp(keys[i]!, copied.keys[i]!) !== 0 || !deepEqual(values[i], copied.values[i])) return false;
+      const found = lookup(factory, actual.get(name), keys[i]!);
+      if (found === "absent" || !deepEqual(found.value, values[i])) return false;
     }
   }
   return true;
 }
 
-/** Deletes a database. Doesn't wait for other tabs that still hold it open: it goes once they close it. */
-function deleteDatabase(factory: IDBFactory, name: string): Promise<void> {
+/** Deletes a database: "deleted", or "blocked" while another tab still holds it open (it goes once they close it). */
+function deleteDatabase(factory: IDBFactory, name: string): Promise<"deleted" | "blocked"> {
   return new Promise((resolve) => {
     const req = factory.deleteDatabase(name);
-    req.onsuccess = () => resolve();
-    req.onerror = () => resolve();
-    req.onblocked = () => resolve();
+    req.onsuccess = () => resolve("deleted");
+    req.onerror = () => resolve("blocked");
+    req.onblocked = () => resolve("blocked");
   });
 }
 
-export type MigrationOutcome = "no-legacy" | "skipped" | "migrated" | "failed";
+/**
+ * - `no-legacy`: there was nothing to move (no old database, or an empty one, now deleted).
+ * - `migrated`: everything is in the new database, and the old one is deleted.
+ * - `delete-blocked`: everything is in the new database, but another tab still holds the old one open, so
+ *   it is deleted only once that tab closes it.
+ * - `skipped`: the old database still holds data the new one doesn't have, and nothing replaced anything.
+ * - `failed`: the move failed; the old database is as it was.
+ */
+export type MigrationOutcome = "no-legacy" | "migrated" | "delete-blocked" | "skipped" | "failed";
+
+export interface MigrationReport {
+  outcome: MigrationOutcome;
+  /** Records this run added to the new database. */
+  moved: number;
+  /** Old records left where they were, because the new database holds something else under their key. */
+  kept: number;
+}
+
+/** The lock two tabs take turns on, so that only one moves the data. */
+export const MIGRATION_LOCK = "curatune-web-migrate";
+
+/** What the move needs of the Web Locks API (`navigator.locks`); null where the browser lacks it. */
+export type MigrationLocks = Pick<LockManager, "request"> | null;
+
+function defaultLocks(): MigrationLocks {
+  return (globalThis as { navigator?: Navigator }).navigator?.locks ?? null;
+}
+
+function defaultFactory(): IDBFactory | undefined {
+  return typeof indexedDB === "undefined" ? undefined : indexedDB;
+}
+
+/** Runs `move` holding the migration lock, or unguarded where there are no Web Locks. */
+async function withLock(locks: MigrationLocks, move: () => Promise<MigrationReport>): Promise<MigrationReport> {
+  if (!locks) return move();
+  let started = false;
+  try {
+    return await locks.request(MIGRATION_LOCK, () => {
+      started = true;
+      return move();
+    });
+  } catch {
+    // The lock itself failed (move never throws): move without it, unless it already ran.
+    return started ? { outcome: "failed", moved: 0, kept: 0 } : move();
+  }
+}
+
+/** True only when the browser says the old database doesn't exist: no need to take the lock then. */
+async function knownAbsent(factory: IDBFactory): Promise<boolean> {
+  try {
+    return typeof factory.databases === "function" && !(await factory.databases()).some((db) => db.name === LEGACY_DB_NAME);
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Moves the data kept under the database's former name (LEGACY_DB_NAME) into DB_NAME, once, on start:
- * - only when the old database exists and the new one is missing or empty ("skipped" otherwise, and nothing
- *   changes); the new one is created at the current version and schema;
- * - every record of every store is copied in one transaction, read back, and compared with the original;
- * - only a complete copy deletes the old database. On any failure the old one stays as it was, the new one
- *   is emptied again (so the next start retries), and the app goes on with the new one.
- * Running it again, or without an old database, does nothing. Never throws.
+ * Moves the old database's records into the new one, holding the lock (every check happens in here, so a
+ * second tab finds the work done). `onlyIntoEmpty` is the one-time move at start, which copies nothing
+ * into a new database that already holds data; otherwise (the retry) it adds the records whose keys are
+ * missing, without replacing any.
  */
-export async function migrateLegacyDatabase(factory: IDBFactory): Promise<MigrationOutcome> {
+async function moveLegacyData(factory: IDBFactory, onlyIntoEmpty: boolean): Promise<MigrationReport> {
+  const report = (outcome: MigrationOutcome, moved = 0, kept = 0): MigrationReport => ({ outcome, moved, kept });
   let legacy: IDBDatabase | null = null;
   let current: IDBDatabase | null = null;
-  let copying = false;
+  let added: Map<string, StoreContents> | null = null;
+  const removeLegacy = async (): Promise<"migrated" | "delete-blocked"> => {
+    legacy?.close();
+    legacy = null;
+    return (await deleteDatabase(factory, LEGACY_DB_NAME)) === "deleted" ? "migrated" : "delete-blocked";
+  };
   try {
-    legacy = await openIfExists(factory, LEGACY_DB_NAME);
-    if (!legacy) return "no-legacy";
-    current = await openDatabase(factory);
-    if (!(await isEmpty(current))) return "skipped";
+    const opened = await openIfExists(factory, LEGACY_DB_NAME);
+    // Its deletion is pending, held up by another tab: the move itself already happened.
+    if (opened === "waiting") return report("delete-blocked");
+    legacy = opened;
+    if (!legacy) return report("no-legacy");
     const names = Array.from(legacy.objectStoreNames);
     // A store this version doesn't have would be lost: keep everything where it is.
-    if (names.some((name) => !(STORES as readonly string[]).includes(name))) return "failed";
-    const original = await readStores(legacy, names);
-    copying = true;
-    await writeStores(current, original);
-    if (!sameContents(factory, original, await readStores(current, names))) throw new Error("The copy differs from the original.");
-    legacy.close();
-    legacy = null;
-    await deleteDatabase(factory, LEGACY_DB_NAME);
-    return "migrated";
+    if (names.some((name) => !(STORES as readonly string[]).includes(name))) return report("failed");
+    const old = await readStores(legacy, names);
+    // An old tab of the app recreates the old database, empty, when it reopens it after the move.
+    if (recordCount(old) === 0) {
+      await removeLegacy();
+      return report("no-legacy");
+    }
+    current = await openDatabase(factory);
+    const present = await readStores(current, Array.from(current.objectStoreNames));
+    const { missing, conflicts } = compare(factory, old, present);
+    // Everything is already there (an earlier run whose deletion was blocked, or another tab).
+    if (!missing.size && !conflicts) return report(await removeLegacy());
+    if (onlyIntoEmpty && recordCount(present) > 0) return report("skipped", 0, recordCount(missing) + conflicts);
+    await addRecords(current, missing);
+    added = missing;
+    if (!contains(factory, await readStores(current, [...missing.keys()]), missing)) throw new Error("The copy differs from the original.");
+    const moved = recordCount(missing);
+    added = null;
+    if (conflicts) return report("skipped", moved, conflicts);
+    return report(await removeLegacy(), moved);
   } catch {
-    if (copying && current) await clearStores(current).catch(() => {});
-    return "failed";
+    // Take back only what this run added: the new database may hold newer data of its own.
+    if (added && current) await deleteKeys(current, added).catch(() => {});
+    return report("failed");
   } finally {
     legacy?.close();
     current?.close();
   }
 }
 
-// One connection per factory (the browser's, or a test's), opened after the migration has run.
+/**
+ * Moves the data kept under the database's former name (LEGACY_DB_NAME) into DB_NAME, once, on start:
+ * - only when the old database holds data and the new one is missing or empty ("skipped" otherwise, and
+ *   nothing changes); the new one is created at the current version and schema;
+ * - the records are added in one transaction, read back, and compared with the original;
+ * - only a complete copy deletes the old database ("delete-blocked" while another tab holds it open). On a
+ *   failure the old one stays as it was, the new one loses what this run added, and the app goes on.
+ * Two tabs take turns through the Web Locks API. Running it again, or without an old database, does
+ * nothing. Never throws.
+ */
+export async function migrateLegacyDatabase(factory: IDBFactory, locks: MigrationLocks = defaultLocks()): Promise<MigrationOutcome> {
+  if (await knownAbsent(factory)) return "no-legacy";
+  return (await withLock(locks, () => moveLegacyData(factory, true))).outcome;
+}
+
+/**
+ * The retry after a move that couldn't finish: adds the old records whose keys the new database lacks, with
+ * add(), never replacing a record. The old database is deleted only when nothing of it is left behind;
+ * `kept` counts the records left because the new database holds something else under their key.
+ */
+export async function mergeLegacyDatabase(
+  factory: IDBFactory | undefined = defaultFactory(),
+  locks: MigrationLocks = defaultLocks(),
+): Promise<MigrationReport> {
+  if (!factory) return { outcome: "failed", moved: 0, kept: 0 };
+  if (await knownAbsent(factory)) return { outcome: "no-legacy", moved: 0, kept: 0 };
+  return withLock(locks, () => moveLegacyData(factory, false));
+}
+
+// One connection per factory (the browser's, or a test's), opened after the move has run.
 const connections = new WeakMap<IDBFactory, Promise<IDBDatabase>>();
+const outcomes = new WeakMap<IDBFactory, MigrationOutcome>();
 
 function openDb(factory: IDBFactory): Promise<IDBDatabase> {
   let connection = connections.get(factory);
@@ -241,11 +382,19 @@ function openDb(factory: IDBFactory): Promise<IDBDatabase> {
     const forget = () => {
       if (connections.get(factory) === connection) connections.delete(factory);
     };
-    connection = migrateLegacyDatabase(factory).then(() => openDatabase(factory, forget));
+    connection = migrateLegacyDatabase(factory).then((outcome) => {
+      outcomes.set(factory, outcome);
+      return openDatabase(factory, forget);
+    });
     connection.catch(forget);
     connections.set(factory, connection);
   }
   return connection;
+}
+
+/** What the one-time move did when the app opened its database; undefined until then, or without IndexedDB. */
+export function migrationOutcome(factory: IDBFactory | undefined = defaultFactory()): MigrationOutcome | undefined {
+  return factory ? outcomes.get(factory) : undefined;
 }
 
 export class IndexedDbStore implements KeyValueStore {
