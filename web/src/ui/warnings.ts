@@ -42,8 +42,11 @@ export interface StorageNotice {
   retry: boolean;
 }
 
-const EXPORT_FIRST = "Export your recording dates (Recordings) before changing anything.";
-const NOT_MOVED = `Data saved by the app under its former name couldn't be moved to its new storage; it is still in this browser. ${EXPORT_FIRST}`;
+// Exporting from the app reads only the new storage: what is left under the former name survives only as long
+// as the browser keeps this site's data.
+const KEEP_SITE_DATA = "It is still in this browser: don't clear this site's data, or it will be lost.";
+const NOT_MOVED = `Data saved by the app under its former name couldn't be moved to its new storage. ${KEEP_SITE_DATA}`;
+const BUSY = "Couldn't check for data saved under the app's former name yet: another curatune-web tab may be using it. Reload in a moment.";
 const OTHER_TABS =
   "Your saved data moved to the app's new storage, but another curatune-web tab still holds the old copy open. Close the " +
   "other curatune-web tabs so that it can be removed.";
@@ -56,6 +59,8 @@ export function storageMoveNotice(outcome: MigrationOutcome | undefined): Storag
     case "failed":
     case "skipped":
       return { text: NOT_MOVED, retry: true };
+    case "busy":
+      return { text: BUSY, retry: true };
     case "delete-blocked":
       return { text: OTHER_TABS, retry: false };
     default:
@@ -71,15 +76,17 @@ export function storageRetryNotice(report: MigrationReport): StorageNotice {
       return { text: `Your saved data is now in the app's new storage${report.moved ? ` (${items(report.moved)} moved)` : ""}.`, retry: false };
     case "delete-blocked":
       return { text: OTHER_TABS, retry: false };
+    case "busy":
+      return { text: BUSY, retry: true };
     case "skipped":
       return {
         text:
           `${report.moved ? `Moved ${items(report.moved)}, but ${items(report.kept)}` : `${items(report.kept)}`} stayed under the former ` +
-          "name: the new storage already holds different data under the same name (recording dates are stored as one item). " +
-          EXPORT_FIRST,
+          "name, because the new storage already holds different data under the same name (recording dates are stored as one " +
+          `item). ${KEEP_SITE_DATA}`,
         retry: false,
       };
     case "failed":
-      return { text: `Moving the data failed again; it is still in this browser. ${EXPORT_FIRST}`, retry: true };
+      return { text: `Moving the data failed again. ${KEEP_SITE_DATA}`, retry: true };
   }
 }

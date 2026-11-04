@@ -187,8 +187,9 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
   database, and the sessionStorage and localStorage keys' prefix, are `curatune-web` too. Browsers that ran
   the app under its former name keep their data: on start, `migrateLegacyDatabase` (`src/storage/kv.ts`)
   copies the old database into the new one once, checks the copy, and only then deletes the old one. Tabs
-  take turns through `navigator.locks` ("curatune-web-migrate"). When the move can't finish, or another tab
-  keeps the old database open, the app says so (`storageMoveNotice` in `src/ui/warnings.ts`); its retry,
+  take turns through `navigator.locks` ("curatune-web-migrate"), and no database open inside the lock waits
+  more than a second ("busy"). When the move can't finish, or another tab keeps the old database open, the
+  app says so (`storageMoveNotice` in `src/ui/warnings.ts`); its retry,
   `mergeLegacyDatabase`, only adds records whose keys are missing and keeps the old database while any of
   it differs from the new one.
 - Test against a dedicated test playlist, never against the user's curated playlists.

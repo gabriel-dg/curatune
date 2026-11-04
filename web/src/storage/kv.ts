@@ -74,16 +74,17 @@ function openDatabase(factory: IDBFactory, onVersionChange?: () => void): Promis
 }
 
 /**
- * How long to wait for the old database to open. Opening it waits behind a pending deletion of it, and the
- * deletion waits for the tabs that hold it open: past this, the move has run and only that deletion is left.
+ * How long the move waits for a database to open. An open waits behind anything another tab holds up: a
+ * deletion of the old database, or an upgrade of the new one. Past this, the move gives up for now ("busy"),
+ * so that it never holds the lock for long.
  */
-const LEGACY_OPEN_WAIT_MS = 1000;
+const OPEN_WAIT_MS = 1000;
 
 /**
  * Opens a database at whatever version it has, only if it exists: never creates one. "waiting" when the open
- * doesn't complete within `waitMs` (see LEGACY_OPEN_WAIT_MS); a late open is closed at once.
+ * doesn't complete within `waitMs` (see OPEN_WAIT_MS); a late open is closed at once.
  */
-async function openIfExists(factory: IDBFactory, name: string, waitMs = LEGACY_OPEN_WAIT_MS): Promise<IDBDatabase | null | "waiting"> {
+async function openIfExists(factory: IDBFactory, name: string, waitMs = OPEN_WAIT_MS): Promise<IDBDatabase | null | "waiting"> {
   if (typeof factory.databases === "function" && !(await factory.databases()).some((db) => db.name === name)) return null;
   // Without databases() (older browsers), or if the database went away since: an open that would create it
   // is aborted, which leaves nothing behind.
@@ -114,6 +115,28 @@ async function openIfExists(factory: IDBFactory, name: string, waitMs = LEGACY_O
       if (creating) resolve(null);
       else reject(req.error);
     };
+  });
+}
+
+/** openDatabase, or "waiting" if it doesn't complete within `waitMs` (see OPEN_WAIT_MS); a late open is closed. */
+function openDatabaseWithin(factory: IDBFactory, waitMs = OPEN_WAIT_MS): Promise<IDBDatabase | "waiting"> {
+  return new Promise((resolve, reject) => {
+    let gaveUp = false;
+    const timer = setTimeout(() => {
+      gaveUp = true;
+      resolve("waiting");
+    }, waitMs);
+    openDatabase(factory).then(
+      (db) => {
+        clearTimeout(timer);
+        if (gaveUp) db.close();
+        else resolve(db);
+      },
+      (exc: unknown) => {
+        clearTimeout(timer);
+        if (!gaveUp) reject(exc);
+      },
+    );
   });
 }
 
@@ -239,9 +262,10 @@ function deleteDatabase(factory: IDBFactory, name: string): Promise<"deleted" | 
  * - `delete-blocked`: everything is in the new database, but another tab still holds the old one open, so
  *   it is deleted only once that tab closes it.
  * - `skipped`: the old database still holds data the new one doesn't have, and nothing replaced anything.
+ * - `busy`: a database didn't open in time (another tab holds it up); nothing was checked or moved yet.
  * - `failed`: the move failed; the old database is as it was.
  */
-export type MigrationOutcome = "no-legacy" | "migrated" | "delete-blocked" | "skipped" | "failed";
+export type MigrationOutcome = "no-legacy" | "migrated" | "delete-blocked" | "skipped" | "busy" | "failed";
 
 export interface MigrationReport {
   outcome: MigrationOutcome;
@@ -307,8 +331,8 @@ async function moveLegacyData(factory: IDBFactory, onlyIntoEmpty: boolean): Prom
   };
   try {
     const opened = await openIfExists(factory, LEGACY_DB_NAME);
-    // Its deletion is pending, held up by another tab: the move itself already happened.
-    if (opened === "waiting") return report("delete-blocked");
+    // Held up by another tab (most likely a pending deletion of it, but nothing says so): try again later.
+    if (opened === "waiting") return report("busy");
     legacy = opened;
     if (!legacy) return report("no-legacy");
     const names = Array.from(legacy.objectStoreNames);
@@ -320,7 +344,9 @@ async function moveLegacyData(factory: IDBFactory, onlyIntoEmpty: boolean): Prom
       await removeLegacy();
       return report("no-legacy");
     }
-    current = await openDatabase(factory);
+    const currentOpened = await openDatabaseWithin(factory);
+    if (currentOpened === "waiting") return report("busy");
+    current = currentOpened;
     const present = await readStores(current, Array.from(current.objectStoreNames));
     const { missing, conflicts } = compare(factory, old, present);
     // Everything is already there (an earlier run whose deletion was blocked, or another tab).
@@ -348,6 +374,8 @@ async function moveLegacyData(factory: IDBFactory, onlyIntoEmpty: boolean): Prom
  * - only when the old database holds data and the new one is missing or empty ("skipped" otherwise, and
  *   nothing changes); the new one is created at the current version and schema;
  * - the records are added in one transaction, read back, and compared with the original;
+ * - a database that doesn't open within OPEN_WAIT_MS (another tab holding it up) means "busy": nothing is
+ *   checked or moved, and the lock is released;
  * - only a complete copy deletes the old database ("delete-blocked" while another tab holds it open). On a
  *   failure the old one stays as it was, the new one loses what this run added, and the app goes on.
  * Two tabs take turns through the Web Locks API. Running it again, or without an old database, does

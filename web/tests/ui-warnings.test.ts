@@ -24,8 +24,16 @@ describe("storage move notices", () => {
       const notice = storageMoveNotice(outcome)!;
       expect(notice.retry).toBe(true);
       expect(notice.text).toContain("couldn't be moved");
-      expect(notice.text).toContain("Export your recording dates");
+      expect(notice.text).toContain("don't clear this site's data");
+      expect(notice.text).not.toContain("Export");
     }
+  });
+
+  it("asks to reload in a moment, with a retry, when the storage was too busy to check", () => {
+    const notice = storageMoveNotice("busy")!;
+    expect(notice).toEqual({ text: expect.stringContaining("Reload in a moment") as string, retry: true });
+    expect(notice.text).toMatch(/^Couldn't check for data saved under the app's former name yet/);
+    expect(storageRetryNotice({ outcome: "busy", moved: 0, kept: 0 })).toEqual(notice);
   });
 
   it("asks to close the other tabs when they hold the old copy open, without a retry", () => {
@@ -50,6 +58,9 @@ describe("storage move notices", () => {
     expect(partial.text).toMatch(/^Moved 3 saved items, but 1 saved item stayed under the former name/);
     expect(storageRetryNotice({ outcome: "skipped", moved: 0, kept: 2 }).text).toMatch(/^2 saved items stayed under the former name/);
     expect(storageRetryNotice({ outcome: "delete-blocked", moved: 4, kept: 0 })).toEqual({ text: storageMoveNotice("delete-blocked")!.text, retry: false });
-    expect(storageRetryNotice({ outcome: "failed", moved: 0, kept: 0 }).retry).toBe(true);
+    expect(partial.text).toContain("don't clear this site's data");
+    const failed = storageRetryNotice({ outcome: "failed", moved: 0, kept: 0 });
+    expect(failed.retry).toBe(true);
+    expect(failed.text).toContain("don't clear this site's data");
   });
 });

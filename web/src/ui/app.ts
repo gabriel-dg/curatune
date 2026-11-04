@@ -215,7 +215,8 @@ export class App {
     }
     const dismiss = () => {
       element.remove();
-      this.warnings.splice(this.warnings.indexOf(warning), 1);
+      const i = this.warnings.indexOf(warning);
+      if (i >= 0) this.warnings.splice(i, 1);
     };
     element.append(h("button", { class: "ghost tiny", attrs: { "aria-label": "Dismiss" }, on: { click: dismiss } }, [icon("close", 13)]));
     return element;

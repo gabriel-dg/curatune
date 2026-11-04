@@ -279,7 +279,7 @@ describe("the old database held open, or already empty", () => {
     expect((await dump(factory, DB_NAME)).records).toEqual(LEGACY);
   });
 
-  it("doesn't hang, or hold the lock, behind a deletion another tab blocks: a second run reports delete-blocked too", async () => {
+  it("doesn't hang, or hold the lock, behind a deletion another tab blocks: a second run reports busy", async () => {
     const factory = new IDBFactory();
     await seed(factory, LEGACY_DB_NAME, 2, LEGACY);
     const otherTab = await req(factory.open(LEGACY_DB_NAME));
@@ -287,12 +287,44 @@ describe("the old database held open, or already empty", () => {
 
     const outcomes = await Promise.all([migrateLegacyDatabase(factory, asLocks(locks)), migrateLegacyDatabase(factory, asLocks(locks))]);
 
-    expect(outcomes).toEqual(["delete-blocked", "delete-blocked"]);
-    expect((await mergeLegacyDatabase(factory, asLocks(locks))).outcome).toBe("delete-blocked");
+    expect(outcomes).toEqual(["delete-blocked", "busy"]);
+    expect((await mergeLegacyDatabase(factory, asLocks(locks))).outcome).toBe("busy");
     expect((await dump(factory, DB_NAME)).records).toEqual(LEGACY);
     otherTab.close();
     await until(async () => !(await databaseNames(factory)).includes(LEGACY_DB_NAME));
     expect(await migrateLegacyDatabase(factory, asLocks(locks))).toBe("no-legacy");
+  });
+
+  it("reports busy, moving nothing, when the old database is slow to open, and moves it once it opens", async () => {
+    const factory = new IDBFactory();
+    await seed(factory, LEGACY_DB_NAME, 2, LEGACY);
+    // Another tab holds the old database open while a third asks to upgrade it: every open waits behind that.
+    const otherTab = await req(factory.open(LEGACY_DB_NAME));
+    const upgrade = factory.open(LEGACY_DB_NAME, 3);
+    const locks = new FakeLocks();
+
+    expect(await migrateLegacyDatabase(factory, asLocks(locks))).toBe("busy");
+
+    expect(await databaseNames(factory)).toEqual([LEGACY_DB_NAME]);
+    otherTab.close();
+    (await req(upgrade)).close();
+    expect(await migrateLegacyDatabase(factory, asLocks(locks))).toBe("migrated");
+    expect((await dump(factory, DB_NAME)).records).toEqual(LEGACY);
+  });
+
+  it("reports busy, and releases the lock, when another tab's older connection holds up the new database", async () => {
+    const factory = new IDBFactory();
+    await seed(factory, LEGACY_DB_NAME, 2, LEGACY);
+    // A tab of a version that knew the new database at version 1, and doesn't close when asked to.
+    const olderTab = await req(factory.open(DB_NAME, 1));
+    const locks = new FakeLocks();
+
+    expect(await migrateLegacyDatabase(factory, asLocks(locks))).toBe("busy");
+
+    expect((await dump(factory, LEGACY_DB_NAME)).records).toEqual(LEGACY);
+    olderTab.close();
+    expect(await migrateLegacyDatabase(factory, asLocks(locks))).toBe("migrated");
+    expect((await dump(factory, DB_NAME)).records).toEqual(LEGACY);
   });
 
   it("deletes an old database whose records are all in the new one already (an earlier deletion that was blocked)", async () => {
