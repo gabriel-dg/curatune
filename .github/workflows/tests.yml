@@ -19,6 +19,7 @@ jobs:
   api:
     name: api / ${{ matrix.os }} / Python ${{ matrix.python }} / ${{ matrix.extras == 'dev' && 'without MCP' || 'with MCP' }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: api
@@ -59,6 +60,7 @@ jobs:
   web:
     name: web / Node 22
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: web
