@@ -2,15 +2,15 @@
 
 ## Goal
 
-A zero-install web version of curatune (sibling project: Python CLI plus an agent skill, installed
+A browser version of curatune (in `../api/`: a Python library, CLI, MCP server, and agent skill, installed
 locally). The user chats in the browser; an LLM served by the operator through an
 OpenAI-compatible endpoint (LM Studio or Ollama; optionally a hosted API such as Gemini, chosen per chat)
 decides which tools to call; the tools run **in the
 browser** against the Spotify Web API with the user's own token. Scope: **playlists only** (create, read,
 edit, analyze); no playback, library, or listening history.
 
-Current stage: single-user prototype (the operator is the only user). The plan and progress live in
-`docs/plan.md`.
+Current stage: single-user prototype (the operator is the only user). How models were evaluated for it,
+and the results, are in `docs/evaluation.md`.
 
 Personal context (conversation language, local network setup, test playlist) lives in the gitignored
 `AGENTS.local.md`; read it when present. Never put personal data (user IDs, playlist IDs, names, emails,
@@ -24,8 +24,8 @@ IP addresses, hostnames, local paths) in versioned files.
 - Each ported module records, in a header comment, the curatune commit it follows and the file, by its path
   in `api/` today (`src/curatune/…`). Before commit d62b466 the package directory had the project's former
   name: `git ls-tree -r --name-only <commit> src` shows the path to use with `git show <commit>:<path>`.
-- The "Spotify Web API facts" below are copied from curatune. When either project verifies something new,
-  update both.
+- The "Spotify Web API facts" below are copied from curatune's `docs/reference.md` ("Spotify API notes").
+  When either project verifies something new, update both.
 - Deliberate differences (keep this list current; module headers give the details):
   - Auth: PKCE with the callback as a page of this app, tokens in `sessionStorage` (curatune: a local
     callback server and an owner-only token file). HTTP uses `redirect: "error"`.
@@ -69,7 +69,8 @@ IP addresses, hostnames, local paths) in versioned files.
   module (types only), so the token cannot reach the model. All of this is testable in Node
   (`tests/invariants.test.ts` checks these rules statically).
 - Model evaluation: `npm run eval` runs `eval/scenarios.ts` against real models with the in-memory fake
-  Spotify from `tests/fake-spotify.ts` (no token needed); results go to `scratch/eval/`.
+  Spotify from `tests/fake-spotify.ts` (no token needed); results go to `scratch/eval/`. How to run it, the
+  scenarios, and the recorded results are in `docs/evaluation.md`.
 - LM Studio silently truncates conversations that exceed the loaded context length (4096 by default when
   it loads a model on demand). The loop detects it (prompt tokens shrinking within a turn) and fails with
   `LLM_CONTEXT_EXCEEDED`. Load models with at least 32768 tokens of context.
@@ -110,7 +111,7 @@ IP addresses, hostnames, local paths) in versioned files.
   the CSP allows). Choosing it sends the conversation and trimmed playlist data to the provider; the
   Spotify token is never sent (tested in `tests/llm-providers.test.ts`). Switching model starts a new
   chat. The evaluation reads its own key from `EVAL_LLM_API_KEY`, which Vite never bundles.
-- The LLM server is never exposed to the internet directly. Remote access (a later phase) goes through an
+- The LLM server is never exposed to the internet directly. Remote access (not built yet) would go through an
   outbound tunnel, authentication, and a proxy that allows only chat completions.
 
 ## Confirmation rules (same as curatune)
@@ -189,8 +190,8 @@ committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redire
 - Test against a dedicated test playlist, never against the user's curated playlists.
 - Positions in JSON are **0-based** (same as the API and curatune). Deliberate exception: what the model
   sees and sends through tools uses `number`, **1-based** as in the Spotify app (a 9B model confused
-  0-based positions with track numbers in the phase 2 evaluation). Convert only at the tool boundary
-  (`src/tools/`); `spotify/`, plans, and stored data stay 0-based.
+  0-based positions with track numbers in the evaluation, `docs/evaluation.md`). Convert only at the tool
+  boundary (`src/tools/`); `spotify/`, plans, and stored data stay 0-based.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
   IDs, IP addresses, and hostnames). The repo is intended to be published. The one exception is the
   author's name as the copyright holder (`LICENSE`, `NOTICE`, the READMEs, `package.json`).

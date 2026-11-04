@@ -1,4 +1,4 @@
-// Read-only tools (phase 2): schemas for the model and handlers over src/spotify. No tool writes to
+// Read-only tools: schemas for the model and handlers over src/spotify. No tool writes to
 // Spotify; there is deliberately no tool that applies a plan (see AGENTS.md).
 
 import { getAlbumTracks, getTrack, SEARCH_MAX_LIMIT, searchTracks } from "../spotify/catalog";

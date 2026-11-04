@@ -1,5 +1,5 @@
-// Write tools (phase 3): create a playlist, add tracks. Both run directly, as in curatune, and the UI
-// shows every write. Removing, reordering, and renaming go only through plans (phase 4); visibility is
+// Write tools: create a playlist, add tracks. Both run directly, as in curatune, and the UI
+// shows every write. Removing, reordering, and renaming go only through plans (plan.ts); visibility is
 // never changeable. IDs must come from the conversation: the model cannot write invented ones.
 
 import { CuratuneError } from "../spotify/errors";

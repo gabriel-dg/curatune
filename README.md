@@ -7,10 +7,6 @@ is shown to you as a plan first, and only applied after you approve it.
 > curatune is an independent project. It is not affiliated with, endorsed by, or sponsored by Spotify.
 > Spotify is a trademark of Spotify AB.
 
-<p align="center"><em>A short recording of the agent at work will go here.</em></p>
-<!-- To add it: save the recording as docs/media/demo.gif and replace the line above with
-     ![An agent finds duplicates in a playlist, shows the plan, and applies it after approval](docs/media/demo.gif) -->
-
 ## What's inside
 
 | Folder | What it is | Built with |
@@ -180,7 +176,7 @@ flowchart LR
 - Only playlists you own or collaborate on can be read track by track or changed.
 - Spotify gives the release date of an edition, not the recording date. Recording dates come from the
   model's knowledge or from sources it can check, and a model can be confidently wrong: small local models
-  often are ([evaluation](web/docs/plan.md)). Dates are stored with their source and confidence so you
+  often are ([evaluation](web/docs/evaluation.md)). Dates are stored with their source and confidence so you
   can check them.
 - In our evaluation, a local 9B model took about 20–30 seconds per step; hosted models are much faster and
   better informed, but they receive your playlist metadata.
@@ -203,9 +199,9 @@ flowchart LR
 | [api/README.md](api/README.md) | The CLI: what you can do, safety, commands, configuration |
 | [api/docs/reference.md](api/docs/reference.md) | CLI contract, JSON shapes, error and warning codes, the plan format, Spotify API notes |
 | [api/docs/mcp.md](api/docs/mcp.md) | The MCP server: setup, tools, confirmation flow, demo mode |
-| [api/docs/plan-mcp.md](api/docs/plan-mcp.md) | Design notes and decisions for the MCP server |
+| [api/docs/design.md](api/docs/design.md) | The MCP server's design: decisions, the confirmation model, threats |
 | [web/README.md](web/README.md) | The web app: setup and development |
-| [web/docs/plan.md](web/docs/plan.md) | The web app's development log, including the model evaluations |
+| [web/docs/evaluation.md](web/docs/evaluation.md) | How models were evaluated for the web app, and the results |
 
 ## Development
 
@@ -224,8 +220,14 @@ npm run build      # typecheck and production build
 npm run eval       # evaluate models against the in-memory Spotify (see web/README.md)
 ```
 
-CI runs both on every push ([.github/workflows/tests.yml](.github/workflows/tests.yml)). Development
-instructions for coding agents are in [`api/AGENTS.md`](api/AGENTS.md) and [`web/AGENTS.md`](web/AGENTS.md).
+CI ([.github/workflows/tests.yml](.github/workflows/tests.yml)) runs on pushes to `main` and on pull
+requests: `api/` on Windows and Linux, with Python 3.10 and 3.14, with and without the `mcp` extra; `web/`
+on Node 22. Development instructions for coding agents are in [`api/AGENTS.md`](api/AGENTS.md) and
+[`web/AGENTS.md`](web/AGENTS.md).
+
+## Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 

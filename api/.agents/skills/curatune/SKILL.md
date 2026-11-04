@@ -13,12 +13,13 @@ never runs commands by hand.
 - **You are the judgment layer.** You interpret the request, apply domain knowledge (and web search
   when needed), choose recordings, and explain every decision, including your confidence in it.
 
-Per-playlist curation criteria and personal preferences may be in `AGENTS.local.md` at the repository root
-(gitignored). Read it when present and follow it.
+Per-playlist curation criteria and personal preferences may be in `AGENTS.local.md` in the `api/` folder,
+next to `AGENTS.md` (gitignored). Read it when present and follow it.
 
 ## Invoking the CLI
 
-The working directory is already the repository root. Use the prefix for your shell and OS:
+The working directory is already the `api/` folder, where curatune's `.venv` is. Use the prefix for your
+shell and OS:
 
 | Shell | OS | Command prefix |
 |---|---|---|

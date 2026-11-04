@@ -84,8 +84,8 @@ workflows are prompts (`/mcp__curatune__deduplicate`, …).
   and the exact operations. The agent shows you the plan and applies it only after your OK. Through MCP,
   that OK is your answer in the client's confirmation dialog, which shows a summary built from the plan
   itself.
-- Sorting by title, artist, album, release date, or duration is computed by curatune, not guessed by the
-  agent.
+- Sorting by title, artist, album, release date, duration, or recording date (from the stored dates) is
+  computed by curatune, not guessed by the agent.
 - Applying a plan first checks that the playlist hasn't changed since the plan was made, backs it up to
   `backups/` in curatune's data directory, and verifies the result afterwards.
 - Spotify currently makes every playlist created through the API **public**, whatever is requested.
@@ -178,7 +178,7 @@ flowchart LR
   existing data there is an explicit, verified copy (`curatune data migrate`), never silent.
 - **Local only.** The MCP server runs on your machine over stdio ([why](#why-the-mcp-server-isnt-remote)).
 
-The full reasoning, with the alternatives discarded, is in [docs/plan-mcp.md](docs/plan-mcp.md).
+The full reasoning, with the alternatives discarded, is in [docs/design.md](docs/design.md).
 
 ### How a plan gets applied through MCP
 
@@ -224,7 +224,7 @@ the model pass it (a wrong code fails anyway).
 ### Verified live
 
 Things the Spotify Web API does that its documentation doesn't say, each observed on a real account
-(details and dates in [AGENTS.md](AGENTS.md)):
+(details and dates in [docs/reference.md](docs/reference.md#spotify-api-notes)):
 - creating a playlist ignores `public: false` while echoing it back, and `PUT` with `public: false` answers
   200 without effect;
 - a description can be replaced but not cleared (`""` answers 200 and keeps the old text), and a playlist
@@ -294,12 +294,13 @@ authorization; after that, run `curatune auth login` again.
 ### Without cloning the repository (not verified yet)
 
 curatune can also be installed as a tool, with [pipx](https://pipx.pypa.io) or
-[uv](https://docs.astral.sh/uv/). The package itself was checked (built, installed into a fresh
-environment, and run outside any checkout), but these commands haven't been run yet. `<source>` is
-`git+<repository URL>` until curatune is on PyPI, then nothing (just `curatune[mcp]`):
+[uv](https://docs.astral.sh/uv/), from GitHub: the package is in the repository's `api/` folder, hence
+`#subdirectory=api`. The package itself was checked (built, installed into a fresh environment, and run
+outside any checkout, and pip installs it from a clone with that same `#subdirectory=api`), but these
+commands haven't been run against GitHub yet:
 
 ```bash
-pipx install "curatune[mcp] @ <source>"
+pipx install "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api"
 ```
 
 With no repository around, curatune reads its `.env` from the config directory, next to the token:
@@ -308,7 +309,7 @@ there (and the other settings below, if you use them), then run `curatune auth l
 start the server without installing anything first:
 
 ```bash
-claude mcp add curatune -- uvx --from "curatune[mcp] @ <source>" curatune-mcp
+claude mcp add curatune -- uvx --from "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api" curatune-mcp
 ```
 
 On Windows, run that first `auth login` from a terminal, not from a session inside an app installed as an
@@ -324,6 +325,8 @@ MSIX package, such as Claude Desktop (see `CURATUNE_DATA_DIR` below).
 | `CURATUNE_TOKEN_DIR` | `%LOCALAPPDATA%\curatune` / `~/.config/curatune` | Token location (the config directory; a `.env` there is read too). Must be outside the repo (enforced). |
 | `CURATUNE_DATA_DIR` | `%LOCALAPPDATA%\curatune\data` / `~/.local/share/curatune` | Plans, backups, the write log, and recording dates, shared by the CLI and the MCP server. Must be outside the repo (enforced). If curatune is first started by an app installed as an MSIX package (such as Claude Desktop), Windows can keep a new AppData folder private to that app; curatune refuses that (`DATA_DIR_VIRTUALIZED`): run it once from a terminal, or set this to a folder outside AppData. |
 | `CURATUNE_RETENTION_DAYS` | `90` | Plans and backups older than this many days are deleted when a data command or the MCP server starts: they hold copies of Spotify track metadata, which Spotify's Developer Terms don't allow keeping indefinitely. |
+| `CURATUNE_MCP_CONFIRM` | `auto` | MCP server only: how `plan_apply` asks you to confirm a plan. `auto` uses the client's dialog when it declares one, otherwise the local confirmation page; `elicitation` allows only the dialog; `browser` always uses the page (for clients that declare dialogs but don't show them). See [docs/mcp.md](docs/mcp.md#confirming-plans). |
+| `CURATUNE_PROJECT_DIR` | the checkout curatune is installed from in editable mode, if any | A source checkout whose `.env` is read too (between the process environment and the config directory's `.env`); neither the token nor the data dir may be inside it. Rarely needed. |
 
 curatune used to keep its data in the repository's `data/` and `plans/`. If yours still has files there,
 commands stop with `LEGACY_DATA_NOT_MIGRATED` until you run `curatune data migrate`, which backs them up,
@@ -359,9 +362,13 @@ src/curatune/
   _writes.py     mutating primitives (private: only plans and add use them)
   recordings.py  local recording-date store and chronological ordering
   writelog.py    compensation for snapshot_id read lag
+  ordering.py    deterministic sort orders for reorder plans (title, artist, album, released, duration)
+  retention.py   deletes plans and backups older than the retention period
   config.py      settings, the config and data directories, .env lookup
   datadir.py     the guard against data left in a checkout, and `data migrate`
   models.py      normalization to the documented JSON shapes (full and brief)
+  refs.py        parsing of bare IDs, spotify: URIs, and open.spotify.com URLs
+  errors.py      typed exceptions, each with the stable error code the CLI emits
   metrics.py     per-command HTTP timing
   cli.py         thin argparse layer emitting the JSON envelope
   demo.py        an in-memory synthetic account (the tests and `curatune-mcp --demo`)
@@ -369,7 +376,7 @@ src/curatune/
 .agents/skills/curatune/SKILL.md   how an AI agent uses curatune (shared skill)
 docs/reference.md                  CLI contract and API notes
 docs/mcp.md                        MCP server: setup, tools, differences from the CLI
-docs/mcp-demo-script.md            a 60–90 s video script, on demo mode
+docs/design.md                     MCP server: design decisions, the confirmation model, threats
 ```
 
 ```bash
@@ -382,8 +389,9 @@ Plan logic runs against an in-memory fake of the playlist API (including snapsho
 client against a scripted session, the OAuth callback against a real local server, and the MCP server
 through an in-memory MCP client in both protocol eras (skipped without the `mcp` extra), and the local
 confirmation page against a real local server. No test calls Spotify, opens a browser, or touches your data
-directory. The CI workflow (`.github/workflows/tests.yml`: Windows and Linux, Python 3.10 and 3.14, with and
-without the extra) runs once the repository is on GitHub; until then the suite runs locally on Windows.
+directory. CI (the repository's `.github/workflows/tests.yml`) runs the suite and ruff on pushes to `main`
+and on pull requests, on Windows and Linux, with Python 3.10 and 3.14, with and without the `mcp` extra; it
+also runs the web app's checks on Node 22.
 
 ## License
 

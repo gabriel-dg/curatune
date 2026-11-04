@@ -23,7 +23,7 @@ def clear_env(monkeypatch, *names):
 
 @pytest.fixture
 def checkout(tmp_path, monkeypatch):
-    """A source checkout with data left in data/ and plans/, as before phase 3."""
+    """A source checkout with data left in data/ and plans/, as earlier versions kept it."""
     root = tmp_path / "repo"
     (root / "data" / "backups").mkdir(parents=True)
     (root / "plans").mkdir()

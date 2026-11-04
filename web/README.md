@@ -4,29 +4,59 @@ curatune-web is not affiliated with, endorsed by, or sponsored by Spotify. Spoti
 AB. The Spotify logo in `public/brand/` is Spotify AB's trademark, used for attribution as Spotify's
 Branding Guidelines require, and is not covered by this project's license.
 
-Curate your own Spotify playlists by chatting in the browser. An LLM served through an OpenAI-compatible
-endpoint (LM Studio or Ollama) chooses the operations; they run in your browser with your own Spotify
-token, which never reaches any server but Spotify's.
+Curate your own Spotify playlists by chatting in the browser. You ask in plain language ("are there
+duplicates in X?", "sort X by recording date", "create a playlist with…"); an LLM chooses the operations,
+and they run in your browser with your own Spotify token, which goes to no server but Spotify's.
 
-A zero-install sibling of [curatune](../api/), the Python CLI, MCP server, and agent skill.
+It is the browser side of [curatune](../README.md): the same rules as the Python CLI and MCP server in
+[`../api/`](../api/), ported to TypeScript.
 
-**Status:** early single-user prototype. See [docs/plan.md](docs/plan.md).
+## What it does
+
+- Your playlists in a sidebar, the chat in the middle, and a panel for the playlist on screen (its tracks
+  and recording dates) or for everything changed in the session.
+- Reads playlists and the catalog, creates playlists, and adds tracks; each write shows as a card in the
+  chat.
+- Removals, reorders, renames, and description changes come as **plans**: the chat shows the change, and
+  only your click on **Apply** runs it. The model has no tool to apply a plan.
+- Keeps recording dates in the browser, with source and confidence, to sort playlists chronologically.
+
+## Which model sees what
+
+- **A local model is the default**, in every new tab: an OpenAI-compatible server you run, such as LM
+  Studio or Ollama. Your playlist data stays on your own computers.
+- **A hosted model, such as Gemini, is optional**, chosen in the chat. While one is selected, your messages
+  and the playlist data the assistant reads (playlist names, track names, and artists) leave your computer
+  for that provider, and the chat shows a notice saying so, citing Spotify's Developer Terms (IV.2.1) and
+  Developer Policy (III.14) on AI models. Its API key is pasted in the app and kept only in that browser
+  tab.
+- No model ever receives your Spotify token.
+
+## Setup
+
+Follow [the web app's section](../README.md#4-the-web-app-web) of the main README. In short: a Spotify app
+whose redirect URIs include `http://127.0.0.1:5173/callback`, an LLM server with CORS enabled and a model
+loaded with a context length of at least 32768 tokens, and `.env.local` filled in from `.env.example`.
 
 ## Development
 
-Requires Node 22+ and a Spotify app whose redirect URIs include `http://127.0.0.1:5173/callback`.
+Requires Node 22 or newer.
 
 ```bash
 npm ci
-cp .env.example .env.local   # then fill in VITE_SPOTIFY_CLIENT_ID
+cp .env.example .env.local   # then fill in VITE_SPOTIFY_CLIENT_ID, VITE_LLM_BASE_URL, VITE_LLM_MODEL
 npm run dev                  # http://127.0.0.1:5173 (use 127.0.0.1, not localhost)
 npm test
 npm run build                # typecheck + static build in dist/
-npm run eval                 # model evaluation against VITE_LLM_MODEL (EVAL_MODELS=a,b EVAL_RUNS=n)
+npm run eval                 # evaluate models against the in-memory Spotify
 ```
 
-The chat needs `VITE_LLM_BASE_URL` and `VITE_LLM_MODEL`, and the model loaded with a context length of at
-least 32768 tokens (LM Studio loads models on demand with 4096 unless the model's default is changed).
+LM Studio loads models on demand with a 4096-token context unless the model's default is changed; the
+app stops with `LLM_CONTEXT_EXCEEDED` when a conversation outgrows it. How models were evaluated, and the
+results, are in [docs/evaluation.md](docs/evaluation.md). Development rules for coding agents, including
+the security invariants, are in [AGENTS.md](AGENTS.md).
+
+**Status:** an early single-user prototype, with no demo mode and no remote access yet.
 
 ## License
 
