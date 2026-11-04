@@ -19,7 +19,7 @@ Not goals: a remote server (D1), playback, library, listening history, visibilit
 ## Facts the design rests on (October 2026)
 
 **The protocol.** The current revision, 2026-07-28 ([versioning], [changelog]), has no `initialize`
-handshake and no protocol sessions. *Multi round-trip requests* (MRTR) replace server-initiated requests:
+handshake and no per-connection state. *Multi round-trip requests* (MRTR) replace server-initiated requests:
 an elicitation comes back as an `InputRequiredResult` and is answered on a retry of the same call
 ([mrtr]). State across calls travels in handles the server mints; a `plan_id` is one. Form elicitation
 uses flat, primitive schemas, must not ask for secrets, and lets the person accept, decline, or cancel;
@@ -27,7 +27,7 @@ the client shows which server asks ([elicitation]). Tool annotations (`readOnlyH
 `idempotentHint`, `openWorldHint`) are hints, untrusted unless the server is trusted ([tools], [schema]).
 
 **The Python SDK.** `mcp` 2.2.0 (2026-09-07) serves both protocol eras ([pypi-mcp], [sdk-versions]).
-*Resolvers* (`Annotated[T, Resolve(fn)]` returning `Elicit(...)`) ask the user on either era; a resolved
+*Resolvers* (`Annotated[T, Resolve(fn)]` returning `Elicit(...)`) ask the person on either era; a resolved
 parameter is not in the input schema, and a value a client sends for it is ignored ([sdk-elicitation],
 [sdk-dependencies]). MRTR state is sealed by default ([sdk-mrtr]). Plain `def` tools run in a worker
 thread, and `Client(server)` connects in memory for tests ([sdk-src], [sdk-testing]). Its dependencies are
@@ -78,7 +78,7 @@ would have to convert, and small models convert wrong.
 **D5. One data directory, shared with the CLI, outside the repository**, for plans, backups, the write
 log, and recording dates. *Discarded:* a directory for MCP only (two write logs would blind the read-lag
 compensation to each other's writes, and split the recording dates), and moving existing files on first
-run (a silent change to user data).
+run (a silent change to your data).
 
 **D6. Configuration without a checkout.** An installed server has no repository: the project root exists
 only in a source checkout, `.env` is read from the checkout and the config directory, and the "token
@@ -98,7 +98,7 @@ up to 25 searches (5 results each by default), and plan views list up to 300 ite
 tool declares an output schema and returns structured content plus the same JSON as text. Timing goes to
 stderr: metrics are per process, and calls run concurrently.
 
-**D9. Concurrency.** One token manager per process, a new Spotify client per call (HTTP sessions aren't
+**D9. Concurrency.** One token manager per process, a new Spotify client per call (HTTP clients aren't
 shared across threads), and a process-wide lock around create, add, apply, and the recording-date tools.
 
 **D10. The skill's rules move into the server.** What the CLI's skill asks of an agent is enforced in code
@@ -158,12 +158,9 @@ pin below `mcp` 3 and CI in both protocol eras.
 ## Found while building
 
 - Claude Code cut the server instructions at 2048 characters; a test keeps them under it.
-- With `Referrer-Policy: no-referrer`, Chromium sends `Origin: null` on form POSTs, and the page refused
-  Approve; it now sends `same-origin`.
-- On Windows, closing a socket with unread data resets the connection, so a refused POST could lose its
-  403; the page now reads the body first.
-- An app installed as an MSIX package (Claude Desktop is one) gets AppData virtualized for the programs it
-  starts; curatune refuses a data or token directory that would land there.
+- With `no-referrer`, Chromium sends `Origin: null` on form POSTs, which the page refused; now `same-origin`.
+- On Windows, a socket closed with unread data resets the connection: the page reads refused POSTs first.
+- MSIX-packaged apps (Claude Desktop) virtualize AppData for what they start; curatune refuses such folders.
 - In live tests a model applied plans without explaining them, so plan tools require a `reason`; and a
   model stored wrong recording dates "from memory", one marked high, so dates need a checkable source.
 
