@@ -256,8 +256,10 @@ curatune refuses a data or token folder that resolves into such a private locati
 | [Claude Desktop](https://claude.com/docs/connectors/building) | Not verified yet | Expected to use the local page (no evidence it shows MCP dialogs; [an issue](https://github.com/anthropics/claude-code/issues/41110)). It documents that `readOnlyHint` and `destructiveHint` drive its permission prompts ([review criteria](https://claude.com/docs/connectors/building/review-criteria)). |
 | [LM Studio](https://lmstudio.ai/docs/app/mcp) | Not verified yet | Documents tools only; it would use the local page. |
 
-Installing from a checkout of this repository (below) is the verified path. Installing with pipx or uvx
-is documented but not verified yet.
+These statuses were checked with curatune installed from a checkout of this repository (below).
+Installing with pipx or uvx from GitHub is verified on its own
+([without cloning](#without-cloning-the-repository)); Claude Desktop and LM Studio aren't verified with
+either install.
 
 ### Why the MCP server isn't remote
 
@@ -291,13 +293,14 @@ Development Mode requirement). Development Mode apps allow up to 5 authorized us
 The token is stored outside the repository. Spotify refresh tokens expire 6 months after the original
 authorization; after that, run `curatune auth login` again.
 
-### Without cloning the repository (not verified yet)
+### Without cloning the repository
 
 curatune can also be installed as a tool, with [pipx](https://pipx.pypa.io) or
 [uv](https://docs.astral.sh/uv/), from GitHub: the package is in the repository's `api/` folder, hence
-`#subdirectory=api`. The package itself was checked (built, installed into a fresh environment, and run
-outside any checkout, and pip installs it from a clone with that same `#subdirectory=api`), but these
-commands haven't been run against GitHub yet:
+`#subdirectory=api`. Verified on 2026-11-05 in a clean Linux environment with no clone (pipx 1.18,
+uvx 0.13, Python 3.13): `pipx install` (below) installed `curatune` and `curatune-mcp`, and `uvx --from`
+with the same package spec ran `curatune --help` and `curatune-mcp --help`. That check stopped there: it
+didn't run `auth login` or reach Spotify.
 
 ```bash
 pipx install "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api"

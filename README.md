@@ -181,13 +181,12 @@ flowchart LR
 - In our evaluation, a local 9B model took about 20–30 seconds per step; hosted models are much faster and
   better informed, but they receive your playlist metadata.
 - The web app is a single-user prototype: no demo mode, no remote access.
-- Not verified yet: the MCP server with Claude Desktop and LM Studio, and installing `api/` with
-  `pipx`/`uvx` instead of a clone.
+- Not verified yet: the MCP server with Claude Desktop and LM Studio.
 
 ## Next steps
 
 - A demo mode for the web app, on its in-memory Spotify used by the tests.
-- Publishing the Python package, so `api/` installs without a clone.
+- Publishing the Python package on PyPI, so `api/` installs without a Git URL.
 - Verifying the MCP server with more clients.
 - Remote access to the web app (an outbound tunnel, authentication, and a proxy that only allows chat
   completions), still without exposing the LLM server.
