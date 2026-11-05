@@ -67,10 +67,11 @@ per-playlist curation criteria, can go in a gitignored `AGENTS.local.md` next to
 
 Clients that speak the [Model Context Protocol](https://modelcontextprotocol.io) can use curatune without
 the repository's skill: install the `mcp` extra and add `curatune-mcp` as a local server. Verified with
-Claude Code; Claude Desktop and LM Studio aren't verified yet ([clients](#clients)). Its tools carry the
-same rules. Removals, reorders, and renames are plans there too, and a plan is applied only after you
-confirm it in a dialog your client shows: the AI can't answer it for you. Clients without such dialogs open
-a local page instead, which shows the plan and, if you approve, a one-time code you paste in the chat.
+Claude Code, and with Claude Desktop in demo mode; LM Studio isn't verified yet ([clients](#clients)). Its
+tools carry the same rules. Removals, reorders, and renames are plans there too, and a plan is applied
+only after you confirm it in a dialog your client shows: the AI can't answer it for you. Clients without
+such dialogs open a local page instead, which shows the plan and, if you approve, a one-time code you paste
+in the chat.
 Setup, tools, the confirmation flow, and the differences from the CLI are in
 **[docs/mcp.md](docs/mcp.md)**. To try it without a Spotify account, `curatune-mcp --demo` serves a
 synthetic account in memory, with no network and nothing kept ([demo mode](docs/mcp.md#demo-mode)).
@@ -253,13 +254,12 @@ curatune refuses a data or token folder that resolves into such a private locati
 | Client | Status | Notes |
 |---|---|---|
 | [Claude Code](https://code.claude.com/docs/en/mcp) | **Verified** (2026-10) | Both protocol eras; the dialog and the local page; resources by `@`-mention; prompts as slash commands; `auth_login`; demo mode. |
-| [Claude Desktop](https://claude.com/docs/connectors/building) | Not verified yet | Expected to use the local page (no evidence it shows MCP dialogs; [an issue](https://github.com/anthropics/claude-code/issues/41110)). It documents that `readOnlyHint` and `destructiveHint` drive its permission prompts ([review criteria](https://claude.com/docs/connectors/building/review-criteria)). |
+| [Claude Desktop](https://claude.com/docs/connectors/building) | **Verified** in demo mode (2026-11-05) | `curatune-mcp --demo` over stdio, on the synthetic playlists; not checked with a Spotify account yet. Expected to use the local page (no evidence it shows MCP dialogs; [an issue](https://github.com/anthropics/claude-code/issues/41110)). It documents that `readOnlyHint` and `destructiveHint` drive its permission prompts ([review criteria](https://claude.com/docs/connectors/building/review-criteria)). |
 | [LM Studio](https://lmstudio.ai/docs/app/mcp) | Not verified yet | Documents tools only; it would use the local page. |
 
-These statuses were checked with curatune installed from a checkout of this repository (below).
-Installing with pipx or uvx from GitHub is verified on its own
-([without cloning](#without-cloning-the-repository)); Claude Desktop and LM Studio aren't verified with
-either install.
+Claude Code was checked with curatune installed from a checkout of this repository (below). Installing
+with pipx or uvx from GitHub is verified on its own ([without cloning](#without-cloning-the-repository));
+LM Studio isn't verified with either install.
 
 ### Why the MCP server isn't remote
 
