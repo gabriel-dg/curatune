@@ -1,4 +1,4 @@
-# curatune — playlist curation for Spotify, by asking an AI agent
+# curatune - playlist curation for Spotify, by asking an AI agent
 
 curatune lets you curate your own Spotify playlists in plain language: build a playlist from a criterion,
 find duplicates, put it in recording order, clean it up. Anything that removes, reorders, or renames tracks
@@ -11,7 +11,7 @@ is shown to you as a plan first, and only applied after you approve it.
 
 | Folder | What it is | Built with |
 |---|---|---|
-| [`api/`](api/) | The core: a Python library, a JSON CLI for coding agents (Claude Code, Codex, Gemini CLI…), and a local **MCP server** for MCP clients | Python 3.10+, `requests`, the `mcp` SDK |
+| [`api/`](api/) | The core: a Python library, a JSON CLI for coding agents (Claude Code, Codex, Gemini CLI, and others), and a local **MCP server** for MCP clients | Python 3.10+, `requests`, the `mcp` SDK |
 | [`web/`](web/) | A chat app in the browser: the agent runs in the page and talks to a **local LLM** (LM Studio or Ollama) | TypeScript, Vite, no UI framework |
 
 Both follow the same rules (the web app is a port of `api/`, kept in step with it), and both work with
@@ -45,7 +45,8 @@ claude
 
 and ask, for example: *"Which playlists do I have?"*, *"Find the duplicates in Bebop test and remove
 them"*. Other MCP clients use the same command with `--demo` as its argument
-([docs](api/docs/mcp.md#demo-mode)). The web app has no demo mode yet.
+([docs](api/docs/mcp.md#demo-mode)); demo mode is verified in Claude Code and Claude Desktop. The web app
+has no demo mode yet.
 
 ## Run it with your Spotify account
 
@@ -87,7 +88,9 @@ your MCP client, for example:
 claude mcp add curatune -- <repo>/api/.venv/Scripts/curatune-mcp.exe   # <repo>/api/.venv/bin/curatune-mcp on macOS/Linux
 ```
 
-Claude Desktop, LM Studio, and the other settings are in [api/docs/mcp.md](api/docs/mcp.md).
+Claude Desktop, LM Studio, and the other settings are in [api/docs/mcp.md](api/docs/mcp.md). To install
+`api/` without a clone, with pipx or uvx from GitHub, see
+[api/README.md](api/README.md#without-cloning-the-repository).
 
 ### 4. The web app (`web/`)
 
@@ -157,9 +160,9 @@ flowchart LR
   Spotify Content into a machine learning or AI model". curatune sends playlist and track metadata
   (names, artists, durations) to the model you choose, so that it can work with your playlists. Read
   those terms and decide for yourself: **you are responsible for using your Spotify app within them.** A
-  local model keeps that metadata on your own computers. The web app uses its local model by default; a hosted
-  one is optional, and while it is selected the chat says, citing those terms, that this metadata leaves
-  your computer.
+  local model keeps that metadata on your own computers. The web app uses its local model by default; a
+  hosted one is optional, and while it is selected the chat says, citing those terms, that this metadata
+  leaves your computer.
 - **No indefinite storage.** Plans and backups keep copies of track metadata, so they are deleted after 90
   days (`CURATUNE_RETENTION_DAYS` in `api/`). Stored recording dates keep only your data (date, source,
   confidence) and track IDs, never names. Tokens stay on your machine.
@@ -176,18 +179,19 @@ flowchart LR
 - Only playlists you own or collaborate on can be read track by track or changed.
 - Spotify gives the release date of an edition, not the recording date. Recording dates come from the
   model's knowledge or from sources it can check, and a model can be confidently wrong: small local models
-  often are ([evaluation](web/docs/evaluation.md)). Dates are stored with their source and confidence so you
-  can check them.
-- In our evaluation, a local 9B model took about 20–30 seconds per step; hosted models are much faster and
+  often are ([evaluation](web/docs/evaluation.md)). Dates are stored with their source and confidence so
+  you can check them.
+- In our evaluation, a local 9B model took about 20-30 seconds per step; hosted models are much faster and
   better informed, but they receive your playlist metadata.
 - The web app is a single-user prototype: no demo mode, no remote access.
-- Not verified yet: the MCP server with Claude Desktop and LM Studio.
+- MCP clients: verified with Claude Code, and with Claude Desktop in demo mode (stdio, synthetic
+  playlists; checked on 2026-11-05). Not verified yet with LM Studio.
 
 ## Next steps
 
 - A demo mode for the web app, on its in-memory Spotify used by the tests.
 - Publishing the Python package on PyPI, so `api/` installs without a Git URL.
-- Verifying the MCP server with more clients.
+- Verifying the MCP server with more clients, such as LM Studio.
 - Remote access to the web app (an outbound tunnel, authentication, and a proxy that only allows chat
   completions), still without exposing the LLM server.
 
@@ -230,5 +234,5 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT © 2026 Gabriel de Giuli. See [LICENSE](LICENSE). The Spotify logos in this repository are trademarks of
-Spotify AB and are not covered by it ([NOTICE](NOTICE)).
+MIT License, Copyright (c) 2026 Gabriel de Giuli. See [LICENSE](LICENSE). The Spotify logos in this
+repository are trademarks of Spotify AB and are not covered by it ([NOTICE](NOTICE)).
