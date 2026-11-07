@@ -4,6 +4,8 @@ curatune lets you curate your own Spotify playlists in plain language: build a p
 find duplicates, put it in recording order, clean it up. Anything that removes, reorders, or renames tracks
 is shown to you as a plan first, and only applied after you approve it.
 
+Demo: [web app demo (video, MP4)](docs/assets/curatune_demo.mp4).
+
 > curatune is an independent project. It is not affiliated with, endorsed by, or sponsored by Spotify.
 > Spotify is a trademark of Spotify AB.
 
@@ -143,7 +145,8 @@ flowchart LR
   model 1-based track numbers, and carry the safety rules in their descriptions.
 - **The web agent** is a small tool-calling loop in TypeScript, running in the page against any
   OpenAI-compatible endpoint: a local model by default, or a hosted one you choose per chat. The model
-  sees only the conversation and trimmed results (names, artists, durations), never the token.
+  sees only the conversation and trimmed results ([what they contain](#spotifys-terms-and-this-project)),
+  never the token.
 - **Text written by other people is data.** Playlist names and descriptions are treated as untrusted; a
   playlist that tells the assistant to delete everything changes nothing (tested).
 - **Spotify's API quirks, worked around:** reads that lag behind writes, playlists that can't be made
@@ -157,12 +160,20 @@ flowchart LR
   business with a launched service and at least 250,000 monthly active users). So curatune has no hosted
   instance: everyone runs it with their own app.
 - **AI models.** Spotify's Developer Terms (IV.2.1) and Developer Policy (III.14) say not to "ingest
-  Spotify Content into a machine learning or AI model". curatune sends playlist and track metadata
-  (names, artists, durations) to the model you choose, so that it can work with your playlists. Read
-  those terms and decide for yourself: **you are responsible for using your Spotify app within them.** A
-  local model keeps that metadata on your own computers. The web app uses its local model by default; a
-  hosted one is optional, and while it is selected the chat says, citing those terms, that this metadata
-  leaves your computer.
+  Spotify Content into a machine learning or AI model". curatune sends playlist and track metadata to the
+  model you choose, so that it can work with your playlists. Read those terms and decide for yourself:
+  **you are responsible for using your Spotify app within them.**
+  - *What the model receives:* the conversation, including the results of the tools it calls: track
+    metadata (names, artists, album, and similar) and, when it reads a playlist, its details and tracks.
+    Playlist names and descriptions can be text written by other people. The model's first ideas for a
+    playlist can come from its own knowledge, before it searches Spotify.
+  - *Where it goes:* in the web app, to the endpoint set in `VITE_LLM_BASE_URL`, wherever that runs, or,
+    when you select a hosted model, to its provider; a notice in the app says so, citing those terms (you
+    can dismiss it). With MCP, your MCP client chooses the model and provider: curatune's server runs
+    locally over stdio, the model may not.
+  - *The Spotify token:* the web app's requests to the model don't include it (the only credential they
+    carry is a hosted provider's own API key), and the MCP `auth_login` result doesn't include it. That is what the code and
+    its tests check, not a wider guarantee.
 - **No indefinite storage.** Plans and backups keep copies of track metadata, so they are deleted after 90
   days (`CURATUNE_RETENTION_DAYS` in `api/`). Stored recording dates keep only your data (date, source,
   confidence) and track IDs, never names. Tokens stay on your machine.

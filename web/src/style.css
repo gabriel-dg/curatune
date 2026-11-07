@@ -1150,6 +1150,16 @@ button.free-hint:hover {
   margin-top: 2px;
 }
 
+.hosted-notice-close {
+  flex: none;
+  margin: -2px -6px -2px auto;
+  color: inherit;
+}
+
+.hosted-notice-close svg {
+  margin-top: 0;
+}
+
 .hosted-notice a,
 .key-form a {
   color: inherit;

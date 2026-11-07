@@ -15,6 +15,7 @@ import { h } from "./dom";
 import { icon, type IconName } from "./icons";
 import { hostedDataNotice, pickProvider, SPOTIFY_AI_TERMS, type LlmSettings, type ProviderOption } from "./llm-providers";
 import { renderMarkdown } from "./markdown";
+import type { DismissedNotices } from "./notice-prefs";
 import { planCard } from "./plan-card";
 
 export interface PlaylistContext {
@@ -105,6 +106,8 @@ export class ChatView {
 
   private readonly providers: ProviderOption[];
   private readonly settings: LlmSettings;
+  /** Hosts whose data notice the user closed in the chat (the key form still shows it). */
+  private readonly dismissedNotices: DismissedNotices;
   private provider: ProviderOption;
   private readonly ctx: ToolContext;
   private readonly backups: KeyValueStore;
@@ -123,16 +126,17 @@ export class ChatView {
   private readonly forgetKeyButton: HTMLButtonElement;
   private readonly status: HTMLElement;
   private readonly contextBar: HTMLElement;
-  /** Visible while a hosted model is selected. */
+  /** Visible while a hosted model is selected, until the user closes it for that provider's host. */
   private readonly hostedNotice: HTMLElement;
   private controller: AbortController | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private thinking: HTMLElement | null = null;
   private steps: HTMLElement | null = null;
 
-  constructor(options: { providers: ProviderOption[]; settings: LlmSettings; ctx: ToolContext; backups: KeyValueStore; activity: ActivityLog }) {
+  constructor(options: { providers: ProviderOption[]; settings: LlmSettings; ctx: ToolContext; backups: KeyValueStore; activity: ActivityLog; dismissedNotices: DismissedNotices }) {
     this.providers = options.providers;
     this.settings = options.settings;
+    this.dismissedNotices = options.dismissedNotices;
     this.provider = pickProvider(this.providers, this.settings.selected());
     this.ctx = options.ctx;
     this.backups = options.backups;
@@ -243,8 +247,26 @@ export class ChatView {
     this.forgetKeyButton.hidden = !(this.provider.requiresKey && this.settings.apiKey(this.provider));
     if (this.providers.length < 2) this.status.textContent = this.provider.model ? `Model: ${this.provider.model}` : "";
     const notice = hostedDataNotice(this.provider);
-    this.hostedNotice.hidden = notice === null;
-    this.hostedNotice.replaceChildren(...(notice ? [icon("alert", 16), h("span", {}, [notice, ...aiTermsNote()])] : []));
+    const shown = notice !== null && !this.dismissedNotices.isDismissed(this.provider.host);
+    this.hostedNotice.hidden = !shown;
+    this.hostedNotice.replaceChildren(...(shown ? [icon("alert", 16), h("span", {}, [notice, ...aiTermsNote()]), this.dismissNoticeButton()] : []));
+  }
+
+  /** Closes the data notice for every model served from the current provider's host. */
+  private dismissNoticeButton(): HTMLButtonElement {
+    const label = `Dismiss the ${this.provider.name} data notice`;
+    return h("button", {
+      class: "ghost tiny hosted-notice-close",
+      attrs: { type: "button", title: `${label} (it stays in the API key form)`, "aria-label": label },
+      on: {
+        click: () => {
+          this.dismissedNotices.dismiss(this.provider.host);
+          this.updateControls();
+          // The button is gone: keep focus in the composer, or in the key form while the composer waits for a key.
+          (this.input.disabled ? this.transcript.querySelector<HTMLElement>(".key-form input") : this.input)?.focus();
+        },
+      },
+    }, [icon("close", 13)]);
   }
 
   private switchProvider(id: string): void {
