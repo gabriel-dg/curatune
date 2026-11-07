@@ -26,12 +26,15 @@ describe("source invariants", () => {
     expect(Object.keys(sources).length).toBeGreaterThan(5);
   });
 
-  it("uses localStorage only for the column widths; IndexedDB only in storage/, which knows nothing about auth", () => {
-    // ui/layout.ts stores two numbers there (the column widths) and touches nothing else.
-    expect(offenders(/localStorage/).filter((path) => path !== "../src/ui/layout.ts")).toEqual([]);
-    const layout = layer(/\/ui\/layout\.ts$/);
-    expect(Object.keys(layout)).toHaveLength(1);
-    expect(offenders(/from "\.\.\/(spotify|agent|tools|storage|plans|recordings)\/|token|sessionStorage|indexedDB|fetch\(/i, layout)).toEqual([]);
+  it("uses localStorage only for the column widths and dismissed notices; IndexedDB only in storage/, which knows nothing about auth", () => {
+    // ui/layout.ts stores two numbers there (the column widths), ui/notice-prefs.ts a list of hostnames (the
+    // hosted providers whose data notice was closed); they touch nothing else.
+    const allowed = ["../src/ui/layout.ts", "../src/ui/notice-prefs.ts"];
+    expect(offenders(/localStorage/).filter((path) => !allowed.includes(path))).toEqual([]);
+    const modules = layer(/\/ui\/(layout|notice-prefs)\.ts$/);
+    expect(Object.keys(modules)).toHaveLength(2);
+    expect(offenders(/from "\.\.\/(spotify|agent|tools|storage|plans|recordings)\/|token|sessionStorage|indexedDB|fetch\(|apiKey/i, modules)).toEqual([]);
+    expect(offenders(/^import /m, layer(/\/ui\/notice-prefs\.ts$/))).toEqual([]);
     expect(offenders(/indexedDB/).filter((path) => !path.includes("/storage/"))).toEqual([]);
     expect(offenders(/from "\.\.\/spotify\/auth"|accessToken|refreshToken|sessionStorage/, layer(/\/storage\//))).toEqual([]);
   });
