@@ -10,6 +10,7 @@ import { App } from "./ui/app";
 import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
 import { buildProviders, LlmSettings } from "./ui/llm-providers";
+import { browserNoticeStorage, DismissedNotices } from "./ui/notice-prefs";
 import { storageMoveNotice, storageRetryNotice } from "./ui/warnings";
 
 async function start(root: HTMLElement): Promise<void> {
@@ -47,7 +48,9 @@ async function start(root: HTMLElement): Promise<void> {
   const providers = buildProviders(config, (input, init) => window.fetch(input, init));
   const settings = new LlmSettings(window.sessionStorage);
   const activity = new ActivityLog();
-  const chat = new ChatView({ providers, settings, ctx: { client, recordings }, backups, activity });
+  // Closing a hosted provider's data notice is remembered per host across tabs (localStorage); never the key.
+  const dismissedNotices = new DismissedNotices(browserNoticeStorage());
+  const chat = new ChatView({ providers, settings, ctx: { client, recordings }, backups, activity, dismissedNotices });
   const app = new App(root, auth, client, chat, recordings, activity);
 
   if (!persistent && indexedDbSupported()) {
