@@ -4,7 +4,11 @@ curatune lets you curate your own Spotify playlists in plain language: build a p
 find duplicates, put it in recording order, clean it up. Anything that removes, reorders, or renames tracks
 is shown to you as a plan first, and only applied after you approve it.
 
-Demo: [web app demo (video, MP4)](docs/assets/curatune_demo.mp4).
+Demo of the web app:
+
+https://github.com/user-attachments/assets/fea158f1-b15d-47c1-aaed-993415a28dab
+
+If the video doesn't play, [download the MP4](docs/assets/curatune_demo.mp4).
 
 > curatune is an independent project. It is not affiliated with, endorsed by, or sponsored by Spotify.
 > Spotify is a trademark of Spotify AB.
