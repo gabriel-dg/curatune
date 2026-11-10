@@ -301,7 +301,7 @@ export class ChatView {
       h("p", {
         class: "muted",
         text:
-          `The key stays only in this browser tab (sessionStorage, gone when the tab closes) and is sent only to ${this.provider.host}` +
+          `The key is kept in this tab's sessionStorage (closing the tab may not remove it; use Forget key to remove it) and is sent only to ${this.provider.host}` +
           `${this.providers.filter((p) => p.keyId !== null && p.keyId === this.provider.keyId).length > 1 ? `, for every ${this.provider.name} model in the list` : ""}. ` +
           "Your Spotify token is never sent.",
       }),

@@ -313,7 +313,8 @@ the app deletes (observed 2026-10-02; new items inside a folder that already exi
 `%LOCALAPPDATA%\curatune` after a login from a terminal, stayed in place). Every command that uses the data
 directory refuses one that resolves into a package (`DATA_DIR_VIRTUALIZED`, removing the empty folders it
 just created), and `data migrate` checks before copying. Run curatune once from a terminal first, or set
-`CURATUNE_DATA_DIR` outside AppData. `auth status` reports it as `data.virtualized`.
+`CURATUNE_DATA_DIR` to a folder inside your user profile, such as one in Documents (not in AppData).
+`auth status` reports it as `data.virtualized`.
 
 `CURATUNE_TOKEN_DIR` can't be set in the config directory's own `.env`: that directory is located before its
 `.env` is read. Set it in the environment or in the repository's `.env`.
