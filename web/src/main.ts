@@ -57,8 +57,8 @@ async function start(root: HTMLElement): Promise<void> {
 
   if (!persistent && indexedDbSupported()) {
     app.showWarning(
-      "Local storage is unavailable, probably because another curatune-web tab runs an older version (close the other " +
-        "curatune-web tabs), or the one-time move of older data is still running; reload in a moment. Until then, recording " +
+      "Local storage is unavailable, probably because another Curatune tab runs an older version (close the other " +
+        "Curatune tabs), or the one-time move of older data is still running; reload in a moment. Until then, recording " +
         "dates and backups are not saved.",
     );
   }

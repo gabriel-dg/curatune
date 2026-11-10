@@ -29,6 +29,11 @@ function spotifyAttribution(): HTMLElement {
   ]);
 }
 
+/** The Curatune mark (public/brand/curatune-mark.svg, the favicon's mark without its background), next to the wordmark. */
+function brandMark(size: number): HTMLElement {
+  return h("img", { class: "brand-mark", attrs: { src: `${import.meta.env.BASE_URL}brand/curatune-mark.svg`, alt: "", width: String(size), height: String(size) } });
+}
+
 type Route = { view: "home" } | { view: "playlist"; id: string } | { view: "recordings" } | { view: "activity" };
 
 function parseRoute(hash: string): Route {
@@ -165,7 +170,7 @@ export class App {
     this.root.replaceChildren(
       h("div", { class: "login" }, [
         h("div", { class: "login-card" }, [
-          h("div", { class: "brand large" }, [icon("logo", 38), h("span", { text: "curatune" })]),
+          h("div", { class: "brand large" }, [brandMark(38), h("span", { text: "Curatune" })]),
           h("p", { class: "login-lead", text: "Curate your Spotify playlists by chatting." }),
           h("ul", { class: "login-points" }, [
             h("li", {}, [icon("search", 16), h("span", { text: "Find the right recordings and build playlists" })]),
@@ -231,7 +236,7 @@ export class App {
     const toggleSidebar = () => this.shell!.classList.toggle("sidebar-open");
     const topbar = h("header", { class: "topbar" }, [
       h("button", { class: "ghost icon-button only-narrow", attrs: { "aria-label": "Show playlists" }, on: { click: toggleSidebar } }, [icon("menu", 20)]),
-      h("a", { class: "brand", attrs: { href: "#/" } }, [icon("logo", 24), h("span", { text: "curatune" })]),
+      h("a", { class: "brand", attrs: { href: "#/" } }, [brandMark(24), h("span", { text: "Curatune" })]),
       h("span", { class: "spacer" }),
       spotifyAttribution(),
       this.userLabel,

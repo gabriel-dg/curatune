@@ -114,7 +114,7 @@ export class RecordingStore {
       throw invalid("The file is not valid JSON.");
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw invalid("Expected an object keyed by track URI, like curatune's data/recordings.json.");
+      throw invalid("Expected an object keyed by track URI, like Curatune's data/recordings.json.");
     }
     return this.upsert(Object.entries(parsed as Record<string, unknown>).map(([uri, entry]) => ({ ...(entry as object), uri })));
   }

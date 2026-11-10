@@ -442,8 +442,9 @@ textarea::placeholder {
   text-decoration: none;
 }
 
-.brand .icon {
-  color: var(--accent);
+.brand-mark {
+  display: block;
+  flex: none;
 }
 
 .brand.large {

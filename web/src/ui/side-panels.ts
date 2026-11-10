@@ -66,7 +66,7 @@ export async function renderRecordingsPanel(store: RecordingStore, onError: (exc
       h("h2", { class: "panel-title", text: "Recording dates" }),
       h("p", {
         class: "panel-description",
-        text: "Used to put playlists in recording order. Same format as curatune's data/recordings.json: import yours, or export to back them up.",
+        text: "Used to put playlists in recording order. Same format as Curatune's data/recordings.json: import yours, or export to back them up.",
       }),
       h("div", { class: "facts" }, [
         h("span", { class: "fact", text: `${entries.length} tracks` }),
@@ -83,7 +83,7 @@ export async function renderRecordingsPanel(store: RecordingStore, onError: (exc
           h("div", { class: "table-tools" }, [h("div", { class: "side-search" }, [icon("search", 15), filter])]),
           h("div", { class: "table-wrap" }, [h("table", { class: "tracks" }, [h("thead", {}, [h("tr", {}, [h("th", { text: "Recorded" }), h("th", { text: "Track" }), h("th", { class: "hide-narrow", text: "Source" }), h("th", {})])]), body])]),
         ])
-      : h("div", { class: "empty-panel muted", text: "No recording dates yet. Import curatune's file, or ask the chat to put a playlist in recording order." }),
+      : h("div", { class: "empty-panel muted", text: "No recording dates yet. Import Curatune's file, or ask the chat to put a playlist in recording order." }),
   ]);
 }
 
