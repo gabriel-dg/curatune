@@ -69,9 +69,11 @@ NEXT_STEPS = {
     "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "
     "they can clear it in the Spotify app.",
     "TOKEN_DIR_VIRTUALIZED": "Nothing changed. Ask the user to log in once from a terminal (`curatune auth login`), "
-    "or to set CURATUNE_TOKEN_DIR to a folder outside AppData, and restart the server.",
-    "DATA_DIR_VIRTUALIZED": "Nothing changed. Ask the user to set CURATUNE_DATA_DIR to a folder outside AppData "
-    "(in curatune's .env or this server's entry) and restart the server.",
+    "or to set CURATUNE_TOKEN_DIR to a folder inside their user profile (such as one in Documents, not in "
+    "AppData), and restart the server.",
+    "DATA_DIR_VIRTUALIZED": "Nothing changed. Ask the user to set CURATUNE_DATA_DIR to a folder inside their user "
+    "profile (such as one in Documents, not in AppData; in curatune's .env or this server's entry) and restart "
+    "the server.",
     "LEGACY_DATA_NOT_MIGRATED": "Nothing changed. curatune keeps its data outside the repository now, and the "
     "user's older data hasn't been copied there yet. Ask the user to run `curatune data migrate` in a terminal "
     "(it copies, never moves); don't run it for them.",
