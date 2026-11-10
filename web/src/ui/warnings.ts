@@ -46,10 +46,10 @@ export interface StorageNotice {
 // as the browser keeps this site's data.
 const KEEP_SITE_DATA = "It is still in this browser: don't clear this site's data, or it will be lost.";
 const NOT_MOVED = `Data saved by the app under its former name couldn't be moved to its new storage. ${KEEP_SITE_DATA}`;
-const BUSY = "Couldn't check for data saved under the app's former name yet: another curatune-web tab may be using it. Reload in a moment.";
+const BUSY = "Couldn't check for data saved under the app's former name yet: another Curatune tab may be using it. Reload in a moment.";
 const OTHER_TABS =
-  "Your saved data moved to the app's new storage, but another curatune-web tab still holds the old copy open. Close the " +
-  "other curatune-web tabs so that it can be removed.";
+  "Your saved data moved to the app's new storage, but another Curatune tab still holds the old copy open. Close the " +
+  "other Curatune tabs so that it can be removed.";
 
 const items = (n: number): string => `${n} saved item${n === 1 ? "" : "s"}`;
 

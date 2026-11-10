@@ -9,6 +9,7 @@ import { ActivityLog } from "./ui/activity";
 import { App } from "./ui/app";
 import { ChatView } from "./ui/chat";
 import { h } from "./ui/dom";
+import { framedNotice, isFramed } from "./ui/frame-guard";
 import { buildProviders, LlmSettings } from "./ui/llm-providers";
 import { browserNoticeStorage, DismissedNotices } from "./ui/notice-prefs";
 import { storageMoveNotice, storageRetryNotice } from "./ui/warnings";
@@ -56,8 +57,8 @@ async function start(root: HTMLElement): Promise<void> {
 
   if (!persistent && indexedDbSupported()) {
     app.showWarning(
-      "Local storage is unavailable, probably because another curatune-web tab runs an older version (close the other " +
-        "curatune-web tabs), or the one-time move of older data is still running; reload in a moment. Until then, recording " +
+      "Local storage is unavailable, probably because another Curatune tab runs an older version (close the other " +
+        "Curatune tabs), or the one-time move of older data is still running; reload in a moment. Until then, recording " +
         "dates and backups are not saved.",
     );
   }
@@ -78,4 +79,8 @@ async function start(root: HTMLElement): Promise<void> {
 }
 
 const root = document.getElementById("app");
-if (root) void start(root);
+if (root) {
+  // Before anything else (callback parameters, storage): a framed page starts nothing (ui/frame-guard.ts).
+  if (isFramed(window)) root.replaceChildren(framedNotice(new URL(import.meta.env.BASE_URL, window.location.origin).href));
+  else void start(root);
+}

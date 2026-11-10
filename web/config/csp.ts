@@ -26,7 +26,8 @@ export interface CspOptions {
   llmBaseUrl?: string;
   /** The optional hosted LLM (VITE_HOSTED_LLM_BASE_URL). */
   hostedLlmBaseUrl?: string;
-  /** frame-ancestors is ignored in a <meta> tag; only include it when the policy is sent as a header. */
+  /** frame-ancestors is ignored in a <meta> tag; only include it when the policy is sent as a header. Hosts
+   * that cannot send headers rely on the script guard in src/ui/frame-guard.ts. */
   header?: boolean;
 }
 

@@ -10,6 +10,7 @@ import { CuratuneError } from "../spotify/errors";
 import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type ToolExecution, type WriteReport } from "../tools";
 import type { ActivityLog } from "./activity";
+import { brandMark } from "./brand";
 import { writeCard } from "./cards";
 import { h } from "./dom";
 import { icon, type IconName } from "./icons";
@@ -325,7 +326,7 @@ export class ChatView {
     // The suggestions are examples, not a menu: say so before and after them, and point at the composer.
     this.transcript.replaceChildren(
       h("div", { class: "empty" }, [
-        h("div", { class: "empty-mark" }, [icon("logo", 40)]),
+        h("div", { class: "empty-mark" }, [brandMark(52)]),
         h("h2", { text: this.context ? `What should we do with "${this.context.name}"?` : "What should we do with your playlists?" }),
         h("p", { class: "empty-lead", text: "Write whatever you want, in any language, as you would ask a person." }),
         h("p", {

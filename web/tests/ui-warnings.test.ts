@@ -39,7 +39,7 @@ describe("storage move notices", () => {
   it("asks to close the other tabs when they hold the old copy open, without a retry", () => {
     const notice = storageMoveNotice("delete-blocked")!;
     expect(notice.retry).toBe(false);
-    expect(notice.text).toContain("Close the other curatune-web tabs");
+    expect(notice.text).toContain("Close the other Curatune tabs");
   });
 
   it("says nothing when there was nothing to move, or the move finished", () => {

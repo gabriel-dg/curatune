@@ -366,6 +366,14 @@ textarea::placeholder {
   display: none;
 }
 
+/* Shown instead of the app when the page is framed (src/ui/frame-guard.ts). */
+.framed-notice {
+  max-width: 32em;
+  margin: 15vh auto 0;
+  padding: 0 24px;
+  text-align: center;
+}
+
 /* --- Login --------------------------------------------------------------------------------------- */
 
 .login {
@@ -434,8 +442,9 @@ textarea::placeholder {
   text-decoration: none;
 }
 
-.brand .icon {
-  color: var(--accent);
+.brand-mark {
+  display: block;
+  flex: none;
 }
 
 .brand.large {
@@ -979,9 +988,10 @@ textarea::placeholder {
   display: grid;
   place-items: center;
   margin-bottom: 8px;
-  color: var(--accent-fg);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 12px 40px rgba(244, 163, 64, 0.25);
+  /* The favicon's look: the mark on a dark rounded tile, a step above the app background. */
+  background: #1c1c1e;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(255, 122, 80, 0.12);
 }
 
 .empty h2 {
