@@ -157,6 +157,10 @@ export interface AuthOptions {
 
 class InvalidGrant extends Error {}
 
+function loggedOut(): CuratuneError {
+  return new CuratuneError("AUTH_REQUIRED", "Logged out while the token was being refreshed. Log in again.");
+}
+
 export class SpotifyAuth {
   private readonly clientId: string;
   private readonly redirectUri: string;
@@ -166,6 +170,8 @@ export class SpotifyAuth {
   private readonly randomBytes: (length: number) => Uint8Array;
   // Concurrent requests that need a refresh share one token request.
   private refreshing: Promise<StoredToken> | null = null;
+  // Incremented by logout(): a refresh that started before it must not save (or discard) a token after it.
+  private epoch = 0;
 
   constructor(options: AuthOptions) {
     if (!options.clientId) {
@@ -273,6 +279,8 @@ export class SpotifyAuth {
   }
 
   logout(): void {
+    this.epoch++;
+    this.refreshing = null;
     this.storage.removeItem(TOKEN_KEY);
     this.storage.removeItem(PENDING_KEY);
   }
@@ -282,9 +290,12 @@ export class SpotifyAuth {
     if (!forceRefresh && token.expiresAt - ACCESS_TOKEN_SKEW_MS > this.now()) {
       return token.accessToken;
     }
-    this.refreshing ??= this.refresh(token).finally(() => {
-      this.refreshing = null;
-    });
+    if (!this.refreshing) {
+      const refreshing = this.refresh(token).finally(() => {
+        if (this.refreshing === refreshing) this.refreshing = null;
+      });
+      this.refreshing = refreshing;
+    }
     return (await this.refreshing).accessToken;
   }
 
@@ -327,6 +338,7 @@ export class SpotifyAuth {
   }
 
   private async refresh(token: StoredToken): Promise<StoredToken> {
+    const epoch = this.epoch;
     let payload: TokenResponse;
     try {
       payload = await this.tokenRequest({
@@ -336,6 +348,7 @@ export class SpotifyAuth {
       });
     } catch (exc) {
       if (!(exc instanceof InvalidGrant)) throw exc;
+      if (epoch !== this.epoch) throw loggedOut();
       this.storage.removeItem(TOKEN_KEY);
       throw new CuratuneError(
         "AUTH_EXPIRED",
@@ -360,6 +373,7 @@ export class SpotifyAuth {
       refreshToken: payload.refresh_token || token.refreshToken,
       lastRefreshedAt: isoSeconds(this.now()),
     };
+    if (epoch !== this.epoch) throw loggedOut();
     this.save(updated);
     return updated;
   }

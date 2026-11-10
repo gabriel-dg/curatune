@@ -320,6 +320,48 @@ describe("tokens", () => {
     expect(ctx.storage.data.size).toBe(0);
   });
 
+  describe("a refresh still in flight when logout() runs", () => {
+    // Token requests answer at once, except refreshes, which wait until the test releases them.
+    function setupWithSlowRefresh() {
+      const storage = new MemoryStorage();
+      let release: (resp: Response) => void = () => {};
+      const fetch = async (_input: string, init?: RequestInit): Promise<Response> => {
+        if (new URLSearchParams(init?.body as string).get("grant_type") !== "refresh_token") {
+          return loginResponse(new URL(TOKEN_URL), init ?? {});
+        }
+        return new Promise<Response>((resolve) => (release = resolve));
+      };
+      const auth = new SpotifyAuth({ clientId: CLIENT_ID, redirectUri: REDIRECT, storage, fetch });
+      const ctx = { auth, storage, requests: [], advance: () => 0 } as unknown as Ctx;
+      return { ctx, release: (resp: Response) => release(resp) };
+    }
+
+    it("does not save the refreshed token", async () => {
+      const { ctx, release } = setupWithSlowRefresh();
+      await login(ctx);
+      const pending = ctx.auth.accessToken(true);
+      await Promise.resolve();
+      ctx.auth.logout();
+      release(json({ access_token: "LATE-ACCESS", refresh_token: "LATE-REFRESH", expires_in: 3600 }));
+      expect((await fail(pending)).code).toBe("AUTH_REQUIRED");
+      expect(ctx.auth.isLoggedIn()).toBe(false);
+      expect(ctx.storage.data.size).toBe(0);
+    });
+
+    it("does not discard the token of a new login when it fails", async () => {
+      const { ctx, release } = setupWithSlowRefresh();
+      await login(ctx);
+      const pending = ctx.auth.accessToken(true);
+      await Promise.resolve();
+      ctx.auth.logout();
+      await login(ctx);
+      release(json({ error: "invalid_grant" }, 400));
+      expect((await fail(pending)).code).toBe("AUTH_REQUIRED");
+      expect(ctx.auth.isLoggedIn()).toBe(true);
+      expect(ctx.storage.dump()).toContain(REFRESH);
+    });
+  });
+
   it("requires a client ID", () => {
     const create = () =>
       new SpotifyAuth({ clientId: "", redirectUri: REDIRECT, storage: new MemoryStorage(), fetch: async () => json({}) });
