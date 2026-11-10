@@ -206,6 +206,44 @@ def test_expired_refresh_token_discards_token_and_raises(tmp_path):
     assert "client_secret" not in session.posted[0]
 
 
+class _OtherProcessRotates(_Session):
+    """Another process refreshes first with the same refresh token: it stores the rotated token, and
+    Spotify then answers this process's refresh with invalid_grant."""
+
+    def __init__(self, store, rotated, then=None):
+        super().__init__(_Resp(400, {"error": "invalid_grant", "error_description": "Invalid refresh token"}))
+        self.store, self.rotated, self.then = store, rotated, then
+
+    def post(self, url, data=None, headers=None, timeout=None):
+        self.posted.append(data)
+        if len(self.posted) == 1:
+            self.store.save(self.rotated)
+            return self.resp
+        return self.then
+
+
+def test_refresh_uses_a_token_rotated_by_another_process(tmp_path):
+    settings = _settings(tmp_path)
+    manager = auth.TokenManager(settings)
+    manager.store.save(_stored_token())
+    rotated = dict(_stored_token(expires_at=time.time() + 3600), access_token="other-access", refresh_token="other-refresh")
+    manager.session = _OtherProcessRotates(manager.store, rotated)
+    assert manager.access_token() == "other-access"
+    assert json.loads(settings.token_path.read_text())["refresh_token"] == "other-refresh"
+
+
+def test_refresh_renews_an_expired_token_rotated_by_another_process(tmp_path):
+    settings = _settings(tmp_path)
+    manager = auth.TokenManager(settings)
+    manager.store.save(_stored_token())
+    rotated = dict(_stored_token(), access_token="other-access", refresh_token="other-refresh")
+    renewed = _Resp(200, {"access_token": "renewed-access", "expires_in": 3600})
+    manager.session = _OtherProcessRotates(manager.store, rotated, then=renewed)
+    assert manager.access_token() == "renewed-access"
+    assert manager.session.posted[1]["refresh_token"] == "other-refresh"
+    assert json.loads(settings.token_path.read_text())["refresh_token"] == "other-refresh"
+
+
 def test_refresh_keeps_old_refresh_token_and_authorized_at(tmp_path):
     settings = _settings(tmp_path)
     session = _Session(_Resp(200, {"access_token": "new-access", "expires_in": 3600}))

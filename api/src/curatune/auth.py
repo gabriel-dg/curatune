@@ -3,7 +3,8 @@
 The token file lives outside the repository (see `Settings.token_dir`). Tokens are never
 printed or logged. Spotify refresh tokens expire 6 months after the original authorization,
 regardless of refreshes; on `invalid_grant` the stored token is discarded and `AuthExpired`
-is raised so the caller can ask for a new login.
+is raised so the caller can ask for a new login, unless another process has meanwhile stored a
+rotated refresh token, which is then used instead.
 """
 
 from __future__ import annotations
@@ -347,7 +348,22 @@ class TokenManager:
             )
         return token
 
-    def _refresh(self, token: dict[str, Any]) -> dict[str, Any]:
+    def _stored_rotation_of(self, token: dict[str, Any]) -> dict[str, Any] | None:
+        """The stored token, if it is for the same client and has a different refresh token than `token`."""
+        try:
+            current = self.store.load()
+        except AuthRequired:
+            return None
+        if (
+            current
+            and current.get("client_id") == token.get("client_id")
+            and current.get("refresh_token")
+            and current["refresh_token"] != token["refresh_token"]
+        ):
+            return current
+        return None
+
+    def _refresh(self, token: dict[str, Any], retry_rotated: bool = True) -> dict[str, Any]:
         try:
             payload = self._token_request(
                 {
@@ -357,6 +373,13 @@ class TokenManager:
                 }
             )
         except _InvalidGrant as exc:
+            # The lock is per process: another process (the CLI, an MCP server) may have refreshed with the
+            # same refresh token and stored the rotated one. Use that instead of discarding it.
+            current = self._stored_rotation_of(token)
+            if current is not None:
+                if current["expires_at"] - ACCESS_TOKEN_SKEW_SECONDS > time.time() or not retry_rotated:
+                    return current
+                return self._refresh(current, retry_rotated=False)
             self.store.delete()
             authorized_at = token.get("authorized_at")
             raise AuthExpired(

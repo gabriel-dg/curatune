@@ -11,7 +11,8 @@ OAuth 2.0 Authorization Code with PKCE (S256). `state` is random per login and v
 before any other callback parameter is used. The token file lives outside the repository. Spotify refresh
 tokens expire 6 months after the original authorization; refreshing does not extend that. When Spotify
 answers `invalid_grant`, the stored token is deleted and commands fail with `AUTH_EXPIRED`: run
-`curatune auth login` again. `auth status` shows the estimated expiry.
+`curatune auth login` again. The exception is a token file that another process has meanwhile updated with a
+rotated refresh token: that token is used instead. `auth status` shows the estimated expiry.
 
 ## Output contract
 
