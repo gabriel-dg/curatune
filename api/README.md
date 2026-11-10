@@ -339,7 +339,7 @@ copies them into the data directory, and checks every file; it never moves or de
 
 | Command | Does |
 |---|---|
-| `auth login` / `status` / `logout` | Authorize, inspect, or remove the stored token. |
+| `auth login` / `status` / `logout` | Authorize, inspect, or remove the stored token. `logout` only deletes the local copy; to revoke curatune's access completely, remove the app at https://www.spotify.com/account/apps. |
 | `data migrate` | Copy data left in the repository's `data/` and `plans/` into the data directory. |
 | `playlists list` | Your playlists. |
 | `playlist show` | A playlist and all its items. |

@@ -3,7 +3,8 @@
 // - The callback is a page of this app instead of a local HTTP server; `takeCallbackParams` strips `code`
 //   and `state` from the address bar and the session history before anything else runs.
 // - Tokens and the pending login (verifier, state) live in the injected storage (sessionStorage in the
-//   app, never localStorage), so they are per tab and gone when the tab closes.
+//   app, never localStorage), so they are per tab. Closing the tab does not reliably remove them: reopening
+//   a closed tab, session restore, and duplicating a tab bring sessionStorage back. Log out removes them.
 // - The current user is not fetched here; the API client reads /me when it needs it.
 // Tokens, codes, and verifiers never appear in errors, logs, or the URL. Refresh tokens expire 6 months
 // after the original authorization; on invalid_grant the token is discarded and AUTH_EXPIRED is raised.

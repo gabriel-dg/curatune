@@ -73,7 +73,7 @@ about a third of the size, with every key always present:
 | `auth login [--port N] [--no-browser] [--timeout S]` | same as `auth status` |
 | `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path, data: {data_dir, data_dir_explicit, legacy_data, virtualized}}`. `legacy_data` is `none`, `not_migrated`, or `migrated` (see [Data directory](#data-directory)). |
 | `data migrate [--dry-run]` | `{source, data_dir, files, bytes, by_folder: {data, plans}, dry_run}`, plus `would_copy: [{from, to}]` with `--dry-run`, or `backup_dir`, `verified`, `originals_kept` after copying. |
-| `auth logout` | `{logged_out, token_path}` |
+| `auth logout` | `{logged_out, token_path, note}`. It only deletes the local token; `note` says to remove the app at https://www.spotify.com/account/apps to revoke access completely. |
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` + warning `ITEM_COUNT_READ_LAG` |
 | `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |

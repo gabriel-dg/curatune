@@ -301,7 +301,12 @@ class TokenManager:
         return self.status()
 
     def logout(self) -> dict[str, Any]:
-        return {"logged_out": self.store.delete(), "token_path": str(self.store.path)}
+        return {
+            "logged_out": self.store.delete(),
+            "token_path": str(self.store.path),
+            "note": "Only the local token was deleted. To revoke curatune's access completely, remove the app at "
+            "https://www.spotify.com/account/apps.",
+        }
 
     def status(self) -> dict[str, Any]:
         token = self.store.load()
