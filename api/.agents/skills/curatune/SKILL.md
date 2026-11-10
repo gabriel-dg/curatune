@@ -257,7 +257,7 @@ the chronological workflow above.
 | `RECORDING_DATES_MISSING` | Research and `recordings set` the listed items, then retry. |
 | `NO_CHANGES` | The playlist is already in the requested order, or already has that name or description. |
 | `LEGACY_DATA_NOT_MIGRATED` | Nothing ran. The repository's older `data/` and `plans/` haven't been copied to the data directory. Tell the user; run `data migrate` only if they ask (they may prefer to choose `CURATUNE_DATA_DIR` first). |
-| `DATA_DIR_VIRTUALIZED` | Nothing ran. The data directory would be private to an app installed as an MSIX package, such as Claude Desktop (Windows keeps new AppData folders private to the programs such an app starts). Tell the user to set `CURATUNE_DATA_DIR` outside AppData, or to run curatune from a terminal. |
+| `DATA_DIR_VIRTUALIZED` | Nothing ran. The data directory would be private to an app installed as an MSIX package, such as Claude Desktop (Windows keeps new AppData folders private to the programs such an app starts). Tell the user to set `CURATUNE_DATA_DIR` to a folder inside their user profile (such as one in Documents, not in AppData), or to run curatune from a terminal. |
 | `LEGACY_DATA_PRESENT` (warning) | `CURATUNE_DATA_DIR` is set and the repository's older data isn't in it. Mention it once. |
 | `DESCRIPTION_NOT_CLEARABLE` | An empty description was requested. Tell the user the API can only replace a description; they can clear it in the Spotify app. |
 | `ADD_NOT_VERIFIED` (warning) | The tracks were added, but the playlist read back differs from what was expected (someone may have changed it at the same time), or the read failed (`read_error`). Run `playlist show --brief` and tell the user what it holds. Don't add again blindly. |

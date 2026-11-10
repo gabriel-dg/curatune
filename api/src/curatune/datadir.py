@@ -90,7 +90,8 @@ def ensure_not_virtualized(data_dir: Path, what: str = "data directory", setting
         f"curatune's {what} would be a private folder of an app installed as an MSIX package: Windows redirects "
         "new folders under AppData for the programs such an app starts (Claude Desktop does this). curatune "
         f"in a terminal wouldn't see it, and uninstalling the app would delete it. Set {setting} to a folder "
-        "outside AppData, such as one in Documents, or run curatune once from a terminal first.",
+        "inside your user profile but outside AppData, such as one in Documents, or run curatune once from a "
+        "terminal first.",
         code=code,
         details={"path": str(data_dir), "resolves_to": _resolve(data_dir)},
     )

@@ -11,7 +11,8 @@ OAuth 2.0 Authorization Code with PKCE (S256). `state` is random per login and v
 before any other callback parameter is used. The token file lives outside the repository. Spotify refresh
 tokens expire 6 months after the original authorization; refreshing does not extend that. When Spotify
 answers `invalid_grant`, the stored token is deleted and commands fail with `AUTH_EXPIRED`: run
-`curatune auth login` again. `auth status` shows the estimated expiry.
+`curatune auth login` again. The exception is a token file that another process has meanwhile updated with a
+rotated refresh token: that token is used instead. `auth status` shows the estimated expiry.
 
 ## Output contract
 
@@ -72,7 +73,7 @@ about a third of the size, with every key always present:
 | `auth login [--port N] [--no-browser] [--timeout S]` | same as `auth status` |
 | `auth status` | `{logged_in, user_id, display_name, client_id_matches, scopes, missing_scopes, authorized_at, refresh_expires_approx, refresh_likely_expired, access_token_expires_at, token_path, data: {data_dir, data_dir_explicit, legacy_data, virtualized}}`. `legacy_data` is `none`, `not_migrated`, or `migrated` (see [Data directory](#data-directory)). |
 | `data migrate [--dry-run]` | `{source, data_dir, files, bytes, by_folder: {data, plans}, dry_run}`, plus `would_copy: [{from, to}]` with `--dry-run`, or `backup_dir`, `verified`, `originals_kept` after copying. |
-| `auth logout` | `{logged_out, token_path}` |
+| `auth logout` | `{logged_out, token_path, note}`. It only deletes the local token; `note` says to remove the app at https://www.spotify.com/account/apps to revoke access completely. |
 | `playlists list [--owned-only]` | `{user_id, count, playlists: [Playlist]}` + warning `ITEM_COUNT_READ_LAG` |
 | `playlist show <playlist> [--market CC] [--brief]` | `{playlist: Playlist, items: [PlaylistItem \| Brief track]}` + warnings `LOCAL_FILES`, `UNAVAILABLE_ITEMS`, `SNAPSHOT_READ_LAG` |
 | `playlist create --name N [--description D] [--public] [--allow-duplicate-name]` | `{playlist: Playlist, visibility: {requested_public, reported_public}}`. Requests private by default, but Spotify currently ignores `public: false` (see below); `playlist.public` is re-read after creation. Fails with `DUPLICATE_NAME` if you already own one with that name. |
@@ -312,7 +313,8 @@ the app deletes (observed 2026-10-02; new items inside a folder that already exi
 `%LOCALAPPDATA%\curatune` after a login from a terminal, stayed in place). Every command that uses the data
 directory refuses one that resolves into a package (`DATA_DIR_VIRTUALIZED`, removing the empty folders it
 just created), and `data migrate` checks before copying. Run curatune once from a terminal first, or set
-`CURATUNE_DATA_DIR` outside AppData. `auth status` reports it as `data.virtualized`.
+`CURATUNE_DATA_DIR` to a folder inside your user profile, such as one in Documents (not in AppData).
+`auth status` reports it as `data.virtualized`.
 
 `CURATUNE_TOKEN_DIR` can't be set in the config directory's own `.env`: that directory is located before its
 `.env` is read. Set it in the environment or in the repository's `.env`.

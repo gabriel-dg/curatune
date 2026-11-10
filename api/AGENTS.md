@@ -148,7 +148,7 @@ decisions, and its threat boundary are in `docs/design.md`.
   fine once `%LOCALAPPDATA%\curatune` exists, but not on a first run started by such an app.
   `datadir.ensure_not_virtualized` refuses a data dir that resolves into a package (`DATA_DIR_VIRTUALIZED`),
   and `data migrate` checks it before copying. Run first-time setup and migrations from a terminal, or set
-  `CURATUNE_DATA_DIR` outside AppData.
+  `CURATUNE_DATA_DIR` to a folder inside the user profile, such as one in Documents (not in AppData).
 - Gitignored: `.env`, `plans/` and `data/` (older checkouts), `AGENTS.local.md`.
 - Before every commit, scan the files to be committed for personal data and secrets (including partial
   IDs). The repo is intended to be published. The exceptions are the author's name as the copyright

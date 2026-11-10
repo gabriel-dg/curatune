@@ -23,7 +23,8 @@ async function start(root: HTMLElement): Promise<void> {
     auth = new SpotifyAuth({
       clientId: config.spotifyClientId,
       redirectUri: config.redirectUri,
-      // Per tab and cleared when the tab closes; never localStorage.
+      // Per tab; never localStorage. Closing the tab doesn't reliably clear it (reopening a closed tab,
+      // session restore, and duplicating a tab bring it back): Log out does.
       storage: window.sessionStorage,
       fetch: (input, init) => window.fetch(input, init),
     });

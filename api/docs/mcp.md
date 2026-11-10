@@ -27,7 +27,7 @@ client starts it in.
 | Client | Configuration |
 |---|---|
 | Claude Code | `claude mcp add curatune -- <repo>/api/.venv/Scripts/curatune-mcp.exe` (`<repo>/api/.venv/bin/curatune-mcp` on macOS/Linux) |
-| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/api/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop is installed as an MSIX package and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder outside AppData>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
+| Claude Desktop | Settings → Developer → Edit Config, then add `"curatune": {"command": "<repo>/api/.venv/Scripts/curatune-mcp.exe"}` under `mcpServers`. If Claude Desktop is installed as an MSIX package and curatune has never run from a terminal, also add `"env": {"CURATUNE_DATA_DIR": "<a folder inside your user profile, such as one in Documents (not in AppData)>"}` (see `DATA_DIR_VIRTUALIZED` in [reference](reference.md#data-directory)). |
 | LM Studio (0.3.17+) | Program tab → Install → Edit `mcp.json`, same `mcpServers` entry as Claude Desktop |
 | Any, without the repository | `"command": "uvx", "args": ["--from", "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api", "curatune-mcp"]`, or `"command": "curatune-mcp"` after `pipx install "curatune[mcp] @ git+https://github.com/gabriel-dg/curatune#subdirectory=api"` (see the [README](../README.md#without-cloning-the-repository): `.env` in the config directory) |
 

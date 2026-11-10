@@ -32,6 +32,11 @@ It is the browser side of [curatune](../README.md): the same rules as the Python
   tab.
 - No model ever receives your Spotify token.
 
+Your Spotify token is kept in the tab's `sessionStorage`. Closing the tab doesn't reliably remove it
+(reopening a closed tab, session restore, or duplicating the tab brings it back), so use **Log out** when
+you're done. Log out only removes the copy in the browser; to revoke the app's access completely, remove it
+at https://www.spotify.com/account/apps.
+
 ## Setup
 
 Follow [the web app's section](../README.md#4-the-web-app-web) of the main README. In short: a Spotify app
