@@ -6,6 +6,8 @@
 //   app, never localStorage), so they are per tab. Closing the tab does not reliably remove them: reopening
 //   a closed tab, session restore, and duplicating a tab bring sessionStorage back. Log out removes them.
 // - The current user is not fetched here; the API client reads /me when it needs it.
+// - On invalid_grant the token is always discarded: curatune first re-reads its token file in case another
+//   process rotated the refresh token, but no other process shares this tab's sessionStorage.
 // Tokens, codes, and verifiers never appear in errors, logs, or the URL. Refresh tokens expire 6 months
 // after the original authorization; on invalid_grant the token is discarded and AUTH_EXPIRED is raised.
 
