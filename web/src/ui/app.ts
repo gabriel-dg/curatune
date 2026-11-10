@@ -30,7 +30,6 @@ function spotifyAttribution(): HTMLElement {
   ]);
 }
 
-/** The Curatune mark (public/brand/curatune-mark.svg, the favicon's mark without its background), next to the wordmark. */
 type Route = { view: "home" } | { view: "playlist"; id: string } | { view: "recordings" } | { view: "activity" };
 
 function parseRoute(hash: string): Route {
