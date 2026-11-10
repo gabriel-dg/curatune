@@ -366,6 +366,14 @@ textarea::placeholder {
   display: none;
 }
 
+/* Shown instead of the app when the page is framed (src/ui/frame-guard.ts). */
+.framed-notice {
+  max-width: 32em;
+  margin: 15vh auto 0;
+  padding: 0 24px;
+  text-align: center;
+}
+
 /* --- Login --------------------------------------------------------------------------------------- */
 
 .login {

@@ -98,6 +98,11 @@ IP addresses, hostnames, local paths) in versioned files.
 - Strict Content Security Policy; no third-party scripts, fonts, or analytics. The only external images are
   playlist covers from Spotify's image CDNs (`*.scdn.co`, `*.spotifycdn.com`): loaded lazily and without a
   referrer, their URLs checked before use (`src/ui/covers.ts`), never sent to the model.
+- No framing (clickjacking): the dev and preview servers send `frame-ancestors 'none'` as a header, which a
+  `<meta>` CSP cannot carry and static hosts such as GitHub Pages cannot send. So `src/main.ts` first checks
+  `isFramed` (`src/ui/frame-guard.ts`, tested; an error reading `window.top` counts as framed) and, when
+  framed, starts nothing (no callback handling, no storage) and shows only a link that opens the app's root
+  in its own tab.
 - **The model never applies a plan.** There is no "apply" tool; a plan is applied only through a UI button
   after the plan has been rendered to the user. Only `src/plans/` imports `plans/ops.ts`, and only `src/ui/`
   calls `applyPlan` (both checked in `tests/invariants.test.ts`). The model learns what the user did with a
