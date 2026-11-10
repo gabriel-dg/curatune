@@ -58,13 +58,90 @@ def _hit(url):
             time.sleep(0.05)
 
 
-def test_callback_rejects_state_mismatch():
+def _status(url):
+    """The HTTP status of a GET, retrying only while the server is not listening yet."""
+    for _ in range(50):
+        try:
+            with urllib.request.urlopen(url, timeout=2) as resp:
+                return resp.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+        except (urllib.error.URLError, ConnectionError):
+            time.sleep(0.05)
+    raise AssertionError("the callback server never answered")
+
+
+@pytest.mark.parametrize("forged", ["forged", "%C3%A9t%C3%A9", ""])
+def test_callback_rejects_a_wrong_state_and_keeps_waiting(forged):
     port = _free_port()
     thread, box = _run_callback(port, "expected")
-    _hit(f"http://127.0.0.1:{port}/callback?code=abc&state=forged")
+    assert _status(f"http://127.0.0.1:{port}/callback?code=evil&state={forged}") == 400
+    assert _status(f"http://127.0.0.1:{port}/callback?code=abc&state=expected") == 200
+    thread.join()
+    assert box == {"code": "abc"}
+
+
+def test_callback_reports_a_state_mismatch_when_only_wrong_states_arrived():
+    port = _free_port()
+    box = {}
+
+    def target():
+        try:
+            auth._wait_for_callback(port, "expected", timeout=1.5)
+        except Exception as exc:  # noqa: BLE001
+            box["error"] = exc
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    assert _status(f"http://127.0.0.1:{port}/callback?code=abc&state=forged") == 400
     thread.join()
     assert isinstance(box.get("error"), AuthError)
     assert box["error"].code == "AUTH_STATE_MISMATCH"
+
+
+def test_an_idle_connection_does_not_block_the_callback(monkeypatch):
+    monkeypatch.setattr(auth, "CALLBACK_SOCKET_TIMEOUT_SECONDS", 0.5)
+    port = _free_port()
+    thread, box = _run_callback(port, "expected")
+    for _ in range(50):  # wait until it listens, then connect and send nothing
+        try:
+            idle = socket.create_connection(("127.0.0.1", port), timeout=2)
+            break
+        except ConnectionError:
+            time.sleep(0.05)
+    try:
+        assert _status(f"http://127.0.0.1:{port}/callback?code=abc&state=expected") == 200
+        thread.join(timeout=10)
+    finally:
+        idle.close()
+    assert box == {"code": "abc"}
+
+
+def test_login_binds_the_callback_port_before_opening_the_browser(tmp_path):
+    port = _free_port()
+    manager = auth.TokenManager(_settings(tmp_path))
+
+    class Opened(Exception):
+        pass
+
+    def browser(url):
+        socket.create_connection(("127.0.0.1", port), timeout=2).close()  # refused if nothing listens yet
+        raise Opened
+
+    with pytest.raises(Opened):
+        manager.login(port=port, browser=browser, announce=False, timeout=5)
+
+
+def test_login_on_a_busy_port_fails_before_showing_or_opening_the_url(tmp_path, capsys):
+    opened = []
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        with pytest.raises(AuthError, match="Cannot listen"):
+            auth.TokenManager(_settings(tmp_path)).login(port=port, browser=opened.append, timeout=5)
+    assert opened == []
+    assert "accounts.spotify.com" not in capsys.readouterr().err
 
 
 def test_callback_returns_code_on_valid_state():

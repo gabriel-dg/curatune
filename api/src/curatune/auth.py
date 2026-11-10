@@ -37,6 +37,7 @@ ME_URL = "https://api.spotify.com/v1/me"
 REFRESH_TOKEN_LIFETIME_MONTHS = 6
 ACCESS_TOKEN_SKEW_SECONDS = 60
 DEFAULT_LOGIN_TIMEOUT_SECONDS = 300
+CALLBACK_SOCKET_TIMEOUT_SECONDS = 5
 
 
 # --- PKCE helpers -----------------------------------------------------------------------------
@@ -91,64 +92,105 @@ def add_months(dt: datetime, months: int) -> datetime:
 # --- Local callback server --------------------------------------------------------------------
 
 
-def _wait_for_callback(port: int, expected_state: str, timeout: float) -> str:
-    """Serve one OAuth callback on 127.0.0.1:<port> and return the authorization code."""
-    result: dict[str, str | None] = {}
+class _CallbackHTTPServer(HTTPServer):
+    # On Windows SO_REUSEADDR lets a second socket bind a port that is already in use, so a busy port would
+    # not fail and the callback could reach the other program. Elsewhere it only skips TIME_WAIT.
+    allow_reuse_address = sys.platform != "win32"
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
-            parsed = urlparse(self.path)
-            if parsed.path != REDIRECT_PATH:
-                self.send_response(404)
+
+class _CallbackServer:
+    """The OAuth callback server on 127.0.0.1:<port>. It binds on creation, so the port is taken before the
+    authorization URL is shown or opened. `wait` serves requests until a callback with the expected state
+    arrives; one whose state does not match gets a 400 and is otherwise ignored."""
+
+    def __init__(self, port: int, expected_state: str):
+        self.result: dict[str, str | None] = {}
+        self.rejected = 0
+        expected = expected_state.encode("utf-8")
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            # Socket timeout: an idle local connection cannot hold `handle_request` past the overall deadline.
+            timeout = CALLBACK_SOCKET_TIMEOUT_SECONDS
+
+            def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
+                parsed = urlparse(self.path)
+                if parsed.path != REDIRECT_PATH:
+                    self._reply(404)
+                    return
+                params = parse_qs(parsed.query)
+                state = params.get("state", [None])[0]
+                # State is validated first, before trusting any other callback parameter. Compared as bytes:
+                # compare_digest raises TypeError on a str with non-ASCII characters.
+                if not hmac.compare_digest((state or "").encode("utf-8"), expected):
+                    owner.rejected += 1
+                    self._reply(400, "curatune: this authorization response was rejected (state mismatch).")
+                    return
+                owner.result["code"] = params.get("code", [None])[0]
+                owner.result["error"] = params.get("error", [None])[0]
+                ok = owner.result["code"] and not owner.result["error"]
+                self._reply(
+                    200,
+                    "curatune: authorization received. You can close this tab."
+                    if ok
+                    else "curatune: authorization failed. Check the terminal output.",
+                )
+
+            def _reply(self, status: int, message: str | None = None) -> None:
+                self.send_response(status)
+                if message is None:
+                    self.end_headers()
+                    return
+                body = f"<html><body><p>{message}</p></body></html>".encode("utf-8")
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+                # Silence request logging: the query string contains the authorization code.
                 return
-            params = parse_qs(parsed.query)
-            result["state"] = params.get("state", [None])[0]
-            result["code"] = params.get("code", [None])[0]
-            result["error"] = params.get("error", [None])[0]
-            state_ok = hmac.compare_digest(result["state"] or "", expected_state)
-            ok = state_ok and result["code"] and not result["error"]
-            message = (
-                "curatune: authorization received. You can close this tab."
-                if ok
-                else "curatune: authorization failed. Check the terminal output."
-            )
-            body = f"<html><body><p>{message}</p></body></html>".encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
-            # Silence request logging: the query string contains the authorization code.
-            return
+        try:
+            self.server = _CallbackHTTPServer((REDIRECT_HOST, port), Handler)
+        except OSError as exc:
+            raise AuthError(
+                f"Cannot listen on {REDIRECT_HOST}:{port}.",
+                details={"port": port, "os_error": str(exc), "hint": "Set SPOTIFY_REDIRECT_PORT or pass --port."},
+            ) from None
+        self.server.timeout = 1.0
 
-    try:
-        server = HTTPServer((REDIRECT_HOST, port), Handler)
-    except OSError as exc:
-        raise AuthError(
-            f"Cannot listen on {REDIRECT_HOST}:{port}.",
-            details={"port": port, "os_error": str(exc), "hint": "Set SPOTIFY_REDIRECT_PORT or pass --port."},
-        ) from None
+    def __enter__(self) -> _CallbackServer:
+        return self
 
-    server.timeout = 1.0
-    deadline = time.monotonic() + timeout
-    with server:
-        while not result and time.monotonic() < deadline:
-            server.handle_request()
+    def __exit__(self, *exc: object) -> None:
+        self.server.server_close()
 
-    if not result:
-        raise AuthError("Timed out waiting for the authorization callback.", details={"timeout_seconds": timeout})
-    # State is validated first, before trusting any other callback parameter.
-    if not hmac.compare_digest(result.get("state") or "", expected_state):
-        raise AuthError("OAuth state mismatch; the callback was rejected.", code="AUTH_STATE_MISMATCH")
-    if result.get("error"):
-        raise AuthError("Authorization was denied.", details={"spotify_error": result["error"]})
-    code = result.get("code")
-    if not code:
-        raise AuthError("The callback did not include an authorization code.")
-    return code
+    def wait(self, timeout: float) -> str:
+        """Return the authorization code from the first callback with the expected state."""
+        deadline = time.monotonic() + timeout
+        while not self.result and time.monotonic() < deadline:
+            self.server.handle_request()
+        if not self.result:
+            if self.rejected:
+                raise AuthError(
+                    "OAuth state mismatch; the callback was rejected.",
+                    code="AUTH_STATE_MISMATCH",
+                    details={"timeout_seconds": timeout, "rejected_callbacks": self.rejected},
+                )
+            raise AuthError("Timed out waiting for the authorization callback.", details={"timeout_seconds": timeout})
+        if self.result.get("error"):
+            raise AuthError("Authorization was denied.", details={"spotify_error": self.result["error"]})
+        code = self.result.get("code")
+        if not code:
+            raise AuthError("The callback did not include an authorization code.")
+        return code
+
+
+def _wait_for_callback(port: int, expected_state: str, timeout: float) -> str:
+    """Serve the OAuth callback on 127.0.0.1:<port> and return the authorization code."""
+    with _CallbackServer(port, expected_state) as callback:
+        return callback.wait(timeout)
 
 
 # --- Token storage ----------------------------------------------------------------------------
@@ -222,12 +264,14 @@ class TokenManager:
         state = secrets.token_urlsafe(32)
         url = build_authorize_url(client_id, redirect_uri, code_challenge_for(verifier), state)
 
-        if announce:  # stderr only: stdout is reserved for the JSON result.
-            print(f"Open this URL to authorize curatune:\n{url}", file=sys.stderr, flush=True)
-        if open_browser:
-            (browser or webbrowser.open)(url)
-
-        code = _wait_for_callback(port or self.settings.redirect_port, state, timeout)
+        # Bind the callback port before the URL is shown or opened: a busy port fails here, and nothing
+        # else can take the port while the browser is on its way.
+        with _CallbackServer(port or self.settings.redirect_port, state) as callback:
+            if announce:  # stderr only: stdout is reserved for the JSON result.
+                print(f"Open this URL to authorize curatune:\n{url}", file=sys.stderr, flush=True)
+            if open_browser:
+                (browser or webbrowser.open)(url)
+            code = callback.wait(timeout)
         payload = self._token_request(
             {
                 "grant_type": "authorization_code",
