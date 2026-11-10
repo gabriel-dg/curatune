@@ -15,7 +15,7 @@ import { storageMoveNotice, storageRetryNotice } from "./ui/warnings";
 
 async function start(root: HTMLElement): Promise<void> {
   // Strip `code` and `state` from the address bar and the session history before anything else runs.
-  const callback = takeCallbackParams(window.location, window.history);
+  const callback = takeCallbackParams(window.location, window.history, import.meta.env.BASE_URL);
 
   const config = loadConfig(import.meta.env, window.location.origin);
   let auth: SpotifyAuth;

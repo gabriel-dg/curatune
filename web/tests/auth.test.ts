@@ -87,21 +87,60 @@ describe("PKCE helpers", () => {
 });
 
 describe("takeCallbackParams", () => {
-  it("returns the params and replaces the history entry with /", () => {
+  function take(pathname: string, base: string) {
     const calls: unknown[][] = [];
     const params = takeCallbackParams(
-      { pathname: "/callback", search: `?code=${CODE}&state=s` },
+      { pathname, search: `?code=${CODE}&state=s` },
       { replaceState: (...args: unknown[]) => void calls.push(args) },
+      base,
     );
+    return { params, calls };
+  }
+
+  it("returns the params and replaces the history entry with /", () => {
+    const { params, calls } = take("/callback", "/");
     expect(params?.get("code")).toBe(CODE);
+    expect(params?.get("state")).toBe("s");
     expect(calls).toEqual([[null, "", "/"]]);
   });
 
   it("does nothing outside the callback path", () => {
     const calls: unknown[] = [];
-    const params = takeCallbackParams({ pathname: "/", search: "?code=x" }, { replaceState: () => void calls.push(1) });
+    const params = takeCallbackParams({ pathname: "/", search: "?code=x" }, { replaceState: () => void calls.push(1) }, "/");
     expect(params).toBeNull();
     expect(calls).toHaveLength(0);
+  });
+
+  it("tolerates a trailing slash on the callback path", () => {
+    const { params, calls } = take("/callback/", "/");
+    expect(params?.get("code")).toBe(CODE);
+    expect(calls).toEqual([[null, "", "/"]]);
+  });
+
+  it("under a sub-path base, matches base + callback and replaces the history entry with the base", () => {
+    for (const pathname of ["/curatune/callback", "/curatune/callback/"]) {
+      const { params, calls } = take(pathname, "/curatune/");
+      expect(params?.get("code")).toBe(CODE);
+      expect(calls).toEqual([[null, "", "/curatune/"]]);
+    }
+  });
+
+  it("ignores paths that are not exactly the callback under the base", () => {
+    const cases: [string, string][] = [
+      ["/callbackx", "/"],
+      ["/callback/extra", "/"],
+      ["/curatune/callback", "/"],
+      ["/callback", "/curatune/"],
+      ["/curatune/", "/curatune/"],
+      ["/curatune/callbackx", "/curatune/"],
+      ["/curatune/callback/extra", "/curatune/"],
+      ["/other/callback", "/curatune/"],
+    ];
+    for (const [pathname, base] of cases) {
+      const { params, calls } = take(pathname, base);
+      expect(params, `${pathname} under ${base}`).toBeNull();
+      expect(calls).toHaveLength(0);
+    }
   });
 });
 
