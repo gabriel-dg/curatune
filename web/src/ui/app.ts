@@ -7,6 +7,7 @@ import type { SpotifyAuth } from "../spotify/auth";
 import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { ActivityLog } from "./activity";
+import { brandMark } from "./brand";
 import type { ChatView } from "./chat";
 import { cover } from "./covers";
 import { h } from "./dom";
@@ -30,10 +31,6 @@ function spotifyAttribution(): HTMLElement {
 }
 
 /** The Curatune mark (public/brand/curatune-mark.svg, the favicon's mark without its background), next to the wordmark. */
-function brandMark(size: number): HTMLElement {
-  return h("img", { class: "brand-mark", attrs: { src: `${import.meta.env.BASE_URL}brand/curatune-mark.svg`, alt: "", width: String(size), height: String(size) } });
-}
-
 type Route = { view: "home" } | { view: "playlist"; id: string } | { view: "recordings" } | { view: "activity" };
 
 function parseRoute(hash: string): Route {

@@ -4,8 +4,6 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const PATHS = {
-  // A vinyl record: disc, label, and two grooves.
-  logo: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18Z", "M12 10a2 2 0 1 0 0 4a2 2 0 0 0 0-4Z", "M6.2 10a6 6 0 0 1 3.8-3.8", "M17.8 14a6 6 0 0 1-3.8 3.8"],
   send: ["M4 12l16-8-6 16-2.5-6.5L4 12Z"],
   stop: ["M7 7h10v10H7z"],
   plus: ["M12 5v14", "M5 12h14"],
