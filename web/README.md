@@ -61,6 +61,23 @@ app stops with `LLM_CONTEXT_EXCEEDED` when a conversation outgrows it. How model
 results, are in [docs/evaluation.md](docs/evaluation.md). Development rules for coding agents, including
 the security invariants, are in [AGENTS.md](AGENTS.md).
 
+## Building for GitHub Pages
+
+The build is a static site. `VITE_BASE_PATH` (read at build time, default `/`) sets the path it is served
+under; the OAuth redirect URI is the site's origin, that path, and `callback`. Pages has no SPA fallback,
+so the build also writes `dist/callback.html`, a copy of `index.html` that Pages serves for `/callback`
+without a redirect (the query string stays intact).
+
+| Site | Build | Redirect URI to register in Spotify |
+|---|---|---|
+| At the root of its origin | `npm run build` | `https://curatune.github.io/callback` |
+| Under a project path | `VITE_BASE_PATH=/curatune/ npm run build` | `https://<user>.github.io/curatune/callback` |
+
+In PowerShell, set the variable first: `$env:VITE_BASE_PATH='/curatune/'; npm run build`. Set it only for
+builds, not in `.env.local`: it moves the dev server too. The development redirect URI is unchanged,
+`http://127.0.0.1:5173/callback`. The other `VITE_*` variables are baked into the build as well, and the
+LLM endpoint's origin must be reachable from the browser that opens the site (CSP `connect-src` and CORS).
+
 **Status:** an early single-user prototype, with no demo mode and no remote access yet.
 
 ## License

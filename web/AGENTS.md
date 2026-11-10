@@ -136,6 +136,11 @@ Client ID ends up in the bundle; under PKCE it is not a secret, but it is person
 committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redirect URI
 `http://127.0.0.1:5173/callback` must be registered in the Spotify dashboard.
 
+`VITE_BASE_PATH` (build time only, default `/`, normalized in `config/base.ts`) sets Vite's `base`. The
+redirect URI is origin + base + `callback` (`callbackPath` in `src/spotify/auth.ts`, given
+`import.meta.env.BASE_URL`), and the build writes `dist/callback.html`, a copy of `index.html` with the same
+CSP meta tag, because GitHub Pages has no SPA fallback (see README.md, "Building for GitHub Pages").
+
 ## Spotify Web API facts (copied from curatune; verified September 2026)
 
 - Development Mode: app owner needs Premium; apps created since 2026-02-11 allow 5 users (an allowlist;

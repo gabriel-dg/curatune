@@ -1,6 +1,6 @@
 // Build-time configuration from .env.local (see .env.example).
 
-import { CALLBACK_PATH } from "./spotify/auth";
+import { callbackPath } from "./spotify/auth";
 
 export interface AppConfig {
   spotifyClientId: string;
@@ -23,8 +23,10 @@ export function loadConfig(env: ImportMetaEnv, origin: string): AppConfig {
   const hostedModels = modelList(env.VITE_HOSTED_LLM_MODEL);
   return {
     spotifyClientId: (env.VITE_SPOTIFY_CLIENT_ID ?? "").trim(),
-    // Must be registered in the Spotify dashboard; in development http://127.0.0.1:5173/callback.
-    redirectUri: `${origin}${CALLBACK_PATH}`,
+    // Origin + base path (VITE_BASE_PATH at build time) + "callback"; must be registered in the Spotify
+    // dashboard. In development http://127.0.0.1:5173/callback; on GitHub Pages, for example,
+    // https://<user>.github.io/callback or https://<user>.github.io/curatune/callback.
+    redirectUri: `${origin}${callbackPath(env.BASE_URL ?? "/")}`,
     llmBaseUrl: (env.VITE_LLM_BASE_URL ?? "").trim(),
     llmModel: (env.VITE_LLM_MODEL ?? "").trim(),
     hostedLlm:

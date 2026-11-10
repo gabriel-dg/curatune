@@ -16,7 +16,14 @@ import { CuratuneError } from "./errors";
 export const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 export const TOKEN_URL = "https://accounts.spotify.com/api/token";
 export const SCOPES = ["playlist-read-private", "playlist-modify-public", "playlist-modify-private"] as const;
-export const CALLBACK_PATH = "/callback";
+
+/**
+ * The OAuth callback page's path under the app's base path (Vite's BASE_URL, "/" or "/curatune/"):
+ * "/callback" or "/curatune/callback". The redirect URI is the origin followed by this path.
+ */
+export function callbackPath(base: string): string {
+  return `${base.endsWith("/") ? base : `${base}/`}callback`;
+}
 
 const TOKEN_KEY = "curatune-web.token";
 const PENDING_KEY = "curatune-web.pending-login";
@@ -85,16 +92,19 @@ export function constantTimeEqual(a: string, b: string): boolean {
 // --- Callback URL --------------------------------------------------------------------------------
 
 /**
- * On the OAuth callback page, return its query parameters and immediately replace the history entry
- * with "/", so `code` and `state` leave the address bar and the session history. Elsewhere, null.
+ * On the OAuth callback page (`callbackPath(base)`, with or without a trailing slash), return its query
+ * parameters and immediately replace the history entry with the base path, so `code` and `state` leave the
+ * address bar and the session history. Elsewhere, null. `base` is Vite's BASE_URL ("/" or "/curatune/").
  */
 export function takeCallbackParams(
   location: Pick<Location, "pathname" | "search">,
   history: Pick<History, "replaceState">,
+  base: string,
 ): URLSearchParams | null {
-  if (location.pathname !== CALLBACK_PATH) return null;
+  const path = callbackPath(base);
+  if (location.pathname !== path && location.pathname !== `${path}/`) return null;
   const params = new URLSearchParams(location.search);
-  history.replaceState(null, "", "/");
+  history.replaceState(null, "", base.endsWith("/") ? base : `${base}/`);
   return params;
 }
 
