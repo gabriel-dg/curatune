@@ -71,8 +71,10 @@ const recordingsSet: Tool = {
             confidence: { type: "string", description: CONFIDENCE_LEVELS.join(", ") },
             source: { type: "string", description: "Where the date comes from." },
             note: { type: "string", description: "Optional, e.g. which take or session." },
-            name: { type: "string", description: "Optional track name." },
+            name: { type: "string", description: "Track name, shown to the user instead of the URI." },
+            artist: { type: "string", description: "Main artist, shown to the user." },
           },
+          required: ["uri", "recorded", "confidence", "source", "name"],
           additionalProperties: false,
         },
         minItems: 1,
@@ -89,7 +91,7 @@ const recordingsSet: Tool = {
     const skipped = new Set(result.skipped);
     // Only what was stored (a repeated uri: the last entry, as the store keeps it).
     const byUri = new Map(entries.map((e) => [normalizeItemUri(e.uri!), e]));
-    const saved = [...byUri].filter(([u]) => !skipped.has(u)).map(([u, e]) => ({ uri: u, name: e.name ?? null, recorded: e.recorded, confidence: e.confidence }));
+    const saved = [...byUri].filter(([u]) => !skipped.has(u)).map(([u, e]) => ({ uri: u, name: e.name ?? null, artist: e.artist ?? null, recorded: e.recorded, confidence: e.confidence }));
     return { created: result.created, skipped: result.skipped, total: result.total, saved };
   },
   summarize: (result) => {
@@ -97,11 +99,11 @@ const recordingsSet: Tool = {
     return `saved ${r.saved.length} dates${r.skipped.length ? `, kept ${r.skipped.length} stored` : ""}`;
   },
   describeWrite: (result) => {
-    const r = result as { saved: { uri: string; name: string | null; recorded: string; confidence: string }[] };
+    const r = result as { saved: { uri: string; name: string | null; artist: string | null; recorded: string; confidence: string }[] };
     if (!r.saved.length) return null;
     return {
       title: `Saved ${r.saved.length} recording date${r.saved.length === 1 ? "" : "s"} (in this browser)`,
-      lines: r.saved.map((s) => `${s.name ?? s.uri}: ${s.recorded} (${s.confidence})`),
+      lines: r.saved.map((s) => `${s.name ?? s.uri}${s.artist ? ` - ${s.artist}` : ""}: ${s.recorded} (${s.confidence})`),
       playlistId: null,
       warnings: [],
     };
