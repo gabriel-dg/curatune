@@ -24,6 +24,9 @@ export interface PlanCardOptions {
   onNotice: (notice: string) => void;
 }
 
+/** Above the model's reason, so it never reads as something the app checked (as curatune's confirm.py labels it). */
+export const REASON_LABEL = "The assistant's explanation (written by the AI, not checked by the app):";
+
 /** Above this many tracks, the diff shows only the changed ones (and their neighbours for removals). */
 const FULL_DIFF_LIMIT = 40;
 
@@ -141,7 +144,9 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
       : h("div", { class: "plan-summary muted small", text: `${plan.before.length} → ${plan.after.length} tracks · ${plan.operations.length} operation${plan.operations.length === 1 ? "" : "s"}` });
   const card = h("div", { class: "card plan-card" }, [
     h("div", { class: "card-title" }, [h("span", { class: "badge plan" }, ["Plan"]), h("strong", { text: planTitle(plan) })]),
-    plan.reason ? h("div", { class: "plan-reason", text: plan.reason }) : null,
+    plan.reason
+      ? h("div", { class: "plan-reason" }, [h("div", { class: "plan-reason-label muted small", text: REASON_LABEL }), h("div", { text: `“${plan.reason}”` })])
+      : null,
     plan.kind === "details" ? detailsDiff(plan) : plan.kind === "remove" ? removeDiff(plan) : reorderDiff(plan),
     summary,
     h("div", { class: "card-actions" }, [spotifyPlaylistLink(plan.playlist.id)]),
