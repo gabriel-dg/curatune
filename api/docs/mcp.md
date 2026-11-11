@@ -255,8 +255,9 @@ server restarted, needs the user's OK first, through the same routes as plans:
   (`CONFIRMATION_UNAVAILABLE`), and the user can add the tracks in Spotify or with `curatune playlist add`.
 
 The playlists a server created are remembered in memory only. `playlist_add` is annotated
-`destructiveHint: true` with `requiresUserInteraction`, like `plan_apply`, so clients that use annotations
-for their own prompts don't auto-approve it.
+`destructiveHint: true`, so clients that use annotations for their own prompts don't auto-approve it. Unlike
+`plan_apply` it doesn't carry `requiresUserInteraction`: the server already asks the person, and that meta would make
+Claude Code prompt on every call, even to fill a playlist the server just created.
 
 Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
 with the stored token, or read the page from the local machine), and a client set up to answer dialogs by

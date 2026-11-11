@@ -266,7 +266,9 @@ async def test_playlist_add_takes_no_answer_and_always_wants_a_person(client):
     # As plan_apply: the dialog's answer is no argument, and the page's one-time code is the only addition.
     assert list(tool.input_schema["properties"]) == ["playlist", "tracks", "at_number", "allow_duplicates", "confirmation_code"]
     assert tool.input_schema["required"] == ["playlist", "tracks"]
-    assert tool.meta == {"anthropic/requiresUserInteraction": True}
+    # No requiresUserInteraction: the server itself asks the person, and filling a playlist it just created
+    # must not prompt on every call.
+    assert not tool.meta
 
 
 def test_instructions_carry_the_rules():

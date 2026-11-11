@@ -445,7 +445,6 @@ def register(server: MCPServer, rt: Runtime) -> None:
         "the result names each added track and says whether it was verified. Never say tracks were added unless "
         'this returns status "added". ' + THIRD_PARTY,
         annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=True),
-        meta={"anthropic/requiresUserInteraction": True},
     )
     async def playlist_add(
         ctx: Context,

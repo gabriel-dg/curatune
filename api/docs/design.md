@@ -162,8 +162,8 @@ authorization.
 (it could read the token and call Spotify directly), and a client set up to answer dialogs by itself, such
 as a Claude Code `Elicitation` hook.
 
-**Defense in depth:** `requiresUserInteraction` on `plan_apply` and `playlist_add` (Claude Code prompts even
-in bypass modes), `destructiveHint` on both (Claude Desktop always prompts), and the `browser` override for clients that declare
+**Defense in depth:** `requiresUserInteraction` on `plan_apply` (Claude Code prompts even
+in bypass modes; left off `playlist_add` so filling a playlist the server just created doesn't prompt on every call), `destructiveHint` on both (Claude Desktop always prompts), and the `browser` override for clients that declare
 dialogs and drop them. DNS rebinding and CSRF against the page meet the loopback bind, the random path, the
 `Host` and `Origin` checks, the nonce, and the CSP; oversized results meet D8's budgets; SDK churn meets a
 pin below `mcp` 3 and CI in both protocol eras.

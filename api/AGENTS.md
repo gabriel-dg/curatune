@@ -77,8 +77,8 @@ decisions, and its threat boundary are in `docs/design.md`.
 - `playlist_add` to a playlist not created in this process asks first: `playlists.preview_add` reads the
   playlist and each track's name (failing before asking on what the addition would refuse), the question
   lists them by the number they will get, and the confirmation (and the page's code) is bound to the exact
-  call (`confirm.add_request_id`: playlist, URIs in order, position, duplicates flag). Its annotations are
-  `destructiveHint` and `requiresUserInteraction`, as `plan_apply`'s.
+  call (`confirm.add_request_id`: playlist, URIs in order, position, duplicates flag). It is annotated
+  `destructiveHint` but, unlike `plan_apply`, not `requiresUserInteraction`: the server asks the person itself.
 - Removals, reorders, and renames are plans (`plan_*` build them; changing nothing). **`plan_apply` applies
   one only after the person confirms it outside the chat**: in the client's dialog (MCP form elicitation),
   or on the local confirmation page, which reveals a one-time code (`mcp_server/confirm.py`,
