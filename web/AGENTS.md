@@ -35,7 +35,9 @@ IP addresses, hostnames, local paths) in versioned files.
   - Tools, not commands: the model sees 1-based `number` (see Development); results are trimmed for the
     model instead of `--brief`; batch search is `search_many` (up to 25 searches per call, 4 at a time).
   - Plans are applied only by the UI's Apply button; there is no apply tool (curatune: `plan apply`, run by
-    the agent after the user confirms). Write tools accept only IDs seen earlier in the conversation, and
+    the agent after the user confirms). Adding tracks to a playlist not created in this session waits for the
+    user's Confirm on a card (curatune's MCP server asks the same way, through its dialog or page; its CLI adds
+    directly). Write tools accept only IDs seen earlier in the conversation, and
     create has no public option (curatune's `--public`): the model never chooses visibility.
   - `plan_reorder` also takes `sort_by` title, artist, album, released (edition date), or duration, besides
     `recorded` (curatune's `--by-recording-date`), an explicit order, or a move.
@@ -126,10 +128,14 @@ IP addresses, hostnames, local paths) in versioned files.
 
 ## Confirmation rules (same as curatune)
 
-- Create playlist / add items: executed directly, and shown in the UI (a card in the chat plus a
-  session log that "New chat" does not clear). Write tools only accept IDs that appeared earlier in the
-  conversation (user messages or tool results), create always requests a private playlist (the model
-  never chooses visibility), and add re-reads the playlist to verify.
+- Create playlist / add items: shown in the UI (a card in the chat plus a session log that "New chat" does
+  not clear). Creating runs directly, and so does adding to a playlist `playlist_create` made in this tab
+  (`ToolContext.createdPlaylists`, in memory until the page reloads). Adding to any other playlist first
+  reads it and the tracks (`previewAdd`, so what the addition would refuse fails before asking), shows them
+  with Confirm and Cancel (`src/ui/add-card.ts`), and waits: Cancel or Stop returns `USER_DECLINED` to the
+  model, and without `confirmAdd` the tool fails closed (`CONFIRMATION_UNAVAILABLE`). Write tools only accept
+  IDs that appeared earlier in the conversation (user messages or tool results), create always requests a
+  private playlist (the model never chooses visibility), and add re-reads the playlist to verify.
 - Remove / reorder / rename / change description: only through **plans**. A plan records the current
   state, the change, the resulting state, and the exact operations; applying verifies snapshot and item
   list first and the result after. Validation also checks that the human-readable parts match the

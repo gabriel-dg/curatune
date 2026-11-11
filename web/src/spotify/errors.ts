@@ -28,6 +28,8 @@ export type ErrorCode =
   | "APPLY_FAILED"
   | "VERIFICATION_FAILED"
   | "RECORDING_DATES_MISSING"
+  | "USER_DECLINED"
+  | "CONFIRMATION_UNAVAILABLE"
   | "API_ERROR";
 
 export type Details = Record<string, unknown>;

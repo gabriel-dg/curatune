@@ -1,6 +1,8 @@
 // Writes allowed without a plan: create a playlist, add items.
 // Follows curatune commit b3531aa, src/curatune/playlists.py (create_playlist, add_items) and
-// src/curatune/_writes.py (insert_uris). Differences, all deliberate:
+// src/curatune/_writes.py (insert_uris); previewAdd follows curatune commit ef200c2 (preview_add), which
+// the playlist_add tool uses to ask the user before adding to a playlist not created in this session.
+// Differences, all deliberate:
 // - create always requests a private playlist: the caller (the model) never chooses visibility.
 // - add re-reads the playlist after writing and reports whether the new items are where expected.
 // - Both record to the write log (when the client has one), so plans built right after still apply.
@@ -8,8 +10,8 @@
 
 import { CuratuneError } from "./errors";
 import type { SpotifyClient } from "./http";
-import { normalizePlaylist, type Playlist, type PlaylistItem } from "./models";
-import { getPlaylist, listPlaylists, type Warning } from "./playlists";
+import { normalizePlaylist, normalizeTrack, type Playlist, type PlaylistItem } from "./models";
+import { getPlaylist, listPlaylists, type PlaylistState, type Warning } from "./playlists";
 import { normalizeItemUri } from "./refs";
 
 export const MAX_URIS_PER_REQUEST = 100;
@@ -95,23 +97,19 @@ export async function createPlaylist(
   return { playlist, visibility: { requested_public: requestedPublic, reported_public: reportedPublic }, warnings };
 }
 
-/**
- * Add items at `position` (0-based; default: append). URIs already in the playlist, or repeated in the
- * input, are skipped unless `allowDuplicates`.
- */
-export async function addItems(
+/** Read the playlist and check an addition without writing: the state, the URIs to add, and the skipped. */
+async function splitAdditions(
   client: SpotifyClient,
   ref: string,
   itemRefs: string[],
-  position: number | null = null,
-  allowDuplicates = false,
-): Promise<AddResult> {
+  position: number | null,
+  allowDuplicates: boolean,
+): Promise<{ state: PlaylistState; toAdd: string[]; skipped: AddResult["skipped"] }> {
   const uris = itemRefs.map(normalizeItemUri);
   if (!uris.length) throw new CuratuneError("INVALID_ARGUMENT", "No items to add.");
 
   const state = await getPlaylist(client, ref);
-  const playlist = state.playlist;
-  requireEditable(playlist);
+  requireEditable(state.playlist);
   const count = state.items.length;
   if (position !== null && !(Number.isInteger(position) && position >= 0 && position <= count)) {
     throw new CuratuneError("INVALID_ARGUMENT", "Position is out of range.", { position, item_count: count });
@@ -125,6 +123,73 @@ export async function addItems(
     else if (!allowDuplicates && toAdd.includes(uri)) skipped.push({ uri, reason: "duplicate_in_input" });
     else toAdd.push(uri);
   }
+  return { state, toAdd, skipped };
+}
+
+export interface AddPreview {
+  playlist: { id: string; name: string | null };
+  item_count: number;
+  /** 0-based position of the first added track. */
+  position: number;
+  add: { uri: string; name: string | null; artists: string[] }[];
+  skipped: AddResult["skipped"];
+}
+
+const PREVIEW_WORKERS = 4; // as search_many: the Development Mode quota is shared per developer
+
+/**
+ * What addItems would do, without writing: the playlist, where the tracks would go, and each track to add with
+ * its name and artists as Spotify reports them (one read per track, a few at a time; episodes are listed by
+ * URI). The same checks run first (editable, position in range, unknown tracks), so they fail before the user
+ * is asked to confirm.
+ */
+export async function previewAdd(
+  client: SpotifyClient,
+  ref: string,
+  itemRefs: string[],
+  position: number | null = null,
+  allowDuplicates = false,
+): Promise<AddPreview> {
+  const { state, toAdd, skipped } = await splitAdditions(client, ref, itemRefs, position, allowDuplicates);
+  const unique = [...new Set(toAdd)];
+  const named = new Map<string, AddPreview["add"][number]>();
+  let next = 0;
+  const worker = async () => {
+    while (next < unique.length) {
+      const uri = unique[next++]!;
+      const [, kind, id] = uri.split(":");
+      if (kind !== "track") {
+        named.set(uri, { uri, name: null, artists: [] });
+        continue;
+      }
+      const track = normalizeTrack(await client.get<Record<string, unknown>>(`/tracks/${id}`));
+      named.set(uri, { uri, name: track.name ?? null, artists: track.artists.map((a) => a.name).filter((n): n is string => Boolean(n)) });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PREVIEW_WORKERS, unique.length) }, worker));
+  return {
+    playlist: { id: state.playlist.id!, name: state.playlist.name ?? null },
+    item_count: state.items.length,
+    position: position ?? state.items.length,
+    add: toAdd.map((uri) => named.get(uri)!),
+    skipped,
+  };
+}
+
+/**
+ * Add items at `position` (0-based; default: append). URIs already in the playlist, or repeated in the
+ * input, are skipped unless `allowDuplicates`.
+ */
+export async function addItems(
+  client: SpotifyClient,
+  ref: string,
+  itemRefs: string[],
+  position: number | null = null,
+  allowDuplicates = false,
+): Promise<AddResult> {
+  const { state, toAdd, skipped } = await splitAdditions(client, ref, itemRefs, position, allowDuplicates);
+  const playlist = state.playlist;
+  const count = state.items.length;
 
   let insertAt = position;
   let snapshotId = playlist.snapshot_id;

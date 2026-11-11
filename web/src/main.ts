@@ -52,7 +52,7 @@ async function start(root: HTMLElement): Promise<void> {
   const activity = new ActivityLog();
   // Closing a hosted provider's data notice is remembered per host across tabs (localStorage); never the key.
   const dismissedNotices = new DismissedNotices(browserNoticeStorage());
-  const chat = new ChatView({ providers, settings, ctx: { client, recordings }, backups, activity, dismissedNotices });
+  const chat = new ChatView({ providers, settings, ctx: { client, recordings, createdPlaylists: new Set<string>() }, backups, activity, dismissedNotices });
   const app = new App(root, auth, client, chat, recordings, activity);
 
   if (!persistent && indexedDbSupported()) {

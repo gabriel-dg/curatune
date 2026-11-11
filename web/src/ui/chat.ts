@@ -10,6 +10,7 @@ import { CuratuneError } from "../spotify/errors";
 import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type ToolExecution, type WriteReport } from "../tools";
 import type { ActivityLog } from "./activity";
+import { addConfirmCard } from "./add-card";
 import { withAppPrefix } from "./app-messages";
 import { brandMark } from "./brand";
 import { writeCard } from "./cards";
@@ -515,11 +516,23 @@ export class ChatView {
     };
 
     try {
+      const signal = this.controller.signal;
       const result = await runTurn(this.history, content, {
         model,
         tools: ALL_TOOLS,
-        ctx: { ...this.ctx, onPlan: (plan) => stats.plans.push(plan) },
-        signal: this.controller.signal,
+        ctx: {
+          ...this.ctx,
+          onPlan: (plan) => stats.plans.push(plan),
+          // Adding to a playlist not created in this session: a card with the tracks, and the tool waits for
+          // the user's Confirm or Cancel (Stop counts as Cancel).
+          confirmAdd: (preview) => {
+            const { element, answer } = addConfirmCard(preview, signal);
+            this.steps = null;
+            this.append(element);
+            return answer;
+          },
+        },
+        signal,
         onEvent,
       });
       this.history = result.messages;
