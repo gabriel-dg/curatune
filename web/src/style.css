@@ -918,6 +918,11 @@ textarea::placeholder {
   color: var(--danger);
 }
 
+.step.cancelled .icon,
+.step.cancelled .step-meta {
+  color: var(--muted);
+}
+
 .step.pending .icon {
   color: var(--accent);
   animation: pulse 1.2s ease-in-out infinite;

@@ -20,6 +20,7 @@ import { hostedDataNotice, pickProvider, SPOTIFY_AI_TERMS, type LlmSettings, typ
 import { renderMarkdown } from "./markdown";
 import type { DismissedNotices } from "./notice-prefs";
 import { planCard } from "./plan-card";
+import { addLabel, stepStatus } from "./step-status";
 
 export interface PlaylistContext {
   id: string;
@@ -70,7 +71,7 @@ function describeCall(name: string, rawArgs: string): { label: string; icon: Ico
     case "playlist_create":
       return { label: `Created playlist ${quoted(args.name)}`, icon: "plus" };
     case "playlist_add":
-      return { label: `Added ${Array.isArray(args.track_uris) ? args.track_uris.length : ""} tracks`, icon: "plus" };
+      return { label: addLabel(Array.isArray(args.track_uris) ? args.track_uris.length : null, "pending"), icon: "plus" };
     case "plan_remove":
     case "plan_reorder":
     case "plan_details":
@@ -447,6 +448,8 @@ export class ChatView {
     this.setBusy(true);
     this.controller = new AbortController();
     const stepRows = new Map<string, HTMLElement>();
+    // The step that started last: playlist_add, while its confirmation card waits for the user.
+    let lastStep: HTMLElement | null = null;
     // Mutated from the event callback, so it lives in an object (TypeScript does not track closure writes).
     const stats: { promptTokens: number | null; checkpoint: ChatMessage[] | null; wrote: boolean; plans: Plan[] } = {
       promptTokens: null,
@@ -478,6 +481,7 @@ export class ChatView {
             h("summary", {}, [icon(iconName, 15), h("span", { class: "step-label", text: label }), h("span", { class: "step-meta muted" })]),
           ]);
           stepRows.set(event.call.id, row);
+          lastStep = row;
           this.stepsGroup().append(row);
           row.scrollIntoView({ block: "end", behavior: "smooth" });
           break;
@@ -527,6 +531,8 @@ export class ChatView {
           // the user's Confirm or Cancel (Stop counts as Cancel).
           confirmAdd: (preview) => {
             const { element, answer } = addConfirmCard(preview, signal);
+            const waiting = lastStep?.querySelector(".step-meta");
+            if (waiting) waiting.textContent = "waiting for your confirmation";
             this.steps = null;
             this.append(element);
             return answer;
@@ -570,8 +576,13 @@ export class ChatView {
 
   private finishStep(row: HTMLElement, name: string, rawArgs: string, execution: ToolExecution): void {
     row.classList.remove("pending");
-    row.classList.add(execution.outcome.ok ? "ok" : "failed");
-    row.querySelector(".step-meta")!.textContent = `${execution.outcome.ok ? execution.summary : "failed"} · ${seconds(execution.ms)}`;
+    const status = stepStatus(execution);
+    row.classList.add(status.kind);
+    row.querySelector(".step-meta")!.textContent = `${status.text} · ${seconds(execution.ms)}`;
+    if (name === "playlist_add") {
+      const args = execution.args as { track_uris?: unknown[] } | null;
+      row.querySelector(".step-label")!.textContent = addLabel(Array.isArray(args?.track_uris) ? args.track_uris.length : null, status.kind);
+    }
     // What the model sent and the exact JSON it received, for transparency.
     row.append(
       h("div", { class: "step-details" }, [

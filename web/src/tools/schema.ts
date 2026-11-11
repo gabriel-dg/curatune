@@ -12,7 +12,7 @@ export type ParamSchema =
 /** Array items: strings, integers, or flat objects whose values are all strings. */
 export type ItemSchema =
   | { type: "string" | "integer" }
-  | { type: "object"; properties: Record<string, { type: "string"; description: string }>; additionalProperties: false };
+  | { type: "object"; properties: Record<string, { type: "string"; description: string }>; required?: string[]; additionalProperties: false };
 
 export interface ObjectSchema {
   type: "object";
@@ -75,6 +75,9 @@ export function validateArgs(schema: ObjectSchema, value: unknown): Args {
             if (v === null || v === undefined) continue;
             if (typeof v !== "string") throw new CuratuneError("INVALID_ARGUMENT", `${key}[${i}].${k} must be a string.`);
             out[k] = v;
+          }
+          for (const k of itemSchema.required ?? []) {
+            if (!out[k]) throw new CuratuneError("INVALID_ARGUMENT", `${key}[${i}] is missing ${k}.`);
           }
           return out;
         });

@@ -177,10 +177,25 @@ describe("recording tools", () => {
     expect(execution.outcome).toMatchObject({ ok: true, result: { created: 1, skipped: [], total: 1 } });
     expect(execution.write).toMatchObject({ title: "Saved 1 recording date (in this browser)", lines: ["Manteca: 1947-12-30 (medium)"], playlistId: null });
     expect((await ctx.store.load())[uri]).toMatchObject({ recorded: "1947-12-30", confidence: "medium", source: "model knowledge" });
-    const unknown = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "1947", confidence: "high", source: "x" }] }, false);
+    const unknown = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "1947", confidence: "high", source: "x", name: "Manteca" }] }, false);
     expect(unknown.outcome).toMatchObject({ ok: false, error: { code: "INVALID_REFERENCE" } });
-    const bad = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "late 40s", confidence: "high", source: "x" }] });
+    const bad = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "late 40s", confidence: "high", source: "x", name: "Manteca" }] });
     expect(bad.outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+    // The card shows names, not URIs: an entry without one is refused before anything is stored.
+    const nameless = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "1947", confidence: "high", source: "x" }] });
+    expect(nameless.outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+  });
+
+  it("recordings_set shows the artist next to the name when given, and does not store either", async () => {
+    const ctx = setup();
+    const uri = `spotify:track:${ctx.ids.manteca}`;
+    const execution = await run(ctx, "recordings_set", {
+      entries: [{ uri, recorded: "1947-12-30", confidence: "medium", source: "model knowledge", name: "Manteca", artist: "Dizzy Gillespie" }],
+    });
+    expect(execution.write).toMatchObject({ lines: ["Manteca - Dizzy Gillespie: 1947-12-30 (medium)"] });
+    const stored = (await ctx.store.load())[uri];
+    expect(stored).not.toHaveProperty("name");
+    expect(stored).not.toHaveProperty("artist");
   });
 
   it("recordings_set never replaces a stored date: it keeps it and lists it in skipped", async () => {
@@ -199,7 +214,7 @@ describe("recording tools", () => {
     expect(execution.summary).toBe("saved 1 dates, kept 1 stored");
     expect((await ctx.store.load())[kept]).toMatchObject({ recorded: "1947-12-30", source: "the user's discography" });
 
-    const nothing = await run(ctx, "recordings_set", { entries: [{ uri: kept, recorded: "1950", confidence: "low", source: "x" }] });
+    const nothing = await run(ctx, "recordings_set", { entries: [{ uri: kept, recorded: "1950", confidence: "low", source: "x", name: "Manteca" }] });
     expect(nothing.outcome).toMatchObject({ ok: true, result: { created: 0, skipped: [kept], saved: [] } });
     expect(nothing.write).toBeNull();
   });
