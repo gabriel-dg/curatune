@@ -52,7 +52,7 @@ REASON_CHARS = 300
 REASON_LABEL = "The assistant's explanation (written by the AI, not checked by curatune):"
 MAX_PLAN_AGE_SECONDS = 24 * 3600  # plan_apply refuses older plans: they belong to another conversation
 
-Route = Literal["elicitation", "page", "code", "unavailable", "direct"]
+Route = Literal["elicitation", "page", "code", "unavailable", "direct", "rejected"]
 
 
 @dataclass(frozen=True)
@@ -297,6 +297,7 @@ class ConfirmationStore:
         self._lock = threading.Lock()
         self._by_token: dict[str, Confirmation] = {}
         self._latest: dict[str, str] = {}  # plan_id -> token of its most recent confirmation
+        self._rejected: set[tuple[str, str]] = set()  # (plan_id, checksum) the person declined in a dialog
 
     def _expired(self, c: Confirmation) -> bool:
         return self._clock() - c.created >= self._ttl
@@ -320,6 +321,16 @@ class ConfirmationStore:
             self._by_token[c.token] = c
             self._latest[plan_id] = c.token
             return c
+
+    def remember_rejection(self, plan_id: str, checksum: str) -> None:
+        """A dialog the person declined (or accepted unchecked): that plan or addition isn't asked again in this
+        process, as a rejected page isn't reopened. Closing the dialog without answering is not a rejection."""
+        with self._lock:
+            self._rejected.add((plan_id, checksum))
+
+    def was_rejected(self, plan_id: str, checksum: str) -> bool:
+        with self._lock:
+            return (plan_id, checksum) in self._rejected
 
     def page_view(self, token: str) -> tuple[Confirmation, str] | None:
         """The confirmation behind a page URL and the state to show (`expired` included)."""

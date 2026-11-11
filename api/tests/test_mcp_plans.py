@@ -264,6 +264,21 @@ async def test_no_yes_means_nothing_changes(settings, account, era, action, appl
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("action, apply, remembered", [("decline", True, True), ("accept", False, True), ("cancel", True, False)])
+async def test_a_declined_plan_is_not_asked_again(settings, account, era, action, apply, remembered):
+    acc, ids = account
+    user = User(action, apply)
+    async with connect(settings, acc, era, user=user) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    # Declining (or accepting unchecked) is a rejection, remembered as the page remembers one; closing the
+    # dialog without answering is not.
+    assert (result["status"] == "rejected") == remembered
+    assert len(user.asked) == (1 if remembered else 2) and writes(acc) == []
+
+
+@pytest.mark.anyio
 async def test_without_a_dialog_the_page_opens_and_nothing_is_applied_yet(settings, account, era):
     acc, ids = account
     browser = Browser()

@@ -167,6 +167,9 @@ sequenceDiagram
   when the model writes nothing in the chat, and it is never mistaken for what the server verified.
 - **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
   read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
+- **A declined plan stays declined.** Declining (or accepting with "Apply this plan" unchecked) is remembered
+  in memory: calling `plan_apply` for that plan again answers `rejected` without asking, as a rejected page
+  isn't reopened. Closing the dialog without answering isn't a rejection. The same holds for additions.
 - **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, more
   than 24 hours old (`PLAN_EXPIRED`: build a new one), or not a plan ID fails before anything is asked. The
   dialog and the page say when the plan was built.

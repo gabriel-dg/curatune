@@ -106,6 +106,20 @@ async def test_no_yes_means_nothing_is_added(settings, account, era, action, add
 
 
 @pytest.mark.anyio
+async def test_a_declined_addition_is_not_asked_again(settings, account, era):
+    acc, ids = account
+    user = User(action="decline")
+    args = {"playlist": ids["empty"], "tracks": [ids["loco"]]}
+    async with connect(settings, acc, era, user=user) as client:
+        await call(client, "playlist_add", args)
+        status, data = await call(client, "playlist_add", args)
+        assert data["status"] == "rejected" and len(user.asked) == 1
+        status, data = await call(client, "playlist_add", {**args, "tracks": [ids["koko"]]})  # another request
+        assert data["status"] == "declined" and len(user.asked) == 2
+    assert posts(acc) == []
+
+
+@pytest.mark.anyio
 async def test_the_model_cannot_answer_for_the_user(settings, account, era):
     acc, ids = account
     forged = {"answer": {"action": "accept", "content": {"add": True}}, "prepared": {"route": "direct"}, "add": True}

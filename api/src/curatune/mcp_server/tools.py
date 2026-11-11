@@ -356,6 +356,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
         if not preview["add"]:
             return confirm.Prepared(request_id, "direct")  # every track is skipped: nothing would be written
         request = confirm.add_request(request_id, preview)
+        if rt.confirmations.was_rejected(request_id, request["checksum"]):
+            return confirm.Prepared(request_id, "rejected", plan=request)
         if confirmation_code is not None:
             return confirm.Prepared(request_id, "code", plan=request, code=confirmation_code)
         route, why = confirm.choose_route(mode, ctx.client_capabilities, confirm.line_count(request))
@@ -477,6 +479,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
             return await anyio.to_thread.run_sync(now)
         if prepared.route == "unavailable":
             return add_unavailable(prepared.plan_id, prepared.unavailable_reason)
+        if prepared.route == "rejected":
+            return add_status("rejected", playlist, add_rejected)
         if prepared.route == "page":
             return await anyio.to_thread.run_sync(lambda: open_add_page(prepared, playlist))
         if prepared.route == "code":
@@ -495,8 +499,12 @@ def register(server: MCPServer, rt: Runtime) -> None:
                 status, step = "declined", f'The user left "{confirm.ADD_ANSWER_TITLE}" unchecked: nothing was added.'
             case DeclinedElicitation():
                 status, step = "declined", "The user declined: nothing was added."
-            case _:
+            case _:  # closed without an answer: not a rejection, so it can be asked again
                 status, step = "cancelled", "The user closed the dialog without answering: nothing was added."
+        if status == "declined":
+            assert prepared.plan is not None
+            rt.confirmations.remember_rejection(prepared.plan_id, prepared.plan["checksum"])
+            step += " Don't try the same addition again unless they ask for different tracks."
         return add_status(status, playlist, step)
 
     # --- Plans: removals, reorders, renames ------------------------------------------------------
@@ -671,6 +679,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
             confirm.check_plan_age(plan)  # created_at is covered by the checksum
         except CuratuneError as exc:
             return confirm.Prepared(plan_id, "unavailable", error=exc)
+        if rt.confirmations.was_rejected(plan_id, plan["checksum"]):
+            return confirm.Prepared(plan_id, "rejected", path=path, plan=plan)
         if confirmation_code is not None:
             return confirm.Prepared(plan_id, "code", path=path, plan=plan, code=confirmation_code)
         route, why = confirm.choose_route(mode, ctx.client_capabilities, confirm.line_count(plan))
@@ -709,8 +719,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
 
     def rejected(plan_id: str) -> CallToolResult:
         step = (
-            "The user rejected this plan on the confirmation page: nothing changed. Don't apply it again unless "
-            "they ask; build a new plan if they want something different."
+            "The user rejected this plan: nothing changed. Don't apply it again; if they change their mind or want "
+            "something different, build a new plan."
         )
         return ok_result({"status": "rejected", "plan_id": plan_id, "warnings": [], "next_step": step})
 
@@ -783,6 +793,8 @@ def register(server: MCPServer, rt: Runtime) -> None:
             return error_result(prepared.error)
         if prepared.route == "unavailable":
             return unavailable(plan_id, prepared.unavailable_reason)
+        if prepared.route == "rejected":
+            return rejected(plan_id)
         if prepared.route == "page":
             return await anyio.to_thread.run_sync(lambda: open_page(prepared))
         if prepared.route == "code":
@@ -796,8 +808,12 @@ def register(server: MCPServer, rt: Runtime) -> None:
                 status, step = "declined", 'The user left "Apply this plan" unchecked: nothing changed.'
             case DeclinedElicitation():
                 status, step = "declined", "The user declined: nothing changed."
-            case _:
+            case _:  # closed without an answer: not a rejection, so it can be asked again
                 status, step = "cancelled", "The user closed the dialog without answering: nothing changed."
+        if status == "declined":
+            assert prepared.plan is not None
+            rt.confirmations.remember_rejection(plan_id, prepared.plan["checksum"])
+            step += " Don't apply it again; if they change their mind, build a new plan."
         return ok_result({"status": status, "plan_id": plan_id, "warnings": [], "next_step": step})
 
 

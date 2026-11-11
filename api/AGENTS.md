@@ -95,6 +95,8 @@ decisions, and its threat boundary are in `docs/design.md`.
   - routes: the dialog when declared, otherwise the page (`CURATUNE_MCP_CONFIRM` forces either); no
     browser, an invalid or applied plan, a wrong, expired, or used code, a rejection, or anything but
     "accept" with "Apply this plan" checked: nothing is applied;
+  - a declined dialog (or "accept" unchecked) is remembered per plan and checksum (or addition) for the
+    process, so it answers `rejected` without asking again, as a rejected page does;
   - it refuses plans more than 24 hours old (`PLAN_EXPIRED`, from `created_at`, which the checksum covers),
     and the question says when the plan was built;
   - it accepts plan IDs only (`plans.plan_path_for_id`), and applies through `plans.apply_plan`, which
