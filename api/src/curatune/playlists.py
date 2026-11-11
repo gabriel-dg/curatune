@@ -5,12 +5,14 @@ There is deliberately no function to change a playlist's name, description, or v
 
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from . import _writes
 from .errors import ApiError, CuratuneError, DuplicateName, Forbidden, InvalidArgument
 from .http import SpotifyClient
-from .models import normalize_playlist, normalize_playlist_item
+from .models import normalize_playlist, normalize_playlist_item, normalize_track
 from .refs import normalize_item_uri, parse_id
 
 MAX_URIS_PER_REQUEST = 100
@@ -191,20 +193,16 @@ def create_playlist(
     }
 
 
-def add_items(
-    client: SpotifyClient,
-    ref: str,
-    item_refs: list[str],
-    position: int | None = None,
-    allow_duplicates: bool = False,
-) -> dict[str, Any]:
+def _split_additions(
+    client: SpotifyClient, ref: str, item_refs: list[str], position: int | None, allow_duplicates: bool
+) -> tuple[dict[str, Any], list[str], list[dict[str, str]]]:
+    """Read the playlist and check an addition without writing: the state, the URIs to add, and the skipped."""
     uris = [normalize_item_uri(r) for r in item_refs]
     if not uris:
         raise InvalidArgument("No items to add.")
 
     state = get_playlist(client, ref)
-    playlist = state["playlist"]
-    require_editable(playlist)
+    require_editable(state["playlist"])
     count = len(state["items"])
     if position is not None and not 0 <= position <= count:
         raise InvalidArgument("Position is out of range.", details={"position": position, "item_count": count})
@@ -219,6 +217,68 @@ def add_items(
             skipped.append({"uri": uri, "reason": "duplicate_in_input"})
         else:
             to_add.append(uri)
+    return state, to_add, skipped
+
+
+PREVIEW_MAX_WORKERS = 4  # as catalog's batch search: the Development Mode quota is shared per developer
+
+
+def preview_add(
+    client: SpotifyClient,
+    ref: str,
+    item_refs: list[str],
+    position: int | None = None,
+    allow_duplicates: bool = False,
+) -> dict[str, Any]:
+    """What `add_items` would do, without writing: the playlist, where the tracks would go, and each track
+    to add with its name and artists as Spotify reports them (one read per track, a few at a time; episodes
+    are listed by URI). The same checks run first (editable, position in range, unknown tracks), so they fail
+    before anyone is asked to confirm."""
+    state, to_add, skipped = _split_additions(client, ref, item_refs, position, allow_duplicates)
+    playlist = state["playlist"]
+    count = len(state["items"])
+
+    def describe(c: SpotifyClient, uri: str) -> dict[str, Any]:
+        kind, item_id = uri.split(":")[1:3]
+        if kind != "track":
+            return {"uri": uri, "name": None, "artists": []}
+        track = normalize_track(c.get(f"/tracks/{item_id}"))
+        return {"uri": uri, "name": track.get("name"), "artists": [a["name"] for a in track.get("artists") or []]}
+
+    unique = list(dict.fromkeys(to_add))
+    if len(unique) > 1:
+        client.tokens.access_token()  # refresh (if needed) once, before the threads ask for it
+        local = threading.local()
+
+        def in_thread(uri: str) -> dict[str, Any]:
+            if not hasattr(local, "client"):
+                local.client = client.thread_client()  # one HTTP session per worker thread
+            return describe(local.client, uri)
+
+        with ThreadPoolExecutor(max_workers=PREVIEW_MAX_WORKERS) as pool:
+            described = list(pool.map(in_thread, unique))
+    else:
+        described = [describe(client, uri) for uri in unique]
+    tracks = dict(zip(unique, described))
+    return {
+        "playlist": {"id": playlist["id"], "uri": playlist["uri"], "name": playlist["name"]},
+        "item_count": count,
+        "position": position if position is not None else count,
+        "add": [tracks[uri] for uri in to_add],
+        "skipped": skipped,
+    }
+
+
+def add_items(
+    client: SpotifyClient,
+    ref: str,
+    item_refs: list[str],
+    position: int | None = None,
+    allow_duplicates: bool = False,
+) -> dict[str, Any]:
+    state, to_add, skipped = _split_additions(client, ref, item_refs, position, allow_duplicates)
+    playlist = state["playlist"]
+    count = len(state["items"])
 
     snapshot_id = playlist["snapshot_id"]
     insert_at = position

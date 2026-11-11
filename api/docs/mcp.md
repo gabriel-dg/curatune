@@ -221,8 +221,8 @@ the route:
 
 | Value | Route |
 |---|---|
-| `auto` (default) | The dialog when the client declares form elicitation, otherwise the page. |
-| `elicitation` | The dialog only; without it, `CONFIRMATION_UNAVAILABLE`. |
+| `auto` (default) | The dialog when the client declares form elicitation, otherwise the page. A change with more than 25 lines (removals, moves) always takes the page, which lists every line. |
+| `elicitation` | The dialog only; without it, or for a change with more than 25 lines, `CONFIRMATION_UNAVAILABLE`. |
 | `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
 Clients verified so far (see [design.md](design.md#facts-the-design-rests-on-october-2026)): Claude Code

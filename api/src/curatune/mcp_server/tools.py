@@ -523,7 +523,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
             return confirm.Prepared(plan_id, "unavailable", error=exc)
         if confirmation_code is not None:
             return confirm.Prepared(plan_id, "code", path=path, plan=plan, code=confirmation_code)
-        route, why = confirm.choose_route(mode, ctx.client_capabilities)
+        route, why = confirm.choose_route(mode, ctx.client_capabilities, confirm.line_count(plan))
         summary = confirm.render_summary(plan) if route == "elicitation" else ""
         return confirm.Prepared(plan_id, route, path=path, plan=plan, summary=summary, unavailable_reason=why)
 

@@ -48,7 +48,7 @@ TEXT_CHARS = 300
 REASON_CHARS = 300
 REASON_LABEL = "The assistant's explanation (written by the AI, not checked by curatune):"
 
-Route = Literal["elicitation", "page", "code", "unavailable"]
+Route = Literal["elicitation", "page", "code", "unavailable", "direct"]
 
 
 @dataclass(frozen=True)
@@ -81,13 +81,20 @@ def declares_form_elicitation(capabilities: Any) -> bool:
     return elicitation is not None and (elicitation.form is not None or elicitation.url is None)
 
 
-def choose_route(mode: str, capabilities: Any) -> tuple[Literal["elicitation", "page", "unavailable"], str]:
-    """The route and, when there is none, why (for the model and the user)."""
+def choose_route(
+    mode: str, capabilities: Any, lines: int = 0
+) -> tuple[Literal["elicitation", "page", "unavailable"], str]:
+    """The route and, when there is none, why (for the model and the user). A change with more lines than
+    a dialog shows in full (`MAX_LINES`) goes to the page, which lists every line: nobody approves a removal
+    they can't see. With `elicitation` forced, such a change has no route."""
     if mode == "browser":
         return "page", ""
-    if declares_form_elicitation(capabilities):
+    too_long = lines > MAX_LINES
+    if declares_form_elicitation(capabilities) and not too_long:
         return "elicitation", ""
     if mode == "elicitation":
+        if too_long:
+            return "unavailable", f"this change has {lines} lines, more than a confirmation dialog shows ({MAX_LINES})"
         return "unavailable", "this client can't show a confirmation dialog (MCP form elicitation)"
     return "page", ""
 
@@ -126,6 +133,7 @@ class Summary:
     notes: list[str]
     reason: str
     plan_id: str
+    total: int = 0  # lines before the cap
 
 
 def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
@@ -157,7 +165,12 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
         notes.append("Note: this removes local files, which is unverified through the API.")
     if "DUPLICATE_NAME" in codes:
         notes.append("Note: you already have another playlist with this name.")
-    return Summary(head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"])
+    return Summary(head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"], len(lines))
+
+
+def line_count(plan: dict[str, Any]) -> int:
+    """How many lines the summary has before any cap: the dialog shows at most `MAX_LINES`."""
+    return summarize(plan).total
 
 
 def render_summary(plan: dict[str, Any]) -> str:

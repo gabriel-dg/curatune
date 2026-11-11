@@ -279,6 +279,30 @@ async def test_without_a_dialog_the_page_opens_and_nothing_is_applied_yet(settin
 
 
 @pytest.mark.anyio
+async def test_a_removal_longer_than_the_dialog_goes_to_the_page(settings, account, era):
+    """The dialog shows at most MAX_LINES lines; a longer removal goes to the page, which lists every track."""
+    acc, ids = account
+    count = confirm.MAX_LINES + 5
+    playlist = acc.add_playlist("Long", [ids["loco"]] * count)
+    user, browser = User(), Browser()
+    async with connect(settings, acc, era, user=user, browser=browser) as client:
+        status, plan = await call(
+            client, "plan_remove", {"playlist": playlist, "numbers": list(range(1, count)), "reason": "Keep one copy."}
+        )
+        assert status == "ok"
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "ok" and result["status"] == "awaiting_user_confirmation"
+    assert user.asked == [] and len(browser.urls) == 1 and writes(acc) == []
+    assert browser.page().text.count("<li>") == count - 1  # every removal, none hidden behind "… and N more"
+
+    user = User()
+    async with connect(settings, acc, era, user=user, confirm_mode="elicitation", browser=browser) as client:
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "error" and error["error"]["code"] == "CONFIRMATION_UNAVAILABLE"
+    assert user.asked == [] and writes(acc) == []
+
+
+@pytest.mark.anyio
 async def test_forced_elicitation_without_a_dialog_fails_closed(settings, account, era):
     acc, ids = account
     browser = Browser()

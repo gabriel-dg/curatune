@@ -40,6 +40,21 @@ def test_route(mode, capabilities, route):
     assert bool(why) == (route == "unavailable")
 
 
+@pytest.mark.parametrize(
+    "mode, capabilities, route",
+    [
+        ("auto", caps(FORM), "page"),  # more lines than the dialog shows: the page lists them all
+        ("elicitation", caps(FORM), "unavailable"),  # forced dialog: no route, nothing applied
+        ("browser", caps(FORM), "page"),
+    ],
+)
+def test_a_change_longer_than_a_dialog_never_goes_to_the_dialog(mode, capabilities, route):
+    chosen, why = confirm.choose_route(mode, capabilities, lines=confirm.MAX_LINES + 1)
+    assert chosen == route
+    assert bool(why) == (route == "unavailable")
+    assert confirm.choose_route(mode, capabilities, lines=confirm.MAX_LINES)[0] == ("page" if mode == "browser" else "elicitation")
+
+
 def test_confirm_mode_comes_from_the_environment(monkeypatch):
     monkeypatch.delenv("CURATUNE_MCP_CONFIRM", raising=False)
     assert confirm.confirm_mode() == "auto"
@@ -90,6 +105,7 @@ def test_long_summaries_are_capped(tmp_path):
     lines = confirm.render_summary(plan).splitlines()
     assert len(lines) == 1 + confirm.MAX_LINES + 1  # head, capped list, footer
     assert lines[confirm.MAX_LINES].startswith("… and ")
+    assert confirm.line_count(plan) > confirm.MAX_LINES  # so plan_apply sends it to the page instead
 
 
 def test_details_summary_shows_old_and_new_values(tmp_path):

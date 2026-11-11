@@ -122,7 +122,8 @@ elicitation, otherwise the page; `elicitation` requires the dialog; `browser` fo
 the SDK matches a recorded MRTR answer to the exact question text. It lists what leaves or moves, by
 number, title, and artists, or the old and new name and description; third-party text is stripped of
 control characters, line breaks, and bidirectional overrides, capped at 80 characters, and quoted, with at
-most 25 lines. The model's required `reason` (at most 300 characters) follows apart, labelled as the
+most 25 lines: a change with more lines goes to the page, which lists every one (with `elicitation` forced,
+it fails closed), so nobody approves a removal they can't see. The model's required `reason` (at most 300 characters) follows apart, labelled as the
 assistant's unchecked explanation. Only "accept" with "Apply this plan" checked applies; anything else,
 including no answer, changes nothing.
 
