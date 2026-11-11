@@ -58,12 +58,12 @@ export async function renderPlaylistPanel(
 
   const quick = playlist.owned
     ? [
-        ["Find duplicates", `Are there duplicates in "${name}"?`],
-        ["Recording order?", `Is "${name}" in chronological order of recording?`],
-        ["Sort by recording", `Sort "${name}" by recording date`],
-        ["Suggest tracks", `Suggest 5 tracks that would fit "${name}"`],
+        ["Find duplicates", "Are there duplicates in this playlist?"],
+        ["Recording order?", "Is this playlist in chronological order of recording?"],
+        ["Sort by recording", "Sort this playlist by recording date"],
+        ["Suggest tracks", "Suggest 5 tracks that would fit this playlist"],
       ]
-    : [["Describe it", `Describe the playlist "${name}"`]];
+    : [["Describe it", "Describe this playlist"]];
 
   const header = h("div", { class: "panel-header" }, [
     h("div", { class: "panel-hero" }, [

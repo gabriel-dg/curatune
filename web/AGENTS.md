@@ -107,6 +107,11 @@ IP addresses, hostnames, local paths) in versioned files.
   after the plan has been rendered to the user. Only `src/plans/` imports `plans/ops.ts`, and only `src/ui/`
   calls `applyPlan` (both checked in `tests/invariants.test.ts`). The model learns what the user did with a
   plan from an `[App notice: …]` prepended to the user's next message.
+- `[App notice: …]` and `[App context: …]` lines (`src/ui/app-messages.ts`, tested) carry only IDs, plan kinds,
+  and counts, never Spotify text: a playlist name is written by its owner, who may be someone else (a followed
+  or collaborative playlist), and inside the user's message it could fake the user's words or a notice. The
+  model reads names through tools. Quick actions and suggestions, sent as the user's words, say "this
+  playlist" instead of its name.
 - Optional hosted LLM (`VITE_HOSTED_LLM_*`, e.g. Gemini): selectable in the chat, never the default (the
   local model is, in every new tab). While one is selected, the chat shows that playlist names, track names,
   and artists leave the machine, citing Spotify's Developer Terms IV.2.1 and Developer Policy III.14
