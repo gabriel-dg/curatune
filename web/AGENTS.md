@@ -45,6 +45,9 @@ IP addresses, hostnames, local paths) in versioned files.
   - The UI hides warnings the app already compensates (`SNAPSHOT_READ_LAG`, `ITEM_COUNT_READ_LAG`) and words
     the rest plainly; the model gets them as curatune reports them. The sidebar also takes track counts from
     writes and from reading a playlist.
+  - `recordings_set` only adds, as curatune's MCP tool (stored dates are listed in `skipped`); there is no
+    `recordings_update`: the user corrects a date by removing it in the Recording dates panel, and importing a
+    file replaces stored dates.
   - Retention: backups older than 90 days are deleted when the app starts (a fixed period; curatune reads
     `CURATUNE_RETENTION_DAYS`). As in curatune, recording entries never store names or artists.
   - The UI follows Spotify's design guidelines for the Spotify content it shows: the official full logo as
