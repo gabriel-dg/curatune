@@ -143,3 +143,16 @@ def test_no_reason_no_explanation_block(tmp_path):
     fake = FakeSpotify([track_uri(1), track_uri(2)])
     text = confirm.render_summary(_plan(tmp_path, fake, positions=[1]))  # e.g. a plan built with the CLI
     assert confirm.REASON_LABEL not in text and "" not in text.splitlines()
+
+
+def test_an_addition_is_identified_by_every_argument():
+    base = ("p" * 22, ["spotify:track:" + "1" * 22, "spotify:track:" + "2" * 22], None, False)
+    rid = confirm.add_request_id(*base)
+    assert rid.startswith("add-") and rid == confirm.add_request_id(*base)
+    others = [
+        ("q" * 22, *base[1:]),
+        (base[0], list(reversed(base[1])), None, False),
+        (base[0], base[1], 0, False),
+        (base[0], base[1], None, True),
+    ]
+    assert len({rid, *(confirm.add_request_id(*o) for o in others)}) == 5

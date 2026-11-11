@@ -48,7 +48,10 @@ decisions, and its threat boundary are in `docs/design.md`.
 
 ## Confirmation rules (enforced in code — keep them that way)
 
-- Create playlist / add items: executed directly.
+- Create playlist / add items: executed directly by the CLI. Through MCP, `playlist_add` runs directly only on
+  a playlist `playlist_create` made in the same server process (`Runtime.created_playlists`, in memory); any
+  other playlist needs the person's OK first, through the same dialog or page-and-code routes as
+  `plan_apply`, failing closed (`tests/test_mcp_add.py`).
 - Remove / reorder: only through **plans** (`plans.py`). A plan records the current state, the change, the
   resulting state, and the exact operations; `plan apply` verifies snapshot + item list before running
   and verifies the result after. Mutating primitives live in `_writes.py` and are only called by
@@ -71,6 +74,11 @@ decisions, and its threat boundary are in `docs/design.md`.
 - No tool takes a visibility option or a file path. `playlist_create` always requests private.
 - The tool descriptions and `mcp_server/instructions.py` carry the skill's rules (tests check them). When a
   rule changes in the skill, change it there too.
+- `playlist_add` to a playlist not created in this process asks first: `playlists.preview_add` reads the
+  playlist and each track's name (failing before asking on what the addition would refuse), the question
+  lists them by the number they will get, and the confirmation (and the page's code) is bound to the exact
+  call (`confirm.add_request_id`: playlist, URIs in order, position, duplicates flag). Its annotations are
+  `destructiveHint` and `requiresUserInteraction`, as `plan_apply`'s.
 - Removals, reorders, and renames are plans (`plan_*` build them; changing nothing). **`plan_apply` applies
   one only after the person confirms it outside the chat**: in the client's dialog (MCP form elicitation),
   or on the local confirmation page, which reveals a one-time code (`mcp_server/confirm.py`,

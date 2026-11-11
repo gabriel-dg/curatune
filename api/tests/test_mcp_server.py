@@ -13,6 +13,7 @@ import pytest
 pytest.importorskip("mcp")
 
 from mcp import Client  # noqa: E402
+from mcp.types import ElicitResult  # noqa: E402
 
 from curatune.config import Settings  # noqa: E402
 from curatune.errors import ConfigError  # noqa: E402
@@ -60,7 +61,8 @@ EXPECTED_HINTS = {
     "recordings_set": (False, False, True, False),
     "recordings_update": (False, True, True, False),
     "playlist_create": (False, False, False, True),
-    "playlist_add": (False, False, False, True),
+    # Changes a playlist the user already has (unless created in this session), after their OK.
+    "playlist_add": (False, True, False, True),
     # Plan builders only write a local plan file that does nothing by itself.
     "plan_remove": (True, None, None, True),
     "plan_reorder": (True, None, None, True),
@@ -255,6 +257,15 @@ async def test_plan_apply_takes_a_plan_id_and_a_code_and_always_wants_a_person(c
     for builder in builders:  # the reason reaches the dialog, so every plan must carry one
         assert "reason" in builder.input_schema["required"], builder.name
         assert builder.input_schema["properties"]["reason"]["maxLength"] == 300
+    assert tool.meta == {"anthropic/requiresUserInteraction": True}
+
+
+@pytest.mark.anyio
+async def test_playlist_add_takes_no_answer_and_always_wants_a_person(client):
+    [tool] = [t for t in (await client.list_tools()).tools if t.name == "playlist_add"]
+    # As plan_apply: the dialog's answer is no argument, and the page's one-time code is the only addition.
+    assert list(tool.input_schema["properties"]) == ["playlist", "tracks", "at_number", "allow_duplicates", "confirmation_code"]
+    assert tool.input_schema["required"] == ["playlist", "tracks"]
     assert tool.meta == {"anthropic/requiresUserInteraction": True}
 
 
@@ -464,16 +475,31 @@ async def test_create_duplicate_name_asks_first(client):
     assert "Ask the user" in error["next_step"]
 
 
-@pytest.mark.anyio
-async def test_add_names_and_numbers_what_it_added(client, account):
-    acc, ids = account
-    status, data = await call(client, "playlist_add", {"playlist": ids["test"], "tracks": [ids["billie"], ids["koko"]]})
-    assert status == "ok" and data["verified"] is True
-    assert data["added"] == [{"number": 8, "uri": ids["billie"], "name": "Billie's Bounce", "artists": ["Charlie Parker"]}]
-    assert data["skipped"] == [{"uri": ids["koko"], "reason": "already_in_playlist"}]
+def accepting(settings, acc, era, asked):
+    """A client whose user accepts every dialog, remembering each question."""
 
-    status, data = await call(client, "playlist_add", {"playlist": ids["empty"], "tracks": [ids["now"]], "at_number": 1})
-    assert data["added"][0]["number"] == 1
+    async def user(context, params):
+        asked.append(params.message)
+        return ElicitResult(action="accept", content={"add": True})
+
+    server = build_server(settings, client_factory=lambda: acc, tokens=Tokens())
+    kwargs = {"mode": "legacy"} if era == "legacy" else {"raise_exceptions": True}
+    return Client(server, elicitation_callback=user, **kwargs)
+
+
+@pytest.mark.anyio
+async def test_add_names_and_numbers_what_it_added(settings, account, era):
+    acc, ids = account
+    asked = []
+    async with accepting(settings, acc, era, asked) as client:
+        status, data = await call(client, "playlist_add", {"playlist": ids["test"], "tracks": [ids["billie"], ids["koko"]]})
+        assert status == "ok" and data["status"] == "added" and data["verified"] is True
+        assert data["added"] == [{"number": 8, "uri": ids["billie"], "name": "Billie's Bounce", "artists": ["Charlie Parker"]}]
+        assert data["skipped"] == [{"uri": ids["koko"], "reason": "already_in_playlist"}]
+
+        status, data = await call(client, "playlist_add", {"playlist": ids["empty"], "tracks": [ids["now"]], "at_number": 1})
+        assert data["added"][0]["number"] == 1
+    assert len(asked) == 2  # neither playlist was created in this session: the user confirmed each addition
 
 
 @pytest.mark.anyio
@@ -493,10 +519,19 @@ async def test_add_to_someone_elses_playlist_is_refused(client, account):
 
 
 @pytest.mark.anyio
-async def test_unknown_track_is_rejected_by_spotify(client, account):
-    _, ids = account
-    status, error = await call(client, "playlist_add", {"playlist": ids["empty"], "tracks": ["spotify:track:" + "9" * 22]})
-    assert status == "error" and error["error"]["code"] == "API_BAD_REQUEST"
+async def test_unknown_track_is_rejected_by_spotify(settings, account, era):
+    acc, ids = account
+    unknown = "spotify:track:" + "9" * 22
+    asked = []
+    async with accepting(settings, acc, era, asked) as client:
+        # To a playlist created here, the addition runs at once and Spotify refuses the ID.
+        status, created = await call(client, "playlist_create", {"name": "Fresh"})
+        status, error = await call(client, "playlist_add", {"playlist": created["playlist"]["id"], "tracks": [unknown]})
+        assert status == "error" and error["error"]["code"] == "API_BAD_REQUEST"
+        # To any other playlist, reading the tracks for the question finds it first: nobody is asked.
+        status, error = await call(client, "playlist_add", {"playlist": ids["empty"], "tracks": [unknown]})
+        assert status == "error" and error["error"]["code"] == "NOT_FOUND"
+    assert asked == []
 
 
 # --- Authorization and configuration -------------------------------------------------------------
@@ -601,9 +636,10 @@ async def test_writes_take_the_write_lock_and_reads_do_not(settings, account, mo
     async with Client(build_server(settings, client_factory=lambda: acc, tokens=Tokens()), raise_exceptions=True) as c:
         await c.call_tool("playlist_show", {"playlist": ids["test"]})
         assert lock.entered == 0
-        await c.call_tool("playlist_add", {"playlist": ids["empty"], "tracks": [ids["loco"]]})
+        created = (await c.call_tool("playlist_create", {"name": "Fresh"})).structured_content
+        await c.call_tool("playlist_add", {"playlist": created["playlist"]["id"], "tracks": [ids["loco"]]})
         await c.call_tool("recordings_set", {"entries": [entry(ids["loco"], "1951")]})
-    assert lock.entered == 2
+    assert lock.entered == 3
 
 
 @pytest.mark.anyio

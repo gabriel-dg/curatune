@@ -125,6 +125,7 @@ def playlist_create(data: dict[str, Any]) -> dict[str, Any]:
 def playlist_add(data: dict[str, Any]) -> dict[str, Any]:
     return numbered(
         {
+            "status": "added",
             "playlist_id": data["playlist_id"],
             "added": data["added"],
             "skipped": data["skipped"],

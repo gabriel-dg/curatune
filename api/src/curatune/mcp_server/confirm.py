@@ -26,7 +26,9 @@ Pure standard library: these modules and their tests run without the `mcp` extra
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -148,7 +150,12 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
         moved = [a for a in plan["after"] if a["position"] != a["from_position"]]
         head = f"Reorder the playlist {playlist}: {len(moved)} of {len(plan['before'])} tracks change place."
         lines = [f"#{to_number(a['from_position'])} → #{to_number(a['position'])} {_track(a)}" for a in moved]
-    else:
+    elif kind == "add":
+        added, count, start = plan["add"], plan["item_count"], plan["position"]
+        where = "" if start == count else f", from #{to_number(start)} on"
+        head = f"Add {len(added)} tracks to the playlist {playlist} ({count} → {count + len(added)}{where}):"
+        lines = [f"#{to_number(start + i)} " + (_track(t) if t.get("name") else clean(t.get("uri"))) for i, t in enumerate(added)]
+    elif kind == "details":
         head = f"Change the playlist {playlist}:"
         labels = {"name": "Name", "description": "Description"}
         lines = [
@@ -157,7 +164,11 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
             for field in ("name", "description")
             if field in plan["after"]
         ]
+    else:
+        raise ValueError(f"unknown kind {kind!r}")
     notes = []
+    if plan.get("skipped"):
+        notes.append(f"Note: {plan['skipped']} track(s) already in the playlist or repeated in the request are skipped.")
     codes = {w.get("code") for w in plan.get("warnings") or []}
     if "REINSERTED_DUPLICATES" in codes:
         notes.append("Note: kept copies of a repeated track are removed and added back; their date added resets.")
@@ -173,12 +184,48 @@ def line_count(plan: dict[str, Any]) -> int:
     return summarize(plan).total
 
 
+ADD_ANSWER_TITLE = "Add these tracks"
+
+
 def render_summary(plan: dict[str, Any]) -> str:
     """The question of the elicitation dialog."""
     s = summarize(plan)
     explanation = ["", REASON_LABEL, f'"{s.reason}"', ""] if s.reason else []
-    footer = f"Plan {s.plan_id}. Nothing changes unless you accept with “Apply this plan” checked."
+    if plan["kind"] == "add":
+        footer = (
+            f"Request {s.plan_id}: your assistant asked to add tracks to a playlist it didn't create in this "
+            f"session. Nothing changes unless you accept with “{ADD_ANSWER_TITLE}” checked."
+        )
+    else:
+        footer = f"Plan {s.plan_id}. Nothing changes unless you accept with “Apply this plan” checked."
     return "\n".join([s.head, *s.lines, *s.notes, *explanation, footer])
+
+
+# --- Additions to playlists the server didn't create -----------------------------------------------
+
+
+def add_request_id(playlist_id: str, uris: list[str], position: int | None, allow_duplicates: bool) -> str:
+    """The identity of one exact `playlist_add` call: the same playlist, tracks in the same order, position,
+    and duplicates flag. A confirmation (and its code) is bound to it, so it can't approve another addition."""
+    canonical = json.dumps([playlist_id, uris, position, allow_duplicates], separators=(",", ":"))
+    return "add-" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def add_request(request_id: str, preview: dict[str, Any]) -> dict[str, Any]:
+    """A confirmable addition, shaped like a plan for `summarize`, the page, and the confirmation store. Its
+    checksum is its ID, which already covers every argument of the call."""
+    return {
+        "plan_id": request_id,
+        "checksum": request_id,
+        "kind": "add",
+        "playlist": preview["playlist"],
+        "item_count": preview["item_count"],
+        "position": preview["position"],
+        "add": preview["add"],
+        "skipped": len(preview["skipped"]),
+        "reason": None,
+        "warnings": [],
+    }
 
 
 # --- One-time codes for the confirmation page ------------------------------------------------------

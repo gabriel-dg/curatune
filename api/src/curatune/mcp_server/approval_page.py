@@ -1,4 +1,5 @@
-"""The local confirmation page: a plan rendered from its plan file, with Approve and Reject.
+"""The local confirmation page: a plan rendered from its plan file (or an addition to a playlist the server
+didn't create), with Approve and Reject.
 
 It serves only `127.0.0.1`, on an ephemeral port, from a daemon thread started on the first page-route
 `plan_apply`. Each confirmation has its own unguessable URL (`/confirm/<token>`), which curatune opens in
@@ -249,14 +250,22 @@ def _plan_block(c: Confirmation) -> str:
 
 
 def render(c: Confirmation, shown: str, nonce: str) -> str:
-    """The page for a confirmation in a given state. Built from the plan file; everything is escaped."""
-    plan_id = f'<p class="id">Plan {_E(c.plan_id)}</p>'
+    """The page for a confirmation in a given state. Built from the plan file (or, for an addition, from the
+    playlist and tracks read before asking); everything is escaped."""
+    add = c.plan.get("kind") == "add"
+    plan_id = f'<p class="id">{"Request" if add else "Plan"} {_E(c.plan_id)}</p>'
+    what = "add these tracks" if add else "apply this plan"
     if shown == "pending":
         action = f"/confirm/{_E(c.token)}"
         hidden = f'<input type="hidden" name="nonce" value="{_E(c.form_nonce)}">'
+        sub = (
+            "Your AI assistant asked curatune to add these tracks to a playlist it didn't create in this session."
+            if add
+            else "Your AI assistant asked curatune to apply this plan."
+        )
         body = (
-            "<h1>Confirm a change to your Spotify playlist</h1>"
-            '<p class="sub">Your AI assistant asked curatune to apply this plan. Nothing changes unless you '
+            f"<h1>Confirm {'adding tracks to' if add else 'a change to'} your Spotify playlist</h1>"
+            f'<p class="sub">{sub} Nothing changes unless you '
             "approve it here and paste the code it shows in your chat.</p>"
             f"{_plan_block(c)}"
             '<div class="actions">'
@@ -264,11 +273,11 @@ def render(c: Confirmation, shown: str, nonce: str) -> str:
             f'<form method="post" action="{action}/reject">{hidden}<button>Reject</button></form>'
             f"</div>{plan_id}"
         )
-        return _page("curatune: confirm a plan", body, nonce)
+        return _page(f"curatune: confirm {'an addition' if add else 'a plan'}", body, nonce)
     if shown == "approved":
         body = (
             '<h1 class="ok">Approved</h1>'
-            '<p class="sub">Paste this code in your chat with the assistant. It applies this plan once, and '
+            f'<p class="sub">Paste this code in your chat with the assistant. It lets it {what} once, and '
             "only within 10 minutes of when this page opened.</p>"
             f'<p class="code">{_E(c.code or "")}</p>'
             f"{_plan_block(c)}{plan_id}"
@@ -282,11 +291,11 @@ def render(c: Confirmation, shown: str, nonce: str) -> str:
         )
         return _page("curatune: rejected", body, nonce)
     messages = {
-        "used": "This plan's code was already used. You can close this tab.",
+        "used": "This confirmation's code was already used. You can close this tab.",
         "void": "This confirmation is void (too many wrong codes). Nothing changed; ask the assistant to open a "
-        "new one if you still want this plan.",
+        "new one if you still want it.",
         "expired": "This confirmation expired. Nothing changed; ask the assistant to open a new one if you still "
-        "want this plan.",
+        "want it.",
     }
     body = f"<h1>Confirmation closed</h1><p class=\"sub\">{_E(messages.get(shown, 'Nothing to confirm.'))}</p>{plan_id}"
     return _page("curatune", body, nonce)
