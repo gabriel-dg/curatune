@@ -6,7 +6,7 @@ import { CONFIDENCE_LEVELS, playlistRecordings } from "../recordings/recordings"
 import { CuratuneError } from "../spotify/errors";
 import { normalizeItemUri, parseId } from "../spotify/refs";
 import type { Args } from "./schema";
-import type { Tool, ToolContext } from "./types";
+import { THIRD_PARTY_NOTE, type Tool, type ToolContext } from "./types";
 import { requireKnownIds } from "./write";
 
 const MAX_ENTRIES = 100;
@@ -20,7 +20,7 @@ const recordingsShow: Tool = {
   name: "recordings_show",
   description:
     "Show a playlist's tracks (by number) with their stored recording dates, the tracks that have none, and " +
-    "whether the playlist is already in chronological order of recording. Only playlists the user owns.",
+    "whether the playlist is already in chronological order of recording. Only playlists the user owns." + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: { playlist_id: { type: "string", description: "Playlist id from playlists_list.", minLength: 1 } },
