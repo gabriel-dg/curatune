@@ -34,7 +34,9 @@ function callbackPage(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
-  const llms = { llmBaseUrl: env.VITE_LLM_BASE_URL, hostedLlmBaseUrls: [env.VITE_HOSTED_LLM_BASE_URL, env.VITE_HOSTED_LLM_2_BASE_URL] };
+  // A hosted provider is offered only with a model too (src/config.ts), so only then is its origin allowed.
+  const hosted = (prefix: string) => (/[^\s,]/.test(env[`${prefix}MODEL`] ?? "") ? env[`${prefix}BASE_URL`] : undefined);
+  const llms = { llmBaseUrl: env.VITE_LLM_BASE_URL, hostedLlmBaseUrls: [hosted("VITE_HOSTED_LLM_"), hosted("VITE_HOSTED_LLM_2_")] };
   const headers = {
     "Content-Security-Policy": buildCsp({ ...llms, header: true }),
     "Referrer-Policy": "no-referrer",

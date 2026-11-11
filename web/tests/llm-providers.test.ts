@@ -6,6 +6,7 @@ import { SpotifyAuth } from "../src/spotify/auth";
 import { SpotifyClient } from "../src/spotify/http";
 import { READ_TOOLS } from "../src/tools";
 import { loadConfig } from "../src/config";
+import { LlmClient } from "../src/agent/llm";
 import { buildProviders, hostedDataNotice, LlmSettings, pickProvider, SPOTIFY_AI_TERMS } from "../src/ui/llm-providers";
 import { buildFixture, FakeSpotify } from "./fake-spotify";
 import { fakeFetch, json, MemoryStorage, noSleep } from "./helpers";
@@ -64,9 +65,9 @@ describe("providers", () => {
     const two = { llmBaseUrl: "", llmModel: "", hostedLlms: [config.hostedLlms[0]!, { baseUrl: ANTHROPIC, models: ["claude-sonnet-5-5"], name: "Claude" }] };
     const providers = buildProviders(two, fetch);
     expect(providers.map((p) => [p.id, p.keyId, p.host])).toEqual([
-      ["hosted:gemini-3.8-flash", "hosted", "generativelanguage.googleapis.com"],
-      ["hosted:gemini-3.5-flash-lite", "hosted", "generativelanguage.googleapis.com"],
-      ["hosted:claude-sonnet-5-5", "hosted-2", "api.anthropic.com"],
+      ["hosted:gemini-3.8-flash", "hosted:https://generativelanguage.googleapis.com", "generativelanguage.googleapis.com"],
+      ["hosted:gemini-3.5-flash-lite", "hosted:https://generativelanguage.googleapis.com", "generativelanguage.googleapis.com"],
+      ["hosted:claude-sonnet-5-5", "hosted:https://api.anthropic.com", "api.anthropic.com"],
     ]);
     const settings = new LlmSettings(new MemoryStorage());
     settings.setApiKey(providers[0]!, "GEMINI-KEY");
@@ -84,6 +85,23 @@ describe("providers", () => {
     expect(requests[1]!.headers.Authorization).toBe("Bearer CLAUDE-KEY");
     expect(requests[1]!.headers["anthropic-dangerous-direct-browser-access"]).toBe("true");
     expect(hostedDataNotice(providers[2]!)).toContain("go to api.anthropic.com");
+
+    // Reordered, or with the first provider removed, each saved key still follows its own host.
+    const claude = two.hostedLlms[1]!;
+    for (const hostedLlms of [[claude, two.hostedLlms[0]!], [claude]]) {
+      const moved = buildProviders({ ...two, hostedLlms }, fetch);
+      expect(settings.apiKey(moved.find((p) => p.host === "api.anthropic.com")!)).toBe("CLAUDE-KEY");
+      const gemini = moved.find((p) => p.host === "generativelanguage.googleapis.com");
+      if (gemini) expect(settings.apiKey(gemini)).toBe("GEMINI-KEY");
+    }
+  });
+
+  it("never lets a provider's extra headers replace the key or the content type", async () => {
+    const { fetch, requests } = fakeFetch(() => json({ choices: [{ message: { content: "ok" } }] }));
+    const headers = { authorization: "Bearer OTHER", "CONTENT-TYPE": "text/plain", Cookie: "x=1", "x-extra": "1" };
+    await new LlmClient({ baseUrl: HOSTED, model: "m", fetch, apiKey: "KEY", headers }).complete([], []);
+    const sent = Object.fromEntries(Object.entries(requests[0]!.headers).map(([k, v]) => [k.toLowerCase(), v]));
+    expect(sent).toEqual({ authorization: "Bearer KEY", "content-type": "application/json", "x-extra": "1" });
   });
 
   it("sends each hosted model's name in the request", async () => {
@@ -167,6 +185,9 @@ describe("CSP with a hosted provider", () => {
     expect(buildCsp({ llmBaseUrl: HOSTED, hostedLlmBaseUrls: [HOSTED] }).match(/generativelanguage/g)).toHaveLength(1);
     expect(() => buildCsp({ hostedLlmBaseUrls: ["nope"] })).toThrow(/VITE_HOSTED_LLM_BASE_URL/);
     expect(() => buildCsp({ hostedLlmBaseUrls: [undefined, "nope"] })).toThrow(/VITE_HOSTED_LLM_2_BASE_URL/);
+    // A hosted provider gets the user's API key: plain http is refused (a local model may still use it).
+    expect(() => buildCsp({ hostedLlmBaseUrls: ["http://api.example/v1"] })).toThrow(/VITE_HOSTED_LLM_BASE_URL must use https/);
+    expect(buildCsp({ llmBaseUrl: "http://127.0.0.1:1234/v1" })).toContain("http://127.0.0.1:1234");
   });
 });
 

@@ -20,8 +20,8 @@ export interface ProviderOption {
   hosted: boolean;
   /** Hosted providers need an API key from the user. */
   requiresKey: boolean;
-  /** Where the API key is kept: shared by every model of the same provider ("hosted" for the first one,
-   * "hosted-2" for the second); null when none is needed. */
+  /** Where the API key is kept: "hosted:<origin>", shared by every model behind that origin, so a saved key
+   * can never be sent to another provider, whatever the order of the configuration; null when none is needed. */
   keyId: string | null;
   /** Host that receives the conversation (and the key, for hosted providers). */
   host: string;
@@ -93,8 +93,9 @@ export function buildProviders(
       create: () => new LlmClient({ baseUrl: config.llmBaseUrl, model: config.llmModel, fetch }),
     });
   }
-  for (const [index, hosted] of config.hostedLlms.entries()) {
+  for (const hosted of config.hostedLlms) {
     const host = hostOf(hosted.baseUrl);
+    const keyId = `hosted:${new URL(hosted.baseUrl).origin}`;
     const headers = providerHeaders(host);
     for (const model of hosted.models) {
       // The same model id under two providers would be ambiguous in the selector: the first one wins.
@@ -106,7 +107,7 @@ export function buildProviders(
         model,
         hosted: true,
         requiresKey: true,
-        keyId: index === 0 ? "hosted" : `hosted-${index + 1}`,
+        keyId,
         host,
         create: (apiKey) => new LlmClient({ baseUrl: hosted.baseUrl, model, fetch, apiKey: apiKey ?? undefined, headers }),
       });
@@ -133,5 +134,5 @@ export function hostedDataNotice(provider: ProviderOption): string | null {
 /** The provider saved as selected in this tab; "hosted" (before several hosted models) means the first hosted
  * one; anything else, or nothing saved, means the first provider: the local one when the build has it. */
 export function pickProvider(providers: ProviderOption[], selected: string | null): ProviderOption {
-  return providers.find((p) => p.id === selected) ?? (selected === "hosted" ? providers.find((p) => p.keyId === "hosted") : undefined) ?? providers[0]!;
+  return providers.find((p) => p.id === selected) ?? (selected === "hosted" ? providers.find((p) => p.hosted) : undefined) ?? providers[0]!;
 }

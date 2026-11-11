@@ -127,8 +127,9 @@ IP addresses, hostnames, local paths) in versioned files.
   the CSP allows). Choosing it sends the conversation and trimmed playlist data to the provider; the
   Spotify token is never sent (tested in `tests/llm-providers.test.ts`). Switching model starts a new
   chat. The evaluation reads its own key from `EVAL_LLM_API_KEY`, which Vite never bundles.
-  A second provider (`VITE_HOSTED_LLM_2_*`, e.g. Claude) works the same way with its own key (`keyId`
-  "hosted-2"). For `api.anthropic.com` the client adds `anthropic-dangerous-direct-browser-access: true`,
+  A second provider (`VITE_HOSTED_LLM_2_*`, e.g. Claude) works the same way with its own key. Keys are
+  stored per provider origin (`keyId` "hosted:<origin>"), so reordering or removing providers never sends a
+  key to another host. Hosted base URLs must use https. Log out forgets every key. For `api.anthropic.com` the client adds `anthropic-dangerous-direct-browser-access: true`,
   without which Anthropic rejects the browser's CORS preflight.
 - The LLM server is never exposed to the internet directly. Remote access (not built yet) would go through an
   outbound tunnel, authentication, and a proxy that allows only chat completions.

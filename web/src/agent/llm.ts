@@ -66,11 +66,15 @@ export interface LlmOptions {
    * the content type. */
   headers?: Record<string, string>;
   sleep?: (ms: number) => Promise<void>;
-  /** Retries after 429 (rate limit) or 503 (overloaded). */
+  /** Retries after 429 (rate limit) or 503/529 (overloaded). */
   maxRetries?: number;
 }
 
 const MAX_RETRY_WAIT_MS = 60_000;
+/** Set by the client itself; a provider's extra headers never replace them. */
+const PROTECTED_HEADERS = new Set(["authorization", "content-type", "cookie"]);
+/** Rate limit (429), overloaded (503, and 529 at Anthropic). */
+const RETRY_STATUSES: ReadonlySet<unknown> = new Set([429, 503, 529]);
 
 /** Remove reasoning blocks some models put in `content` (<think>…</think>, or a lone closing tag). */
 export function stripReasoning(content: string): string {
@@ -113,7 +117,9 @@ export class LlmClient implements ChatModel {
     this.fetch = options.fetch;
     this.timeoutMs = options.timeoutMs ?? 300_000;
     this.apiKey = options.apiKey?.trim() || null;
-    this.extraHeaders = options.headers ?? {};
+    this.extraHeaders = Object.fromEntries(
+      Object.entries(options.headers ?? {}).filter(([name]) => !PROTECTED_HEADERS.has(name.toLowerCase())),
+    );
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.maxRetries = options.maxRetries ?? 3;
   }
@@ -128,7 +134,7 @@ export class LlmClient implements ChatModel {
         return await this.completeOnce(messages, tools, signal);
       } catch (exc) {
         const status = exc instanceof AgentError && exc.code === "LLM_ERROR" ? exc.details.status : undefined;
-        if (!(status === 429 || status === 503) || attempt >= this.maxRetries || signal?.aborted) throw exc;
+        if (!RETRY_STATUSES.has(status) || attempt >= this.maxRetries || signal?.aborted) throw exc;
         const retryAfter = Number((exc as AgentError).details.retry_after_seconds);
         const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2000 * 2 ** attempt;
         if (wait > MAX_RETRY_WAIT_MS) throw exc;
