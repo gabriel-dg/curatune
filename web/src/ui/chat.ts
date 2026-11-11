@@ -251,6 +251,8 @@ export class ChatView {
 
   private updateControls(): void {
     this.forgetKeyButton.hidden = !(this.provider.requiresKey && this.settings.apiKey(this.provider));
+    this.forgetKeyButton.replaceChildren(icon("key", 14), `Forget ${this.provider.name} key`);
+    this.forgetKeyButton.title = `Remove the ${this.provider.name} API key from this tab`;
     if (this.providers.length < 2) this.status.textContent = this.provider.model ? `Model: ${this.provider.model}` : "";
     const notice = hostedDataNotice(this.provider);
     const shown = notice !== null && !this.dismissedNotices.isDismissed(this.provider.host);
@@ -347,6 +349,12 @@ export class ChatView {
         h("button", { class: "free-hint", on: { click: () => this.input.focus() } }, [icon("arrowDown", 15), h("span", { text: "These are only examples: type your own request in the box below" })]),
       ]),
     );
+  }
+
+  /** On Log out: no model API key stays in the tab. */
+  forgetKeys(): void {
+    for (const provider of this.providers) this.settings.forgetApiKey(provider);
+    this.updateControls();
   }
 
   private reset(): void {

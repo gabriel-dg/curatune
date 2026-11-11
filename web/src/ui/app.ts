@@ -257,6 +257,7 @@ export class App {
 
   private logout(): void {
     this.auth.logout();
+    this.chat.forgetKeys();
     location.hash = "";
     void this.render();
   }

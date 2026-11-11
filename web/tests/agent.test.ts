@@ -208,11 +208,11 @@ describe("LlmClient", () => {
     let calls = 0;
     const sleeps: number[] = [];
     const { fetch } = fakeFetch(() =>
-      ++calls === 1 ? json({ error: { message: "quota" } }, 429, { "Retry-After": "3" }) : calls === 2 ? json({ error: "busy" }, 503) : json({ choices: [{ message: { content: "ok" } }] }),
+      ++calls === 1 ? json({ error: { message: "quota" } }, 429, { "Retry-After": "3" }) : calls === 2 ? json({ error: "busy" }, 503) : calls === 3 ? json({ type: "error", error: { type: "overloaded_error" } }, 529) : json({ choices: [{ message: { content: "ok" } }] }),
     );
     const llm = new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch, sleep: async (ms) => void sleeps.push(ms) });
     expect((await llm.complete([], [])).content).toBe("ok");
-    expect(sleeps).toEqual([3000, 4000]);
+    expect(sleeps).toEqual([3000, 4000, 8000]);
     const always429 = new LlmClient({ baseUrl: LLM_BASE, model: "m", fetch: fakeFetch(() => json({}, 429)).fetch, sleep: async () => {} });
     expect((await rejection(always429.complete([], []), AgentError)).details.status).toBe(429);
   });
