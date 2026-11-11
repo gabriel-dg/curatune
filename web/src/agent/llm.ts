@@ -62,6 +62,9 @@ export interface LlmOptions {
   timeoutMs?: number;
   /** The LLM provider's API key (hosted APIs). Never a Spotify credential. */
   apiKey?: string;
+  /** Extra headers a provider needs (e.g. Anthropic's for calls from a browser). Cannot replace the key or
+   * the content type. */
+  headers?: Record<string, string>;
   sleep?: (ms: number) => Promise<void>;
   /** Retries after 429 (rate limit) or 503 (overloaded). */
   maxRetries?: number;
@@ -96,6 +99,7 @@ export class LlmClient implements ChatModel {
   private readonly fetch: FetchLike;
   private readonly timeoutMs: number;
   private readonly apiKey: string | null;
+  private readonly extraHeaders: Record<string, string>;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly maxRetries: number;
   private callCounter = 0;
@@ -109,6 +113,7 @@ export class LlmClient implements ChatModel {
     this.fetch = options.fetch;
     this.timeoutMs = options.timeoutMs ?? 300_000;
     this.apiKey = options.apiKey?.trim() || null;
+    this.extraHeaders = options.headers ?? {};
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.maxRetries = options.maxRetries ?? 3;
   }
@@ -136,7 +141,7 @@ export class LlmClient implements ChatModel {
   private async completeOnce(messages: ChatMessage[], tools: ToolDefinition[], signal?: AbortSignal): Promise<Completion> {
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = { ...this.extraHeaders, "Content-Type": "application/json" };
     if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`;
     // Some providers reject an empty tools list together with tool_choice.
     const payload: Record<string, unknown> = { model: this.model, messages, stream: false };

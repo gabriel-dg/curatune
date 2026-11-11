@@ -34,7 +34,7 @@ function callbackPage(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
-  const llms = { llmBaseUrl: env.VITE_LLM_BASE_URL, hostedLlmBaseUrl: env.VITE_HOSTED_LLM_BASE_URL };
+  const llms = { llmBaseUrl: env.VITE_LLM_BASE_URL, hostedLlmBaseUrls: [env.VITE_HOSTED_LLM_BASE_URL, env.VITE_HOSTED_LLM_2_BASE_URL] };
   const headers = {
     "Content-Security-Policy": buildCsp({ ...llms, header: true }),
     "Referrer-Policy": "no-referrer",

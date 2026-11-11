@@ -127,6 +127,9 @@ IP addresses, hostnames, local paths) in versioned files.
   the CSP allows). Choosing it sends the conversation and trimmed playlist data to the provider; the
   Spotify token is never sent (tested in `tests/llm-providers.test.ts`). Switching model starts a new
   chat. The evaluation reads its own key from `EVAL_LLM_API_KEY`, which Vite never bundles.
+  A second provider (`VITE_HOSTED_LLM_2_*`, e.g. Claude) works the same way with its own key (`keyId`
+  "hosted-2"). For `api.anthropic.com` the client adds `anthropic-dangerous-direct-browser-access: true`,
+  without which Anthropic rejects the browser's CORS preflight.
 - The LLM server is never exposed to the internet directly. Remote access (not built yet) would go through an
   outbound tunnel, authentication, and a proxy that allows only chat completions.
 
@@ -150,7 +153,8 @@ IP addresses, hostnames, local paths) in versioned files.
 ## Configuration
 
 `.env.local` (gitignored) holds `VITE_SPOTIFY_CLIENT_ID`, `VITE_LLM_BASE_URL`, and `VITE_LLM_MODEL`, and
-optionally `VITE_HOSTED_LLM_BASE_URL`, `VITE_HOSTED_LLM_MODEL`, `VITE_HOSTED_LLM_NAME` (no key) and, for the
+optionally `VITE_HOSTED_LLM_BASE_URL`, `VITE_HOSTED_LLM_MODEL`, `VITE_HOSTED_LLM_NAME` and the same
+`VITE_HOSTED_LLM_2_*` for a second provider (no keys) and, for the
 evaluation only, `EVAL_LLM_BASE_URL` and `EVAL_LLM_API_KEY`. The
 Client ID ends up in the bundle; under PKCE it is not a secret, but it is personal, so it is never
 committed. The dev server binds to `127.0.0.1:5173` (strict port) and the redirect URI

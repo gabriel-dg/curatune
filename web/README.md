@@ -27,11 +27,11 @@ It is the browser side of [curatune](../README.md): the same rules as the Python
 - **A local model is the default**, in every new tab: an OpenAI-compatible server you run, such as LM
   Studio or Ollama. Your playlist data stays on your own computers. A build without one, such as the hosted
   demo, offers only the hosted model.
-- **A hosted model, such as Gemini, is optional**, chosen in the chat. While one is selected, your messages
+- **A hosted model, such as Gemini or Claude, is optional**, chosen in the chat (up to two providers). While one is selected, your messages
   and the playlist data the assistant reads (playlist names, track names, and artists) leave your computer
   for that provider, and the chat shows a notice saying so, citing Spotify's Developer Terms (IV.2.1) and
-  Developer Policy (III.14) on AI models. Its API key is pasted in the app and kept only in that browser
-  tab.
+  Developer Policy (III.14) on AI models. Each provider's API key is pasted in the app and kept only in that
+  browser tab.
 - No model ever receives your Spotify token.
 
 Your Spotify token is kept in the tab's `sessionStorage`. Closing the tab doesn't reliably remove it

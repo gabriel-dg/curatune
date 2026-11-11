@@ -1,10 +1,11 @@
 // The models the chat can use: the local one (LM Studio or Ollama, the default when configured) and, optionally,
-// one or more models of a hosted provider (e.g. Gemini 3.8 Flash and 3.5 Flash Lite). The hosted provider's API
-// key is pasted by the user, shared by its models, and kept only in this tab's sessionStorage, like the Spotify
+// the models of up to two hosted providers (e.g. Gemini and Claude). Each hosted provider's API key is pasted by
+// the user, shared by that provider's models, and kept only in this tab's sessionStorage, like the Spotify
 // token; it is sent only to that provider (see src/agent/llm.ts).
 
 import type { KeyValueStorage } from "../spotify/auth";
 import { LlmClient, type ChatModel } from "../agent/llm";
+import type { HostedLlm } from "../config";
 
 export interface ProviderOption {
   /** "local", or "hosted:<model>". */
@@ -19,7 +20,8 @@ export interface ProviderOption {
   hosted: boolean;
   /** Hosted providers need an API key from the user. */
   requiresKey: boolean;
-  /** Where the API key is kept: shared by every model of the same provider; null when none is needed. */
+  /** Where the API key is kept: shared by every model of the same provider ("hosted" for the first one,
+   * "hosted-2" for the second); null when none is needed. */
   keyId: string | null;
   /** Host that receives the conversation (and the key, for hosted providers). */
   host: string;
@@ -55,6 +57,12 @@ export class LlmSettings {
   }
 }
 
+/** Anthropic refuses calls from a browser (CORS) unless they carry this header. Its name warns that the key is
+ * exposed to the page: here it is the user's own key, pasted into their own tab, as with any hosted provider. */
+function providerHeaders(host: string): Record<string, string> | undefined {
+  return host === "api.anthropic.com" ? { "anthropic-dangerous-direct-browser-access": "true" } : undefined;
+}
+
 function hostOf(baseUrl: string): string {
   try {
     return new URL(baseUrl).host;
@@ -64,15 +72,15 @@ function hostOf(baseUrl: string): string {
 }
 
 export function buildProviders(
-  config: { llmBaseUrl: string; llmModel: string; hostedLlm: { baseUrl: string; models: string[]; name: string } | null },
+  config: { llmBaseUrl: string; llmModel: string; hostedLlms: HostedLlm[] },
   fetch: (input: string, init?: RequestInit) => Promise<Response>,
 ): ProviderOption[] {
-  const hosted = config.hostedLlm;
+  const hostedModels = config.hostedLlms.reduce((n, p) => n + p.models.length, 0);
   // A build with a hosted model and no local one (the public site) must not offer, or default to, a local model
   // that can't work. With neither configured, the local entry stays so the chat says what to set.
   const hasLocal = Boolean(config.llmBaseUrl && config.llmModel);
   const providers: ProviderOption[] = [];
-  if (hasLocal || !hosted?.models.length) {
+  if (hasLocal || !hostedModels) {
     providers.push({
       id: "local",
       name: "Local",
@@ -85,18 +93,24 @@ export function buildProviders(
       create: () => new LlmClient({ baseUrl: config.llmBaseUrl, model: config.llmModel, fetch }),
     });
   }
-  for (const model of hosted?.models ?? []) {
-    providers.push({
-      id: `hosted:${model}`,
-      name: hosted!.name,
-      label: `${hosted!.name} · ${model}`,
-      model,
-      hosted: true,
-      requiresKey: true,
-      keyId: "hosted",
-      host: hostOf(hosted!.baseUrl),
-      create: (apiKey) => new LlmClient({ baseUrl: hosted!.baseUrl, model, fetch, apiKey: apiKey ?? undefined }),
-    });
+  for (const [index, hosted] of config.hostedLlms.entries()) {
+    const host = hostOf(hosted.baseUrl);
+    const headers = providerHeaders(host);
+    for (const model of hosted.models) {
+      // The same model id under two providers would be ambiguous in the selector: the first one wins.
+      if (providers.some((p) => p.id === `hosted:${model}`)) continue;
+      providers.push({
+        id: `hosted:${model}`,
+        name: hosted.name,
+        label: `${hosted.name} · ${model}`,
+        model,
+        hosted: true,
+        requiresKey: true,
+        keyId: index === 0 ? "hosted" : `hosted-${index + 1}`,
+        host,
+        create: (apiKey) => new LlmClient({ baseUrl: hosted.baseUrl, model, fetch, apiKey: apiKey ?? undefined, headers }),
+      });
+    }
   }
   return providers;
 }

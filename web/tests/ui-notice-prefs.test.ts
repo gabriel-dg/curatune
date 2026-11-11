@@ -7,7 +7,7 @@ const KEY = "curatune-web.dismissed-hosted-notices";
 const config = {
   llmBaseUrl: "http://llm.test:1234/v1",
   llmModel: "local-model",
-  hostedLlm: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", models: ["gemini-3.8-flash", "gemini-3.5-flash-lite"], name: "Gemini" },
+  hostedLlms: [{ baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", models: ["gemini-3.8-flash", "gemini-3.5-flash-lite"], name: "Gemini" }],
 };
 
 const throwing: NoticeStorage = {
@@ -35,7 +35,7 @@ describe("dismissed hosted notices", () => {
     notices.dismiss(flash!.host);
     expect(notices.isDismissed(lite!.host)).toBe(true);
     expect(notices.isDismissed(local!.host)).toBe(false);
-    const [, moved] = buildProviders({ ...config, hostedLlm: { ...config.hostedLlm, baseUrl: "https://other.example/v1" } }, async () => json({}));
+    const [, moved] = buildProviders({ ...config, hostedLlms: [{ ...config.hostedLlms[0]!, baseUrl: "https://other.example/v1" }] }, async () => json({}));
     expect(new DismissedNotices(storage).isDismissed(moved!.host)).toBe(false);
   });
 
