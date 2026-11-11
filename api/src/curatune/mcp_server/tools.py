@@ -668,6 +668,7 @@ def register(server: MCPServer, rt: Runtime) -> None:
             plan = plans.load_plan(path)  # schema, checksum, and the readable parts against the operations
             if plan.get("applied"):
                 raise PlanError("This plan was already applied.", code="PLAN_ALREADY_APPLIED")
+            confirm.check_plan_age(plan)  # created_at is covered by the checksum
         except CuratuneError as exc:
             return confirm.Prepared(plan_id, "unavailable", error=exc)
         if confirmation_code is not None:

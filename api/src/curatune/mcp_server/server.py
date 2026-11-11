@@ -65,6 +65,8 @@ NEXT_STEPS = {
     "PLAN_NOT_FOUND": "Use a plan_id from a plan_* result; build a new plan if needed.",
     "PLAN_CHECKSUM_MISMATCH": "The plan file was changed after it was built, so it can't be applied. Build a new plan.",
     "PLAN_INCONSISTENT": "The plan file doesn't match what it would do, so it can't be applied. Build a new plan.",
+    "PLAN_EXPIRED": "Nothing changed. Build a new plan from the playlist as it is now, show it to the user, and "
+    "apply that one if they want it.",
     "PLAN_ALREADY_APPLIED": "This plan was applied before; nothing changed now. Read the playlist to see its state.",
     "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
     "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "

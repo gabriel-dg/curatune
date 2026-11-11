@@ -167,8 +167,9 @@ sequenceDiagram
   when the model writes nothing in the chat, and it is never mistaken for what the server verified.
 - **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
   read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
-- **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, or
-  not a plan ID fails before anything is asked.
+- **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, more
+  than 24 hours old (`PLAN_EXPIRED`: build a new one), or not a plan ID fails before anything is asked. The
+  dialog and the page say when the plan was built.
 - **Applying re-checks everything**, as `curatune plan apply` does: the playlist must still have the
   snapshot and items the plan was built on (`SNAPSHOT_MISMATCH` otherwise, nothing changed), it is backed
   up first, and the result is verified.

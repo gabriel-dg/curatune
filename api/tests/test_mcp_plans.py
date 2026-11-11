@@ -518,6 +518,24 @@ async def test_a_tampered_plan_is_refused_before_asking(settings, account):
 
 
 @pytest.mark.anyio
+async def test_a_plan_older_than_a_day_is_refused_before_asking(settings, account, era):
+    from curatune import plans as plans_module
+
+    acc, ids = account
+    user, browser = User(), Browser()
+    async with connect(settings, acc, era, user=user, browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        path = settings.plans_dir / f"{plan['plan_id']}.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["created_at"] = "2020-01-01T00:00:00Z"  # re-checksummed: an old plan, not an edited one
+        data["checksum"] = plans_module.plan_checksum(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "error" and error["error"]["code"] == "PLAN_EXPIRED" and "Build a new plan" in error["next_step"]
+    assert user.asked == [] and browser.urls == [] and writes(acc) == []
+
+
+@pytest.mark.anyio
 async def test_an_applied_plan_is_not_asked_again(settings, account):
     acc, ids = account
     user = User("accept")

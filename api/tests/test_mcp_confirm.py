@@ -156,3 +156,20 @@ def test_an_addition_is_identified_by_every_argument():
         (base[0], base[1], None, True),
     ]
     assert len({rid, *(confirm.add_request_id(*o) for o in others)}) == 5
+
+
+def test_old_plans_are_refused_and_the_question_says_when_it_was_built(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from curatune.errors import PlanError
+
+    fake = FakeSpotify([track_uri(1), track_uri(2)])
+    plan = _plan(tmp_path, fake, positions=[1])
+    built = datetime.strptime(plan["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    confirm.check_plan_age(plan, now=built + timedelta(hours=23, minutes=59))
+    for stale in ({**plan}, {**plan, "created_at": None}, {**plan, "created_at": "yesterday"}):
+        with pytest.raises(PlanError) as exc:
+            confirm.check_plan_age(stale, now=built + timedelta(hours=24, seconds=1))
+        assert exc.value.code == "PLAN_EXPIRED"
+    footer = confirm.render_summary(plan).splitlines()[-1]
+    assert footer.startswith(f"Plan {plan['plan_id']}, built {plan['created_at'][:10]} ") and footer.count("UTC") == 1

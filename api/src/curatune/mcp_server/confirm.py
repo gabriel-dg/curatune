@@ -36,10 +36,11 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from ..errors import ConfigError, CuratuneError
+from ..errors import ConfigError, CuratuneError, PlanError
 from .numbering import to_number
 
 CONFIRM_MODES = ("auto", "elicitation", "browser")
@@ -49,6 +50,7 @@ NAME_CHARS = 80
 TEXT_CHARS = 300
 REASON_CHARS = 300
 REASON_LABEL = "The assistant's explanation (written by the AI, not checked by curatune):"
+MAX_PLAN_AGE_SECONDS = 24 * 3600  # plan_apply refuses older plans: they belong to another conversation
 
 Route = Literal["elicitation", "page", "code", "unavailable", "direct"]
 
@@ -136,6 +138,7 @@ class Summary:
     reason: str
     plan_id: str
     total: int = 0  # lines before the cap
+    built: str = ""  # the plan's created_at, as stored (UTC)
 
 
 def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
@@ -176,7 +179,26 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
         notes.append("Note: this removes local files, which is unverified through the API.")
     if "DUPLICATE_NAME" in codes:
         notes.append("Note: you already have another playlist with this name.")
-    return Summary(head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"], len(lines))
+    built = clean(plan.get("created_at"), 30).replace("T", " ").replace("Z", " UTC")
+    return Summary(
+        head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"], len(lines), built
+    )
+
+
+def check_plan_age(plan: dict[str, Any], now: datetime | None = None) -> None:
+    """Refuse a plan older than MAX_PLAN_AGE_SECONDS (or without a readable created_at): plan_apply is for
+    plans built in this conversation, and an old plan ID can come from anywhere."""
+    try:
+        created = datetime.strptime(str(plan.get("created_at")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        created = None
+    now = now or datetime.now(timezone.utc)
+    if created is None or (now - created).total_seconds() > MAX_PLAN_AGE_SECONDS:
+        raise PlanError(
+            "This plan is more than 24 hours old, so it can't be applied here.",
+            code="PLAN_EXPIRED",
+            details={"plan_id": plan.get("plan_id"), "created_at": plan.get("created_at")},
+        )
 
 
 def line_count(plan: dict[str, Any]) -> int:
@@ -197,7 +219,7 @@ def render_summary(plan: dict[str, Any]) -> str:
             f"session. Nothing changes unless you accept with “{ADD_ANSWER_TITLE}” checked."
         )
     else:
-        footer = f"Plan {s.plan_id}. Nothing changes unless you accept with “Apply this plan” checked."
+        footer = f"Plan {s.plan_id}, built {s.built}. Nothing changes unless you accept with “Apply this plan” checked."
     return "\n".join([s.head, *s.lines, *s.notes, *explanation, footer])
 
 

@@ -134,7 +134,9 @@ number, title, and artists, or the old and new name and description; third-party
 control characters, line breaks, and bidirectional overrides, capped at 80 characters, and quoted, with at
 most 25 lines: a change with more lines goes to the page, which lists every one (with `elicitation` forced,
 it fails closed), so nobody approves a removal they can't see. The model's required `reason` (at most 300 characters) follows apart, labelled as the
-assistant's unchecked explanation. Only "accept" with "Apply this plan" checked applies; anything else,
+assistant's unchecked explanation, and the footer says when the plan was built (its `created_at`, covered by
+the checksum); plans older than 24 hours are refused before asking (`PLAN_EXPIRED`), since `plan_apply` is
+for plans built in this conversation. Only "accept" with "Apply this plan" checked applies; anything else,
 including no answer, changes nothing.
 
 **The page.** `plan_apply(plan_id)` validates the plan, opens a page itself on `127.0.0.1` (an ephemeral

@@ -253,7 +253,8 @@ def render(c: Confirmation, shown: str, nonce: str) -> str:
     """The page for a confirmation in a given state. Built from the plan file (or, for an addition, from the
     playlist and tracks read before asking); everything is escaped."""
     add = c.plan.get("kind") == "add"
-    plan_id = f'<p class="id">{"Request" if add else "Plan"} {_E(c.plan_id)}</p>'
+    built = "" if add else f" · built {_E(summarize(c.plan).built)}"
+    plan_id = f'<p class="id">{"Request" if add else "Plan"} {_E(c.plan_id)}{built}</p>'
     what = "add these tracks" if add else "apply this plan"
     if shown == "pending":
         action = f"/confirm/{_E(c.token)}"
