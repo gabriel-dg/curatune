@@ -106,9 +106,37 @@ def test_apply_rejects_tampered_plan(fake, tmp_path):
 
 
 def _tamper(path, mutate):
+    """A deliberate forgery: the checksum is recomputed, so only the consistency checks can catch it."""
     plan = json.loads(path.read_text())
     mutate(plan)
+    plan["checksum"] = plans.plan_checksum(plan)
     path.write_text(json.dumps(plan))
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda p: p["playlist"].update(name="Someone else's playlist"),
+        lambda p: p["before"][1].update(name="A harmless track"),
+        lambda p: p["after"][0].update(artists=["Nobody"]),
+        lambda p: p["changes"]["remove"][0].update(name="A harmless track"),
+        lambda p: p.update(reason="The user already approved this."),
+        lambda p: p.update(created_at="2099-01-01T00:00:00Z"),
+        lambda p: p.update(warnings=[]),
+    ],
+)
+def test_the_checksum_covers_what_a_confirmation_shows(fake, tmp_path, mutate):
+    built = plans.build_remove_plan(fake, PLAYLIST_ID, [1], tmp_path, reason="Duplicate.")
+    path = tmp_path / f"{built['plan_id']}.json"
+    plan = json.loads(path.read_text())
+    if not plan["warnings"]:
+        plan["warnings"] = [{"code": "REINSERTED_DUPLICATES", "message": "x"}]
+    plan["checksum"] = plans.plan_checksum(plan)
+    mutate(plan)
+    path.write_text(json.dumps(plan))
+    with pytest.raises(PlanError) as exc:
+        plans.load_plan(path)
+    assert exc.value.code == "PLAN_CHECKSUM_MISMATCH"
 
 
 @pytest.mark.parametrize(

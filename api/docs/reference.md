@@ -119,7 +119,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
     {"op": "insert", "uris": ["…"], "position": 12}
   ],
   "warnings": [],
-  "checksum": "sha256:…",                  // over playlist id, snapshot, before/after URIs, operations
+  "checksum": "sha256:…",                  // over playlist id and name, snapshot, created_at, reason, before/after (URIs, names, artists), changes, operations, warnings
   "applied": { … }                         // added by plan apply
 }
 ```
@@ -156,7 +156,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
   "after":   {"name": "New name", "description": "New text"},
   "changes": {"name": {"from": "Old name", "to": "New name"}, "description": {"from": "…", "to": "…"}},
   "operations": [{"op": "set_details", "fields": {"name": "New name", "description": "New text"}}],
-  "checksum": "sha256:…"                   // over playlist id, snapshot, before, after, operations
+  "checksum": "sha256:…"                   // over playlist id and name, snapshot, created_at, reason, before, after, changes, operations, warnings
 }
 ```
 

@@ -167,16 +167,29 @@ def simulate(items: list[Any], operations: list[dict[str, Any]]) -> list[Any]:
     return current
 
 
+def _shown(item: dict[str, Any]) -> dict[str, Any]:
+    """What identifies an item in a plan and what the person is shown about it."""
+    return {"uri": item.get("uri"), "name": item.get("name"), "artists": item.get("artists")}
+
+
 def plan_checksum(plan: dict[str, Any]) -> str:
+    """Over what the plan does and everything a confirmation shows of it: the playlist's name, the items' names
+    and artists, the listed changes, the reason, the warnings behind its notes, and when it was built. So a
+    plan file edited by hand can't keep its operations and show other text (or another age)."""
     items_plan = plan["kind"] != "details"  # details plans hold field values, not item lists
     core = {
         "schema_version": plan["schema_version"],
         "kind": plan["kind"],
         "playlist_id": plan["playlist"]["id"],
+        "playlist_name": plan["playlist"].get("name"),
         "snapshot_id": plan["playlist"]["snapshot_id"],
-        "before": [i["uri"] for i in plan["before"]] if items_plan else plan["before"],
-        "after": [i["uri"] for i in plan["after"]] if items_plan else plan["after"],
+        "created_at": plan.get("created_at"),
+        "reason": plan.get("reason"),
+        "before": [_shown(i) for i in plan["before"]] if items_plan else plan["before"],
+        "after": [_shown(i) for i in plan["after"]] if items_plan else plan["after"],
+        "changes": plan.get("changes"),
         "operations": plan["operations"],
+        "warnings": plan.get("warnings"),
     }
     canonical = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
