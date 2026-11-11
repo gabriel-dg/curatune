@@ -40,6 +40,21 @@ def test_route(mode, capabilities, route):
     assert bool(why) == (route == "unavailable")
 
 
+@pytest.mark.parametrize(
+    "mode, capabilities, route",
+    [
+        ("auto", caps(FORM), "page"),  # more lines than the dialog shows: the page lists them all
+        ("elicitation", caps(FORM), "unavailable"),  # forced dialog: no route, nothing applied
+        ("browser", caps(FORM), "page"),
+    ],
+)
+def test_a_change_longer_than_a_dialog_never_goes_to_the_dialog(mode, capabilities, route):
+    chosen, why = confirm.choose_route(mode, capabilities, lines=confirm.MAX_LINES + 1)
+    assert chosen == route
+    assert bool(why) == (route == "unavailable")
+    assert confirm.choose_route(mode, capabilities, lines=confirm.MAX_LINES)[0] == ("page" if mode == "browser" else "elicitation")
+
+
 def test_confirm_mode_comes_from_the_environment(monkeypatch):
     monkeypatch.delenv("CURATUNE_MCP_CONFIRM", raising=False)
     assert confirm.confirm_mode() == "auto"
@@ -90,6 +105,7 @@ def test_long_summaries_are_capped(tmp_path):
     lines = confirm.render_summary(plan).splitlines()
     assert len(lines) == 1 + confirm.MAX_LINES + 1  # head, capped list, footer
     assert lines[confirm.MAX_LINES].startswith("… and ")
+    assert confirm.line_count(plan) > confirm.MAX_LINES  # so plan_apply sends it to the page instead
 
 
 def test_details_summary_shows_old_and_new_values(tmp_path):
@@ -127,3 +143,33 @@ def test_no_reason_no_explanation_block(tmp_path):
     fake = FakeSpotify([track_uri(1), track_uri(2)])
     text = confirm.render_summary(_plan(tmp_path, fake, positions=[1]))  # e.g. a plan built with the CLI
     assert confirm.REASON_LABEL not in text and "" not in text.splitlines()
+
+
+def test_an_addition_is_identified_by_every_argument():
+    base = ("p" * 22, ["spotify:track:" + "1" * 22, "spotify:track:" + "2" * 22], None, False)
+    rid = confirm.add_request_id(*base)
+    assert rid.startswith("add-") and rid == confirm.add_request_id(*base)
+    others = [
+        ("q" * 22, *base[1:]),
+        (base[0], list(reversed(base[1])), None, False),
+        (base[0], base[1], 0, False),
+        (base[0], base[1], None, True),
+    ]
+    assert len({rid, *(confirm.add_request_id(*o) for o in others)}) == 5
+
+
+def test_old_plans_are_refused_and_the_question_says_when_it_was_built(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from curatune.errors import PlanError
+
+    fake = FakeSpotify([track_uri(1), track_uri(2)])
+    plan = _plan(tmp_path, fake, positions=[1])
+    built = datetime.strptime(plan["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    confirm.check_plan_age(plan, now=built + timedelta(hours=23, minutes=59))
+    for stale in ({**plan}, {**plan, "created_at": None}, {**plan, "created_at": "yesterday"}):
+        with pytest.raises(PlanError) as exc:
+            confirm.check_plan_age(stale, now=built + timedelta(hours=24, seconds=1))
+        assert exc.value.code == "PLAN_EXPIRED"
+    footer = confirm.render_summary(plan).splitlines()[-1]
+    assert footer.startswith(f"Plan {plan['plan_id']}, built {plan['created_at'][:10]} ") and footer.count("UTC") == 1

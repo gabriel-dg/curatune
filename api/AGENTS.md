@@ -48,7 +48,10 @@ decisions, and its threat boundary are in `docs/design.md`.
 
 ## Confirmation rules (enforced in code — keep them that way)
 
-- Create playlist / add items: executed directly.
+- Create playlist / add items: executed directly by the CLI. Through MCP, `playlist_add` runs directly only on
+  a playlist `playlist_create` made in the same server process (`Runtime.created_playlists`, in memory); any
+  other playlist needs the person's OK first, through the same dialog or page-and-code routes as
+  `plan_apply`, failing closed (`tests/test_mcp_add.py`).
 - Remove / reorder: only through **plans** (`plans.py`). A plan records the current state, the change, the
   resulting state, and the exact operations; `plan apply` verifies snapshot + item list before running
   and verifies the result after. Mutating primitives live in `_writes.py` and are only called by
@@ -71,6 +74,11 @@ decisions, and its threat boundary are in `docs/design.md`.
 - No tool takes a visibility option or a file path. `playlist_create` always requests private.
 - The tool descriptions and `mcp_server/instructions.py` carry the skill's rules (tests check them). When a
   rule changes in the skill, change it there too.
+- `playlist_add` to a playlist not created in this process asks first: `playlists.preview_add` reads the
+  playlist and each track's name (failing before asking on what the addition would refuse), the question
+  lists them by the number they will get, and the confirmation (and the page's code) is bound to the exact
+  call (`confirm.add_request_id`: playlist, URIs in order, position, duplicates flag). It is annotated
+  `destructiveHint` but, unlike `plan_apply`, not `requiresUserInteraction`: the server asks the person itself.
 - Removals, reorders, and renames are plans (`plan_*` build them; changing nothing). **`plan_apply` applies
   one only after the person confirms it outside the chat**: in the client's dialog (MCP form elicitation),
   or on the local confirmation page, which reveals a one-time code (`mcp_server/confirm.py`,
@@ -87,6 +95,10 @@ decisions, and its threat boundary are in `docs/design.md`.
   - routes: the dialog when declared, otherwise the page (`CURATUNE_MCP_CONFIRM` forces either); no
     browser, an invalid or applied plan, a wrong, expired, or used code, a rejection, or anything but
     "accept" with "Apply this plan" checked: nothing is applied;
+  - a declined dialog (or "accept" unchecked) is remembered per plan and checksum (or addition) for the
+    process, so it answers `rejected` without asking again, as a rejected page does;
+  - it refuses plans more than 24 hours old (`PLAN_EXPIRED`, from `created_at`, which the checksum covers),
+    and the question says when the plan was built;
   - it accepts plan IDs only (`plans.plan_path_for_id`), and applies through `plans.apply_plan`, which
     keeps every CLI check (snapshot, items, backup, verification);
   - results and errors never carry local paths (`*_path`, `*_dir` keys are dropped).

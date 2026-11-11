@@ -26,7 +26,9 @@ Pure standard library: these modules and their tests run without the `mcp` extra
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
@@ -34,10 +36,11 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from ..errors import ConfigError, CuratuneError
+from ..errors import ConfigError, CuratuneError, PlanError
 from .numbering import to_number
 
 CONFIRM_MODES = ("auto", "elicitation", "browser")
@@ -47,8 +50,9 @@ NAME_CHARS = 80
 TEXT_CHARS = 300
 REASON_CHARS = 300
 REASON_LABEL = "The assistant's explanation (written by the AI, not checked by curatune):"
+MAX_PLAN_AGE_SECONDS = 24 * 3600  # plan_apply refuses older plans: they belong to another conversation
 
-Route = Literal["elicitation", "page", "code", "unavailable"]
+Route = Literal["elicitation", "page", "code", "unavailable", "direct", "rejected"]
 
 
 @dataclass(frozen=True)
@@ -81,13 +85,20 @@ def declares_form_elicitation(capabilities: Any) -> bool:
     return elicitation is not None and (elicitation.form is not None or elicitation.url is None)
 
 
-def choose_route(mode: str, capabilities: Any) -> tuple[Literal["elicitation", "page", "unavailable"], str]:
-    """The route and, when there is none, why (for the model and the user)."""
+def choose_route(
+    mode: str, capabilities: Any, lines: int = 0
+) -> tuple[Literal["elicitation", "page", "unavailable"], str]:
+    """The route and, when there is none, why (for the model and the user). A change with more lines than
+    a dialog shows in full (`MAX_LINES`) goes to the page, which lists every line: nobody approves a removal
+    they can't see. With `elicitation` forced, such a change has no route."""
     if mode == "browser":
         return "page", ""
-    if declares_form_elicitation(capabilities):
+    too_long = lines > MAX_LINES
+    if declares_form_elicitation(capabilities) and not too_long:
         return "elicitation", ""
     if mode == "elicitation":
+        if too_long:
+            return "unavailable", f"this change has {lines} lines, more than a confirmation dialog shows ({MAX_LINES})"
         return "unavailable", "this client can't show a confirmation dialog (MCP form elicitation)"
     return "page", ""
 
@@ -126,6 +137,8 @@ class Summary:
     notes: list[str]
     reason: str
     plan_id: str
+    total: int = 0  # lines before the cap
+    built: str = ""  # the plan's created_at, as stored (UTC)
 
 
 def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
@@ -140,7 +153,12 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
         moved = [a for a in plan["after"] if a["position"] != a["from_position"]]
         head = f"Reorder the playlist {playlist}: {len(moved)} of {len(plan['before'])} tracks change place."
         lines = [f"#{to_number(a['from_position'])} → #{to_number(a['position'])} {_track(a)}" for a in moved]
-    else:
+    elif kind == "add":
+        added, count, start = plan["add"], plan["item_count"], plan["position"]
+        where = "" if start == count else f", from #{to_number(start)} on"
+        head = f"Add {len(added)} tracks to the playlist {playlist} ({count} → {count + len(added)}{where}):"
+        lines = [f"#{to_number(start + i)} " + (_track(t) if t.get("name") else clean(t.get("uri"))) for i, t in enumerate(added)]
+    elif kind == "details":
         head = f"Change the playlist {playlist}:"
         labels = {"name": "Name", "description": "Description"}
         lines = [
@@ -149,7 +167,11 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
             for field in ("name", "description")
             if field in plan["after"]
         ]
+    else:
+        raise ValueError(f"unknown kind {kind!r}")
     notes = []
+    if plan.get("skipped"):
+        notes.append(f"Note: {plan['skipped']} track(s) already in the playlist or repeated in the request are skipped.")
     codes = {w.get("code") for w in plan.get("warnings") or []}
     if "REINSERTED_DUPLICATES" in codes:
         notes.append("Note: kept copies of a repeated track are removed and added back; their date added resets.")
@@ -157,15 +179,75 @@ def summarize(plan: dict[str, Any], max_lines: int = MAX_LINES) -> Summary:
         notes.append("Note: this removes local files, which is unverified through the API.")
     if "DUPLICATE_NAME" in codes:
         notes.append("Note: you already have another playlist with this name.")
-    return Summary(head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"])
+    built = clean(plan.get("created_at"), 30).replace("T", " ").replace("Z", " UTC")
+    return Summary(
+        head, _capped(lines, max_lines), notes, clean(plan.get("reason"), REASON_CHARS), plan["plan_id"], len(lines), built
+    )
+
+
+def check_plan_age(plan: dict[str, Any], now: datetime | None = None) -> None:
+    """Refuse a plan older than MAX_PLAN_AGE_SECONDS (or without a readable created_at): plan_apply is for
+    plans built in this conversation, and an old plan ID can come from anywhere."""
+    try:
+        created = datetime.strptime(str(plan.get("created_at")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        created = None
+    now = now or datetime.now(timezone.utc)
+    if created is None or (now - created).total_seconds() > MAX_PLAN_AGE_SECONDS:
+        raise PlanError(
+            "This plan is more than 24 hours old, so it can't be applied here.",
+            code="PLAN_EXPIRED",
+            details={"plan_id": plan.get("plan_id"), "created_at": plan.get("created_at")},
+        )
+
+
+def line_count(plan: dict[str, Any]) -> int:
+    """How many lines the summary has before any cap: the dialog shows at most `MAX_LINES`."""
+    return summarize(plan).total
+
+
+ADD_ANSWER_TITLE = "Add these tracks"
 
 
 def render_summary(plan: dict[str, Any]) -> str:
     """The question of the elicitation dialog."""
     s = summarize(plan)
     explanation = ["", REASON_LABEL, f'"{s.reason}"', ""] if s.reason else []
-    footer = f"Plan {s.plan_id}. Nothing changes unless you accept with “Apply this plan” checked."
+    if plan["kind"] == "add":
+        footer = (
+            f"Request {s.plan_id}: your assistant asked to add tracks to a playlist it didn't create in this "
+            f"session. Nothing changes unless you accept with “{ADD_ANSWER_TITLE}” checked."
+        )
+    else:
+        footer = f"Plan {s.plan_id}, built {s.built}. Nothing changes unless you accept with “Apply this plan” checked."
     return "\n".join([s.head, *s.lines, *s.notes, *explanation, footer])
+
+
+# --- Additions to playlists the server didn't create -----------------------------------------------
+
+
+def add_request_id(playlist_id: str, uris: list[str], position: int | None, allow_duplicates: bool) -> str:
+    """The identity of one exact `playlist_add` call: the same playlist, tracks in the same order, position,
+    and duplicates flag. A confirmation (and its code) is bound to it, so it can't approve another addition."""
+    canonical = json.dumps([playlist_id, uris, position, allow_duplicates], separators=(",", ":"))
+    return "add-" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def add_request(request_id: str, preview: dict[str, Any]) -> dict[str, Any]:
+    """A confirmable addition, shaped like a plan for `summarize`, the page, and the confirmation store. Its
+    checksum is its ID, which already covers every argument of the call."""
+    return {
+        "plan_id": request_id,
+        "checksum": request_id,
+        "kind": "add",
+        "playlist": preview["playlist"],
+        "item_count": preview["item_count"],
+        "position": preview["position"],
+        "add": preview["add"],
+        "skipped": len(preview["skipped"]),
+        "reason": None,
+        "warnings": [],
+    }
 
 
 # --- One-time codes for the confirmation page ------------------------------------------------------
@@ -215,6 +297,7 @@ class ConfirmationStore:
         self._lock = threading.Lock()
         self._by_token: dict[str, Confirmation] = {}
         self._latest: dict[str, str] = {}  # plan_id -> token of its most recent confirmation
+        self._rejected: set[tuple[str, str]] = set()  # (plan_id, checksum) the person declined in a dialog
 
     def _expired(self, c: Confirmation) -> bool:
         return self._clock() - c.created >= self._ttl
@@ -238,6 +321,16 @@ class ConfirmationStore:
             self._by_token[c.token] = c
             self._latest[plan_id] = c.token
             return c
+
+    def remember_rejection(self, plan_id: str, checksum: str) -> None:
+        """A dialog the person declined (or accepted unchecked): that plan or addition isn't asked again in this
+        process, as a rejected page isn't reopened. Closing the dialog without answering is not a rejection."""
+        with self._lock:
+            self._rejected.add((plan_id, checksum))
+
+    def was_rejected(self, plan_id: str, checksum: str) -> bool:
+        with self._lock:
+            return (plan_id, checksum) in self._rejected
 
     def page_view(self, token: str) -> tuple[Confirmation, str] | None:
         """The confirmation behind a page URL and the state to show (`expired` included)."""

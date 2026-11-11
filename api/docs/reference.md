@@ -119,7 +119,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
     {"op": "insert", "uris": ["…"], "position": 12}
   ],
   "warnings": [],
-  "checksum": "sha256:…",                  // over playlist id, snapshot, before/after URIs, operations
+  "checksum": "sha256:…",                  // over playlist id and name, snapshot, created_at, reason, before/after (URIs, names, artists), changes, operations, warnings
   "applied": { … }                         // added by plan apply
 }
 ```
@@ -156,7 +156,7 @@ Plan summary: `{plan_path, plan_id, kind, playlist, summary: {items_before, item
   "after":   {"name": "New name", "description": "New text"},
   "changes": {"name": {"from": "Old name", "to": "New name"}, "description": {"from": "…", "to": "…"}},
   "operations": [{"op": "set_details", "fields": {"name": "New name", "description": "New text"}}],
-  "checksum": "sha256:…"                   // over playlist id, snapshot, before, after, operations
+  "checksum": "sha256:…"                   // over playlist id and name, snapshot, created_at, reason, before, after, changes, operations, warnings
 }
 ```
 
@@ -339,7 +339,7 @@ token; the process environment wins over both, and the repository's file over th
 `CONFIG_ERROR`, `AUTH_REQUIRED`, `AUTH_EXPIRED`, `AUTH_ERROR`, `AUTH_STATE_MISMATCH`, `INVALID_REFERENCE`,
 `INVALID_ARGUMENT`, `API_BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `API_ERROR`, `NETWORK_ERROR`,
 `CONCURRENT_MODIFICATION`, `DUPLICATE_NAME`, `PLAN_INVALID`, `PLAN_NOT_FOUND`, `PLAN_CHECKSUM_MISMATCH`,
-`PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `NO_CHANGES`, `DESCRIPTION_NOT_CLEARABLE`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
+`PLAN_INCONSISTENT`, `PLAN_ALREADY_APPLIED`, `PLAN_EXPIRED` (MCP `plan_apply`), `NO_CHANGES`, `DESCRIPTION_NOT_CLEARABLE`, `SNAPSHOT_MISMATCH`, `APPLY_FAILED`,
 `LEGACY_DATA_NOT_MIGRATED`, `DATA_DIR_VIRTUALIZED`, `TOKEN_DIR_VIRTUALIZED` (MCP `auth_login`), `NOTHING_TO_MIGRATE`, `ALREADY_MIGRATED`, `MIGRATION_CONFLICT`,
 `MIGRATION_FAILED`,
 `VERIFICATION_FAILED`, `RECORDING_DATES_MISSING`, `UNTRUSTED_URL`, `USAGE_ERROR`, `INTERNAL_ERROR`, `INTERRUPTED`,

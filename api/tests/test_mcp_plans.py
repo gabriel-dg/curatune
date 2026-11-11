@@ -264,6 +264,21 @@ async def test_no_yes_means_nothing_changes(settings, account, era, action, appl
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("action, apply, remembered", [("decline", True, True), ("accept", False, True), ("cancel", True, False)])
+async def test_a_declined_plan_is_not_asked_again(settings, account, era, action, apply, remembered):
+    acc, ids = account
+    user = User(action, apply)
+    async with connect(settings, acc, era, user=user) as client:
+        plan = await remove_duplicate(client, ids)
+        await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    # Declining (or accepting unchecked) is a rejection, remembered as the page remembers one; closing the
+    # dialog without answering is not.
+    assert (result["status"] == "rejected") == remembered
+    assert len(user.asked) == (1 if remembered else 2) and writes(acc) == []
+
+
+@pytest.mark.anyio
 async def test_without_a_dialog_the_page_opens_and_nothing_is_applied_yet(settings, account, era):
     acc, ids = account
     browser = Browser()
@@ -276,6 +291,30 @@ async def test_without_a_dialog_the_page_opens_and_nothing_is_applied_yet(settin
     token = browser.urls[0].rsplit("/", 1)[1]
     assert token not in json.dumps(result)  # the page's address goes to the browser only
     assert writes(acc) == []
+
+
+@pytest.mark.anyio
+async def test_a_removal_longer_than_the_dialog_goes_to_the_page(settings, account, era):
+    """The dialog shows at most MAX_LINES lines; a longer removal goes to the page, which lists every track."""
+    acc, ids = account
+    count = confirm.MAX_LINES + 5
+    playlist = acc.add_playlist("Long", [ids["loco"]] * count)
+    user, browser = User(), Browser()
+    async with connect(settings, acc, era, user=user, browser=browser) as client:
+        status, plan = await call(
+            client, "plan_remove", {"playlist": playlist, "numbers": list(range(1, count)), "reason": "Keep one copy."}
+        )
+        assert status == "ok"
+        status, result = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "ok" and result["status"] == "awaiting_user_confirmation"
+    assert user.asked == [] and len(browser.urls) == 1 and writes(acc) == []
+    assert browser.page().text.count("<li>") == count - 1  # every removal, none hidden behind "… and N more"
+
+    user = User()
+    async with connect(settings, acc, era, user=user, confirm_mode="elicitation", browser=browser) as client:
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "error" and error["error"]["code"] == "CONFIRMATION_UNAVAILABLE"
+    assert user.asked == [] and writes(acc) == []
 
 
 @pytest.mark.anyio
@@ -491,6 +530,24 @@ async def test_a_tampered_plan_is_refused_before_asking(settings, account):
         status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
     assert status == "error" and error["error"]["code"] == "PLAN_CHECKSUM_MISMATCH"
     assert user.asked == [] and writes(acc) == []
+
+
+@pytest.mark.anyio
+async def test_a_plan_older_than_a_day_is_refused_before_asking(settings, account, era):
+    from curatune import plans as plans_module
+
+    acc, ids = account
+    user, browser = User(), Browser()
+    async with connect(settings, acc, era, user=user, browser=browser) as client:
+        plan = await remove_duplicate(client, ids)
+        path = settings.plans_dir / f"{plan['plan_id']}.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["created_at"] = "2020-01-01T00:00:00Z"  # re-checksummed: an old plan, not an edited one
+        data["checksum"] = plans_module.plan_checksum(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        status, error = await call(client, "plan_apply", {"plan_id": plan["plan_id"]})
+    assert status == "error" and error["error"]["code"] == "PLAN_EXPIRED" and "Build a new plan" in error["next_step"]
+    assert user.asked == [] and browser.urls == [] and writes(acc) == []
 
 
 @pytest.mark.anyio

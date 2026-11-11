@@ -66,6 +66,15 @@ it declares form elicitation, otherwise a local page that reveals a one-time cod
 - no apply tool, as in the web app: an MCP server has no UI besides dialogs, a page, or an MCP App;
 - a native OS dialog: missing on some Python builds, unreliable from background processes on macOS.
 
+Additions go through the same routes. `playlist_add` runs at once only on a playlist that `playlist_create`
+made in the same process, so "create a playlist with …" stays one step; adding to any other playlist (one the
+user already had, followed collaborative ones included, or one created before a restart) waits for the
+person's OK on a question listing the tracks by name, read from Spotify before asking (`preview_add`) and
+kept per request so every MRTR round asks the same thing. The page's code is bound to the exact call
+(playlist, URIs in order, position, duplicates flag). *Discarded:* an "add plan" file (a new plan kind for
+an additive change), and confirming every addition (it would add a step to the most common flow, filling a
+playlist just created at the user's request).
+
 An *MCP App* plan viewer for Claude Desktop is on hold until Desktop is tested: its app-only approval tool
 would have to be provably invisible to the model.
 
@@ -108,7 +117,8 @@ descriptions), and tests check that both carry the rules.
 
 **D11. Considered and not adopted.**
 - *Accepting only IDs seen earlier in the conversation*, as the web app does: the server can't see the
-  conversation. Instead, `playlist_add` reads the playlist back and names each added track.
+  conversation. Instead, `playlist_add` asks the person first for any playlist it didn't create (D3), and
+  reads the playlist back and names each added track.
 - *A live check before asking*: under MRTR the question is rebuilt on every round, which would read the
   playlist each time, and `plan_apply` re-verifies anyway.
 - *Caching playlist reads between pages*: the snapshot read lag would serve stale items after a write.
@@ -122,8 +132,11 @@ elicitation, otherwise the page; `elicitation` requires the dialog; `browser` fo
 the SDK matches a recorded MRTR answer to the exact question text. It lists what leaves or moves, by
 number, title, and artists, or the old and new name and description; third-party text is stripped of
 control characters, line breaks, and bidirectional overrides, capped at 80 characters, and quoted, with at
-most 25 lines. The model's required `reason` (at most 300 characters) follows apart, labelled as the
-assistant's unchecked explanation. Only "accept" with "Apply this plan" checked applies; anything else,
+most 25 lines: a change with more lines goes to the page, which lists every one (with `elicitation` forced,
+it fails closed), so nobody approves a removal they can't see. The model's required `reason` (at most 300 characters) follows apart, labelled as the
+assistant's unchecked explanation, and the footer says when the plan was built (its `created_at`, covered by
+the checksum); plans older than 24 hours are refused before asking (`PLAN_EXPIRED`), since `plan_apply` is
+for plans built in this conversation. Only "accept" with "Apply this plan" checked applies; anything else,
 including no answer, changes nothing.
 
 **The page.** `plan_apply(plan_id)` validates the plan, opens a page itself on `127.0.0.1` (an ephemeral
@@ -149,8 +162,8 @@ authorization.
 (it could read the token and call Spotify directly), and a client set up to answer dialogs by itself, such
 as a Claude Code `Elicitation` hook.
 
-**Defense in depth:** `requiresUserInteraction` on `plan_apply` (Claude Code prompts even in bypass modes),
-`destructiveHint` (Claude Desktop always prompts), and the `browser` override for clients that declare
+**Defense in depth:** `requiresUserInteraction` on `plan_apply` (Claude Code prompts even
+in bypass modes; left off `playlist_add` so filling a playlist the server just created doesn't prompt on every call), `destructiveHint` on both (Claude Desktop always prompts), and the `browser` override for clients that declare
 dialogs and drop them. DNS rebinding and CSRF against the page meet the loopback bind, the random path, the
 `Host` and `Origin` checks, the nonce, and the CSP; oversized results meet D8's budgets; SDK churn meets a
 pin below `mcp` 3 and CI in both protocol eras.

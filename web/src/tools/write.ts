@@ -1,10 +1,12 @@
-// Write tools: create a playlist, add tracks. Both run directly, as in curatune, and the UI
-// shows every write. Removing, reordering, and renaming go only through plans (plan.ts); visibility is
-// never changeable. IDs must come from the conversation: the model cannot write invented ones.
+// Write tools: create a playlist, add tracks, and the UI shows every write. Creating runs directly, and so does
+// adding to a playlist created in this session; adding to any other playlist waits for the user's Confirm on a
+// card listing the tracks, as curatune's MCP server asks (curatune commit ef200c2). Removing, reordering, and
+// renaming go only through plans (plan.ts); visibility is never changeable. IDs must come from the
+// conversation: the model cannot write invented ones.
 
 import { CuratuneError } from "../spotify/errors";
 import { normalizeItemUri, parseId } from "../spotify/refs";
-import { addItems, createPlaylist, MAX_URIS_PER_REQUEST } from "../spotify/writes";
+import { addItems, createPlaylist, MAX_URIS_PER_REQUEST, previewAdd } from "../spotify/writes";
 import type { Args } from "./schema";
 import type { Tool, ToolContext } from "./types";
 
@@ -42,8 +44,9 @@ const playlistCreate: Tool = {
     required: ["name"],
     additionalProperties: false,
   },
-  async run(args, { client }) {
+  async run(args, { client, createdPlaylists }) {
     const result = await createPlaylist(client, str(args, "name")!, str(args, "description") ?? "", Boolean(args.allow_duplicate_name));
+    if (result.playlist.id) createdPlaylists?.add(result.playlist.id);
     return {
       playlist: { id: result.playlist.id, name: result.playlist.name, public: result.playlist.public, items: 0 },
       warnings: result.warnings,
@@ -67,7 +70,9 @@ const playlistAdd: Tool = {
   description:
     "Add tracks to a playlist the user owns or collaborates on. Only when the user asks for it. Use track " +
     "URIs from search_tracks, album_tracks, or track_show results, or given by the user. Appends at the end " +
-    "unless at_number is given. Tracks already in the playlist are skipped unless allow_duplicates.",
+    "unless at_number is given. Tracks already in the playlist are skipped unless allow_duplicates. A playlist " +
+    "you created with playlist_create in this session is filled at once; for any other, the app shows the user " +
+    "the tracks with Confirm and Cancel and waits. USER_DECLINED means the user cancelled: nothing was added.",
   parameters: {
     type: "object",
     properties: {
@@ -94,7 +99,26 @@ const playlistAdd: Tool = {
     const uris = (args.track_uris as string[]).map(normalizeItemUri);
     requireKnownIds(ctx, [playlistId, ...uris.map((uri) => uri.split(":")[2]!)]);
     const atNumber = args.at_number as number | undefined;
-    const result = await addItems(ctx.client, playlistId, uris, atNumber === undefined ? null : atNumber - 1, Boolean(args.allow_duplicates));
+    const position = atNumber === undefined ? null : atNumber - 1;
+    const allowDuplicates = Boolean(args.allow_duplicates);
+    if (!ctx.createdPlaylists?.has(playlistId)) {
+      // Not created in this session: the user confirms the exact tracks first (read now, so what the addition
+      // would refuse fails before asking). Nothing to add asks nothing.
+      const preview = await previewAdd(ctx.client, playlistId, uris, position, allowDuplicates);
+      if (preview.add.length) {
+        if (!ctx.confirmAdd) {
+          throw new CuratuneError("CONFIRMATION_UNAVAILABLE", "This playlist was not created in this session, and the app cannot ask the user to confirm here. Nothing was added.");
+        }
+        if (!(await ctx.confirmAdd(preview))) {
+          throw new CuratuneError(
+            "USER_DECLINED",
+            "The user cancelled this addition: nothing was added. Do not try it again unless they ask; ask what they want instead.",
+            { playlist_id: playlistId },
+          );
+        }
+      }
+    }
+    const result = await addItems(ctx.client, playlistId, uris, position, allowDuplicates);
     const byPosition = new Map((result.items_after ?? []).map((item) => [item.position, item]));
     return {
       playlist: { id: result.playlist.id, name: result.playlist.name },

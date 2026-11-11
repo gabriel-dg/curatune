@@ -16,7 +16,8 @@ It is the browser side of [curatune](../README.md): the same rules as the Python
 - Your playlists in a sidebar, the chat in the middle, and a panel for the playlist on screen (its tracks
   and recording dates) or for everything changed in the session.
 - Reads playlists and the catalog, creates playlists, and adds tracks; each write shows as a card in the
-  chat.
+  chat. Adding tracks to a playlist the app didn't create in this session first shows you the tracks with
+  **Confirm** and **Cancel**, and waits for your click.
 - Removals, reorders, renames, and description changes come as **plans**: the chat shows the change, and
   only your click on **Apply** runs it. The model has no tool to apply a plan.
 - Keeps recording dates in the browser, with source and confidence, to sort playlists chronologically.

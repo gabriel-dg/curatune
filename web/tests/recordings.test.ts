@@ -55,7 +55,7 @@ describe("store", () => {
       [trackUri(2)]: { recorded: "1947-12-05", confidence: "high", source: "AllMusic session notes", name: "Nostalgia", artists: ["Fats Navarro"] },
       [trackUri(1)]: { recorded: "1945", confidence: "medium", source: "liner notes" },
     });
-    expect(await store.importJson(curatuneFile)).toEqual({ created: 2, updated: 0, total: 2 });
+    expect(await store.importJson(curatuneFile)).toEqual({ created: 2, updated: 0, skipped: [], total: 2 });
     const exported = JSON.parse(await store.exportJson());
     expect(Object.keys(exported)).toEqual([trackUri(1), trackUri(2)].sort());
     // Names and artists from older files are accepted and dropped: Spotify metadata isn't kept (Terms IV.3).
@@ -174,13 +174,41 @@ describe("recording tools", () => {
     const ctx = setup();
     const uri = `spotify:track:${ctx.ids.manteca}`;
     const execution = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "1947-12-30", confidence: "medium", source: "model knowledge", name: "Manteca" }] });
-    expect(execution.outcome).toMatchObject({ ok: true, result: { created: 1, updated: 0, total: 1 } });
+    expect(execution.outcome).toMatchObject({ ok: true, result: { created: 1, skipped: [], total: 1 } });
     expect(execution.write).toMatchObject({ title: "Saved 1 recording date (in this browser)", lines: ["Manteca: 1947-12-30 (medium)"], playlistId: null });
     expect((await ctx.store.load())[uri]).toMatchObject({ recorded: "1947-12-30", confidence: "medium", source: "model knowledge" });
     const unknown = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "1947", confidence: "high", source: "x" }] }, false);
     expect(unknown.outcome).toMatchObject({ ok: false, error: { code: "INVALID_REFERENCE" } });
     const bad = await run(ctx, "recordings_set", { entries: [{ uri, recorded: "late 40s", confidence: "high", source: "x" }] });
     expect(bad.outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+  });
+
+  it("recordings_set never replaces a stored date: it keeps it and lists it in skipped", async () => {
+    const ctx = setup();
+    const kept = `spotify:track:${ctx.ids.manteca}`;
+    const fresh = `spotify:track:${ctx.ids.unPocoLoco}`;
+    await ctx.store.upsert([{ uri: kept, recorded: "1947-12-30", confidence: "high", source: "the user's discography" }]);
+    const execution = await run(ctx, "recordings_set", {
+      entries: [
+        { uri: kept, recorded: "1950", confidence: "low", source: "model knowledge", name: "Manteca" },
+        { uri: fresh, recorded: "1951-05-01", confidence: "medium", source: "model knowledge", name: "Un Poco Loco" },
+      ],
+    });
+    expect(execution.outcome).toMatchObject({ ok: true, result: { created: 1, skipped: [kept], total: 2, saved: [{ uri: fresh }] } });
+    expect(execution.write).toMatchObject({ lines: ["Un Poco Loco: 1951-05-01 (medium)"] });
+    expect(execution.summary).toBe("saved 1 dates, kept 1 stored");
+    expect((await ctx.store.load())[kept]).toMatchObject({ recorded: "1947-12-30", source: "the user's discography" });
+
+    const nothing = await run(ctx, "recordings_set", { entries: [{ uri: kept, recorded: "1950", confidence: "low", source: "x" }] });
+    expect(nothing.outcome).toMatchObject({ ok: true, result: { created: 0, skipped: [kept], saved: [] } });
+    expect(nothing.write).toBeNull();
+  });
+
+  it("importing a file still replaces stored dates (the user's own choice)", async () => {
+    const store = new RecordingStore(new MemoryStore());
+    await store.upsert([entry(1, "1945")]);
+    expect(await store.importJson(JSON.stringify({ [trackUri(1)]: { recorded: "1946", confidence: "high", source: "s" } }))).toMatchObject({ updated: 1, skipped: [] });
+    expect((await store.load())[trackUri(1)]!.recorded).toBe("1946");
   });
 
   it("recordings_show numbers tracks from 1 and lists the missing ones", async () => {

@@ -65,6 +65,13 @@ class ApplyAnswer(BaseModel):
     apply: bool = Field(title="Apply this plan", description="Change the playlist on Spotify as described above.")
 
 
+class AddAnswer(BaseModel):
+    """The form of playlist_add's confirmation dialog, for a playlist the server didn't create in this
+    session. Filled by the person through the client, never a tool argument."""
+
+    add: bool = Field(title="Add these tracks", description="Add the tracks listed above to the playlist on Spotify.")
+
+
 # --- Shared output pieces -------------------------------------------------------------------------
 
 
@@ -296,12 +303,16 @@ class SkippedTrack(_Out):
 
 
 class PlaylistAdd(_Out):
+    """Added, or not (yet): a playlist the server didn't create in this session needs the person's OK first."""
+
+    status: Literal["added", "declined", "cancelled", "awaiting_user_confirmation", "rejected"]
     playlist_id: str
-    added: list[AddedTrack]
-    skipped: list[SkippedTrack]
-    item_count: int
-    verified: bool
-    warnings: list[ResultWarning]
+    added: list[AddedTrack] = []
+    skipped: list[SkippedTrack] = []
+    item_count: int | None = None
+    verified: bool | None = None
+    warnings: list[ResultWarning] = []
+    next_step: str | None = None
 
 
 # --- Plans --------------------------------------------------------------------------------------------

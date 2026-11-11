@@ -6,7 +6,7 @@ import { CuratuneError } from "../spotify/errors";
 import { getPlaylist, listPlaylists, type Warning } from "../spotify/playlists";
 import type { Args } from "./schema";
 import { briefAlbum, briefAlbumTrack, briefItem, briefPlaylist, briefTrack, formatTotalDuration } from "./trim";
-import type { Tool } from "./types";
+import { THIRD_PARTY_NOTE, type Tool } from "./types";
 
 export const PLAYLIST_PAGE_MAX = 100;
 export const ALBUM_PAGE_MAX = 50;
@@ -30,7 +30,7 @@ export function numberedWarnings(warnings: Warning[]) {
 const playlistsList: Tool = {
   name: "playlists_list",
   description:
-    "List the user's playlists: id, name, owner, and number of items. Use it to find a playlist's id from its name.",
+    "List the user's playlists: id, name, owner, and number of items. Use it to find a playlist's id from its name." + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {
@@ -51,7 +51,7 @@ const playlistShow: Tool = {
     `Show a playlist and its items (number, uri, name, artists, album, released, duration, isrc). ` +
     `"number" is the track number the user sees in Spotify (1 = first track). Returns up to ` +
     `${PLAYLIST_PAGE_MAX} items per call; when next_offset is not null, call again with offset=next_offset ` +
-    `for the rest. Only works for playlists the user owns or collaborates on.`,
+    `for the rest. Only works for playlists the user owns or collaborates on.` + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {
@@ -97,7 +97,7 @@ const searchTracksTool: Tool = {
   name: "search_tracks",
   description:
     `Search the Spotify catalog for tracks. Give free text and/or filters; at most ${SEARCH_MAX_LIMIT} results ` +
-    `per call (use offset for more). Results include uri, album_uri, released (the edition's date), and isrc.`,
+    `per call (use offset for more). Results include uri, album_uri, released (the edition's date), and isrc.` + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {
@@ -156,7 +156,7 @@ const searchMany: Tool = {
   description:
     `Run up to ${SEARCH_MANY_MAX} track searches in one call (for example one per song of a list), with a few ` +
     "results each. Prefer it over repeated search_tracks calls. Each search takes track and artist (and optionally " +
-    "album, year, or free text). One failed search does not fail the others.",
+    "album, year, or free text). One failed search does not fail the others." + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {
@@ -208,7 +208,7 @@ const searchMany: Tool = {
 
 const trackShow: Tool = {
   name: "track_show",
-  description: "Show one track: uri, name, artists, album, album_uri, released, duration, isrc.",
+  description: "Show one track: uri, name, artists, album, album_uri, released, duration, isrc." + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {
@@ -231,7 +231,7 @@ const albumTracks: Tool = {
   name: "album_tracks",
   description:
     `List an album's tracks in order (uri, name, artists, duration, track and disc number). Up to ` +
-    `${ALBUM_PAGE_MAX} per call; use offset=next_offset for the rest. Useful to pick the exact take inside an edition.`,
+    `${ALBUM_PAGE_MAX} per call; use offset=next_offset for the rest. Useful to pick the exact take inside an edition.` + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: {

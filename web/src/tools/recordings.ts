@@ -6,7 +6,7 @@ import { CONFIDENCE_LEVELS, playlistRecordings } from "../recordings/recordings"
 import { CuratuneError } from "../spotify/errors";
 import { normalizeItemUri, parseId } from "../spotify/refs";
 import type { Args } from "./schema";
-import type { Tool, ToolContext } from "./types";
+import { THIRD_PARTY_NOTE, type Tool, type ToolContext } from "./types";
 import { requireKnownIds } from "./write";
 
 const MAX_ENTRIES = 100;
@@ -20,7 +20,7 @@ const recordingsShow: Tool = {
   name: "recordings_show",
   description:
     "Show a playlist's tracks (by number) with their stored recording dates, the tracks that have none, and " +
-    "whether the playlist is already in chronological order of recording. Only playlists the user owns.",
+    "whether the playlist is already in chronological order of recording. Only playlists the user owns." + THIRD_PARTY_NOTE,
   parameters: {
     type: "object",
     properties: { playlist_id: { type: "string", description: "Playlist id from playlists_list.", minLength: 1 } },
@@ -54,7 +54,9 @@ const recordingsSet: Tool = {
   description:
     "Store recording dates for tracks (kept in this browser, used by plan_reorder with sort_by \"recorded\"). " +
     "Give each track's uri, the date (YYYY, YYYY-MM, or YYYY-MM-DD), your confidence (high, medium, low), and " +
-    "the source: say \"model knowledge\" when the date comes from what you know, and use high only when sure.",
+    "the source: say \"model knowledge\" when the date comes from what you know, and use high only when sure. " +
+    "Additive only: a track that already has a stored date keeps it and is listed in skipped (stored dates may " +
+    "come from the user's discographies). To correct one, the user removes it in the Recording dates panel first.",
   parameters: {
     type: "object",
     properties: {
@@ -83,15 +85,20 @@ const recordingsSet: Tool = {
   async run(args: Args, ctx) {
     const entries = args.entries as Record<string, string>[];
     requireKnownIds(ctx, entries.map((e) => parseId(normalizeItemUri(e.uri ?? ""), "track")));
-    const result = await store(ctx).upsert(entries);
-    return { ...result, saved: entries.map((e) => ({ uri: normalizeItemUri(e.uri!), name: e.name ?? null, recorded: e.recorded, confidence: e.confidence })) };
+    const result = await store(ctx).upsert(entries, false);
+    const skipped = new Set(result.skipped);
+    // Only what was stored (a repeated uri: the last entry, as the store keeps it).
+    const byUri = new Map(entries.map((e) => [normalizeItemUri(e.uri!), e]));
+    const saved = [...byUri].filter(([u]) => !skipped.has(u)).map(([u, e]) => ({ uri: u, name: e.name ?? null, recorded: e.recorded, confidence: e.confidence }));
+    return { created: result.created, skipped: result.skipped, total: result.total, saved };
   },
   summarize: (result) => {
-    const r = result as { created: number; updated: number };
-    return `saved ${r.created + r.updated} dates`;
+    const r = result as { saved: unknown[]; skipped: unknown[] };
+    return `saved ${r.saved.length} dates${r.skipped.length ? `, kept ${r.skipped.length} stored` : ""}`;
   },
   describeWrite: (result) => {
     const r = result as { saved: { uri: string; name: string | null; recorded: string; confidence: string }[] };
+    if (!r.saved.length) return null;
     return {
       title: `Saved ${r.saved.length} recording date${r.saved.length === 1 ? "" : "s"} (in this browser)`,
       lines: r.saved.map((s) => `${s.name ?? s.uri}: ${s.recorded} (${s.confidence})`),

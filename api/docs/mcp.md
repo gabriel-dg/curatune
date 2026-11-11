@@ -82,7 +82,7 @@ with a declared output schema, plus the same JSON as text.
 | `recordings_set` | Store recording dates. **Additive only**: tracks that already have a date are listed in `skipped` and left alone. Each date needs a checkable source (never the model's memory; `low` or ask when unchecked). Returns `stored`: what was stored, read back from the store, for the user to check. | | | ✓ | |
 | `recordings_update` | Replace stored recording dates. Only when the user asks to correct one. Same source rules, and returns `stored` too. | | ✓ | ✓ | |
 | `playlist_create` | Create an empty playlist. There is no visibility option: curatune always requests private, Spotify makes it public, and the result says so. | | | | ✓ |
-| `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. Reads the playlist back: names each added track and reports `verified`. | | | | ✓ |
+| `playlist_add` | Add tracks (≤100 per call), appended or at `at_number`; already-present tracks are skipped unless `allow_duplicates`. To a playlist `playlist_create` made in this server process it runs at once; to any other, only **after the user confirms** the tracks, by name, in a dialog or on the confirmation page (below; the page's `confirmation_code` goes with the same arguments). Reads the playlist back: names each added track and reports `verified`. | | ✓ | | ✓ |
 | `plan_remove` | Plan removing tracks by number. Every plan tool requires a `reason` (shown in the dialog, below). Builds a plan file; changes nothing on Spotify. | ✓¹ | | | ✓ |
 | `plan_reorder` | Plan a new order: exactly one of `sort_by` (title, artist, album, released, duration, recorded; optional `descending`), `order` (every current number, in the new order), or `move_from` + `move_to`. | ✓¹ | | | ✓ |
 | `plan_details` | Plan a rename and/or a new description. Never visibility. | ✓¹ | | | ✓ |
@@ -167,8 +167,12 @@ sequenceDiagram
   when the model writes nothing in the chat, and it is never mistaken for what the server verified.
 - **The model can't answer.** The answer reaches the server through the client's dialog. The resolvers that
   read it are not tool arguments: a model that passes `answer`, `apply`, or anything else gets them ignored.
-- **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, or
-  not a plan ID fails before anything is asked.
+- **A declined plan stays declined.** Declining (or accepting with "Apply this plan" unchecked) is remembered
+  in memory: calling `plan_apply` for that plan again answers `rejected` without asking, as a rejected page
+  isn't reopened. Closing the dialog without answering isn't a rejection. The same holds for additions.
+- **A closed or unanswered dialog applies nothing.** A plan that is invalid, edited, already applied, more
+  than 24 hours old (`PLAN_EXPIRED`: build a new one), or not a plan ID fails before anything is asked. The
+  dialog and the page say when the plan was built.
 - **Applying re-checks everything**, as `curatune plan apply` does: the playlist must still have the
   snapshot and items the plan was built on (`SNAPSHOT_MISMATCH` otherwise, nothing changed), it is backed
   up first, and the result is verified.
@@ -221,8 +225,8 @@ the route:
 
 | Value | Route |
 |---|---|
-| `auto` (default) | The dialog when the client declares form elicitation, otherwise the page. |
-| `elicitation` | The dialog only; without it, `CONFIRMATION_UNAVAILABLE`. |
+| `auto` (default) | The dialog when the client declares form elicitation, otherwise the page. A change with more than 25 lines (removals, moves) always takes the page, which lists every line. |
+| `elicitation` | The dialog only; without it, or for a change with more than 25 lines, `CONFIRMATION_UNAVAILABLE`. |
 | `browser` | The page, even when the client declares dialogs (some declare them and drop the request). |
 
 Clients verified so far (see [design.md](design.md#facts-the-design-rests-on-october-2026)): Claude Code
@@ -230,6 +234,30 @@ declares form and URL elicitation in both protocol eras, and both routes were ch
 Desktop is not verified yet. LM Studio documents tools only. If a client's `plan_apply` waits and no dialog
 appears (a client that declares dialogs but doesn't show them), nothing is applied: set
 `CURATUNE_MCP_CONFIRM=browser` in that server's entry to use the page.
+
+### Confirming additions
+
+Adding tracks changes a playlist too, and a model can be talked into it by text in a name or description.
+So `playlist_add` runs at once only on a playlist `playlist_create` made in the same server process (the
+usual "create a playlist with …" flow stays one step). Any other playlist, including one created before the
+server restarted, needs the user's OK first, through the same routes as plans:
+
+- curatune first reads the playlist and each track to add (one read per track, four at a time), so what it
+  would refuse (not editable, `at_number` out of range, an unknown track) fails before anyone is asked, and
+  a call where every track is already there writes nothing and asks nothing;
+- the dialog lists the tracks by the number they will get, title, and artists, with the playlist's name
+  (cleaned like a plan's text); only "accept" with "Add these tracks" checked adds them. More than 25
+  tracks take the page, which lists all of them;
+- on the page route the result is `awaiting_user_confirmation`; the page's one-time code is bound to the
+  exact call (playlist, tracks in order, `at_number`, `allow_duplicates`), so the model calls `playlist_add`
+  again with the same arguments plus `confirmation_code`. A code for one addition never approves another;
+- no dialog and no browser, or `CURATUNE_MCP_CONFIRM=elicitation` without a dialog: nothing is added
+  (`CONFIRMATION_UNAVAILABLE`), and the user can add the tracks in Spotify or with `curatune playlist add`.
+
+The playlists a server created are remembered in memory only. `playlist_add` is annotated
+`destructiveHint: true`, so clients that use annotations for their own prompts don't auto-approve it. Unlike
+`plan_apply` it doesn't carry `requiresUserInteraction`: the server already asks the person, and that meta would make
+Claude Code prompt on every call, even to fill a playlist the server just created.
 
 Outside what this protects: an agent with shell access acting on purpose (it could call Spotify directly
 with the stored token, or read the page from the local machine), and a client set up to answer dialogs by
@@ -266,6 +294,7 @@ itself (for example a Claude Code `Elicitation` hook that auto-accepts).
 | `meta` timing in every envelope | Not returned; logged to stderr | `metrics` is per process, and the server runs concurrent calls. |
 | `--market` per command | `CURATUNE_MARKET` from `.env` | Fewer arguments to get wrong. |
 | `plan apply` runs after an OK in the chat | `plan_apply` runs after an OK in the client's dialog, or a code from the confirmation page | The model can't answer the dialog or read the page. |
+| `playlist add` executes | `playlist_add` executes on a playlist created in this server process; any other needs the same OK as a plan | The CLI's user runs each command; an MCP model calls tools on its own. |
 | `plan show`/`plan apply` accept a plan file path | `plan_id` only | A path could point anywhere. |
 | Error details may hold local paths (`backup_path`) | Paths are left out | They tell the model nothing it needs. |
 

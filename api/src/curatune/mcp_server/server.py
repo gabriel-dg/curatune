@@ -13,6 +13,7 @@ import logging
 import shutil
 import tempfile
 import threading
+import time
 import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +65,8 @@ NEXT_STEPS = {
     "PLAN_NOT_FOUND": "Use a plan_id from a plan_* result; build a new plan if needed.",
     "PLAN_CHECKSUM_MISMATCH": "The plan file was changed after it was built, so it can't be applied. Build a new plan.",
     "PLAN_INCONSISTENT": "The plan file doesn't match what it would do, so it can't be applied. Build a new plan.",
+    "PLAN_EXPIRED": "Nothing changed. Build a new plan from the playlist as it is now, show it to the user, and "
+    "apply that one if they want it.",
     "PLAN_ALREADY_APPLIED": "This plan was applied before; nothing changed now. Read the playlist to see its state.",
     "NO_CHANGES": "Nothing to do: the playlist already has that order, name, or description.",
     "DESCRIPTION_NOT_CLEARABLE": "Tell the user a description can't be cleared through the API, only replaced; "
@@ -156,6 +159,12 @@ class Runtime:
         self._login_lock = threading.Lock()
         self.login_thread: threading.Thread | None = None
         self._login_error: str | None = None
+        # Playlists playlist_create made in this process: playlist_add fills them without asking. In memory
+        # only: after a restart, adding to them asks the person first, like any other playlist.
+        self.created_playlists: set[str] = set()
+        # What playlist_add showed for a request (by its add_request_id), so every round of a multi
+        # round-trip call asks the same question without reading Spotify again.
+        self._add_previews: dict[str, tuple[float, dict[str, Any]]] = {}
         # The confirmation page: in memory, per process; its server starts on the first page-route call.
         self.confirmations = confirm.ConfirmationStore()
         self.approval_page = ApprovalPage(self.confirmations)
@@ -182,6 +191,24 @@ class Runtime:
             return self._confirm_mode
         self.settings()
         return confirm.confirm_mode()
+
+    def add_preview(self, request_id: str, compute: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        """The preview of an addition, read once per request and kept for as long as a confirmation lasts."""
+        now = time.monotonic()
+        ttl = confirm.CONFIRMATION_TTL_SECONDS
+        with self._init_lock:
+            hit = self._add_previews.get(request_id)
+            if hit is not None and now - hit[0] < ttl:
+                return hit[1]
+        preview = compute()
+        with self._init_lock:
+            self._add_previews = {k: v for k, v in self._add_previews.items() if now - v[0] < ttl}
+            self._add_previews[request_id] = (now, preview)
+        return preview
+
+    def forget_add_preview(self, request_id: str) -> None:
+        with self._init_lock:
+            self._add_previews.pop(request_id, None)
 
     def start_login(self) -> dict[str, Any]:
         """Open Spotify's consent page unless curatune is already authorized, and return at once: the callback

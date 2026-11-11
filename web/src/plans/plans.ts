@@ -5,7 +5,8 @@
 //   curatune's retention.py (commit 60aff60) does with its files; here the period is fixed.
 // - Besides curatune's explicit order, move, and order by recording date (from the recordings store), a
 //   deterministic sort by title, artist, album, edition date, or duration (sortedOrder).
-// - Checksums use SHA-256 from Web Crypto over the same canonical JSON (sorted keys, no spaces).
+// - Checksums use SHA-256 from Web Crypto over the same canonical JSON (sorted keys, no spaces), over the
+//   same fields as curatune commit 2877459 (what the plan card shows, too).
 //
 // Building a plan never touches Spotify beyond reading the playlist. A plan records the playlist's
 // snapshot_id, the items before, the items after, and the exact low-level operations that turn one into
@@ -251,16 +252,28 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
+const shown = (i: CompactItem) => ({ uri: i.uri, name: i.name, artists: i.artists });
+
+/**
+ * Over what the plan does and everything the plan card shows of it: the playlist's name, the items' names and
+ * artists, the listed changes, the reason, the warnings, and when it was built (as curatune commit 2877459
+ * does, so an edited plan cannot keep its operations and show other text).
+ */
 export async function planChecksum(plan: Omit<Plan, "checksum"> & { checksum?: string }): Promise<string> {
   const itemsPlan = plan.kind !== "details"; // details plans hold field values, not item lists
   const core = {
     schema_version: plan.schema_version,
     kind: plan.kind,
     playlist_id: plan.playlist.id,
+    playlist_name: plan.playlist.name ?? null,
     snapshot_id: plan.playlist.snapshot_id,
-    before: itemsPlan ? (plan.before as CompactItem[]).map((i) => i.uri) : plan.before,
-    after: itemsPlan ? (plan.after as AfterItem[]).map((i) => i.uri) : plan.after,
+    created_at: plan.created_at ?? null,
+    reason: plan.reason ?? null,
+    before: itemsPlan ? (plan.before as CompactItem[]).map(shown) : plan.before,
+    after: itemsPlan ? (plan.after as AfterItem[]).map(shown) : plan.after,
+    changes: plan.changes ?? null,
     operations: plan.operations,
+    warnings: plan.warnings ?? null,
   };
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalJson(core)));
   return `sha256:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;

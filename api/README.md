@@ -80,7 +80,9 @@ workflows are prompts (`/mcp__curatune__deduplicate`, …).
 
 ## How changes stay safe
 
-- Creating a playlist and adding tracks run directly.
+- Creating a playlist runs directly, and so does filling it in the same session. Through MCP, adding tracks to
+  any other playlist (one you already had, or one created before the server restarted) waits for your OK in
+  the client's dialog or on the confirmation page, which list the tracks. The CLI adds directly.
 - Removals, reorders, renames, and description changes are only ever built as **plans**: before, after,
   and the exact operations. The agent shows you the plan and applies it only after your OK. Through MCP,
   that OK is your answer in the client's confirmation dialog, which shows a summary built from the plan

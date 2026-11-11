@@ -3,7 +3,7 @@ import type { ChatMessage, ChatModel, Completion } from "../src/agent/llm";
 import { runTurn } from "../src/agent/loop";
 import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
-import { addItems, createPlaylist } from "../src/spotify/writes";
+import { addItems, createPlaylist, type AddPreview } from "../src/spotify/writes";
 import { ALL_TOOLS, executeTool, WRITE_TOOLS } from "../src/tools";
 import { buildFixture, fakeId, FakeSpotify } from "./fake-spotify";
 import { noSleep, rejection } from "./helpers";
@@ -154,7 +154,7 @@ describe("write tools", () => {
       ALL_TOOLS,
       "playlist_add",
       JSON.stringify({ playlist_id: ids.bebop, track_uris: [uri(ids.zanzibar!)], at_number: 3 }),
-      { client, isKnownId: () => true },
+      { client, isKnownId: () => true, confirmAdd: async () => true },
     );
     expect(execution.outcome).toEqual({
       ok: true,
@@ -197,6 +197,65 @@ describe("write tools", () => {
     expect(execution.write).toBeNull();
   });
 
+  it("playlist_add fills a playlist created in this session without asking", async () => {
+    const { client, spotify, ids } = setup();
+    const createdPlaylists = new Set<string>();
+    const asked: AddPreview[] = [];
+    const confirmAdd = async (preview: AddPreview) => (asked.push(preview), false);
+    const created = await executeTool(ALL_TOOLS, "playlist_create", JSON.stringify({ name: "Fresh" }), { client, createdPlaylists, confirmAdd });
+    const id = (created.outcome as { result: { playlist: { id: string } } }).result.playlist.id;
+    expect(createdPlaylists.has(id)).toBe(true);
+    const added = await executeTool(ALL_TOOLS, "playlist_add", JSON.stringify({ playlist_id: id, track_uris: [uri(ids.koko!)] }), { client, createdPlaylists, confirmAdd });
+    expect(added.outcome.ok).toBe(true);
+    expect(asked).toEqual([]);
+    expect(spotify.playlistByName("Fresh")!.items).toEqual([ids.koko]);
+  });
+
+  it("playlist_add to any other playlist waits for the user's Confirm, showing the tracks by name and number", async () => {
+    const { client, spotify, ids } = setup();
+    const asked: AddPreview[] = [];
+    const execution = await executeTool(
+      ALL_TOOLS,
+      "playlist_add",
+      JSON.stringify({ playlist_id: ids.bebop, track_uris: [uri(ids.zanzibar!), uri(ids.koko!)], at_number: 3 }),
+      { client, createdPlaylists: new Set(), confirmAdd: async (preview) => (asked.push(preview), true) },
+    );
+    expect(asked).toEqual([
+      {
+        playlist: { id: ids.bebop, name: "Bebop test" },
+        item_count: 12,
+        position: 2,
+        add: [{ uri: uri(ids.zanzibar!), name: "Zanzibar Sunset", artists: ["The Last Band"] }],
+        skipped: [{ uri: uri(ids.koko!), reason: "already_in_playlist" }],
+      },
+    ]);
+    expect(execution.outcome).toMatchObject({ ok: true, result: { added: [{ number: 3, uri: uri(ids.zanzibar!) }] } });
+    expect(spotify.writes.filter((w) => w.method === "POST")).toHaveLength(1);
+  });
+
+  it("playlist_add adds nothing when the user cancels, or when the app cannot ask", async () => {
+    const { client, spotify, ids } = setup();
+    const args = JSON.stringify({ playlist_id: ids.bebop, track_uris: [uri(ids.zanzibar!)] });
+    const cancelled = await executeTool(ALL_TOOLS, "playlist_add", args, { client, confirmAdd: async () => false });
+    expect(cancelled.outcome).toMatchObject({ ok: false, error: { code: "USER_DECLINED", message: expect.stringContaining("nothing was added") } });
+    expect(cancelled.write).toBeNull();
+    const unasked = await executeTool(ALL_TOOLS, "playlist_add", args, { client });
+    expect(unasked.outcome).toMatchObject({ ok: false, error: { code: "CONFIRMATION_UNAVAILABLE" } });
+    expect(spotify.writes).toEqual([]);
+  });
+
+  it("playlist_add fails before asking on what the addition would refuse", async () => {
+    const { client, spotify, ids } = setup();
+    const asked: AddPreview[] = [];
+    const confirmAdd = async (preview: AddPreview) => (asked.push(preview), true);
+    const forbidden = await executeTool(ALL_TOOLS, "playlist_add", JSON.stringify({ playlist_id: ids.lofi, track_uris: [uri(ids.koko!)] }), { client, confirmAdd });
+    expect(forbidden.outcome).toMatchObject({ ok: false, error: { code: "FORBIDDEN" } });
+    const outOfRange = await executeTool(ALL_TOOLS, "playlist_add", JSON.stringify({ playlist_id: ids.bebop, track_uris: [uri(ids.zanzibar!)], at_number: 99 }), { client, confirmAdd });
+    expect(outOfRange.outcome).toMatchObject({ ok: false, error: { code: "INVALID_ARGUMENT" } });
+    expect(asked).toEqual([]);
+    expect(spotify.writes).toEqual([]);
+  });
+
   it("playlist_create reports the new playlist, public", async () => {
     const { client } = setup();
     const execution = await executeTool(ALL_TOOLS, "playlist_create", JSON.stringify({ name: "Bebop essentials" }), { client });
@@ -234,7 +293,7 @@ describe("the loop only lets write tools use IDs from the conversation", () => {
       },
       () => completion([], "Added."),
     ]);
-    const result = await runTurn([], `Add Zanzibar Sunset to my playlist ${ids.bebop}`, { model, tools: ALL_TOOLS, ctx: { client } });
+    const result = await runTurn([], `Add Zanzibar Sunset to my playlist ${ids.bebop}`, { model, tools: ALL_TOOLS, ctx: { client, confirmAdd: async () => true } });
     expect(result.executions.map((e) => [e.name, e.outcome.ok])).toEqual([
       ["playlist_add", false],
       ["search_tracks", true],

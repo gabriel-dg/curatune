@@ -10,6 +10,8 @@ import { CuratuneError } from "../spotify/errors";
 import type { KeyValueStore } from "../storage/kv";
 import { ALL_TOOLS, type ToolContext, type ToolExecution, type WriteReport } from "../tools";
 import type { ActivityLog } from "./activity";
+import { addConfirmCard } from "./add-card";
+import { withAppPrefix } from "./app-messages";
 import { brandMark } from "./brand";
 import { writeCard } from "./cards";
 import { h } from "./dom";
@@ -34,11 +36,13 @@ const GENERAL_SUGGESTIONS = [
 const GENERAL_PLACEHOLDER = "Write anything, e.g. “60s soul ballads, one song per artist”…";
 const playlistPlaceholder = (name: string) => `Ask anything about "${name}", or say what to change…`;
 
-const playlistSuggestions = (name: string) => [
-  `Are there duplicates in "${name}"?`,
-  `Is "${name}" in chronological order of recording?`,
-  `Sort "${name}" by recording date`,
-  `Suggest 5 tracks that would fit "${name}"`,
+// Sent as the user's own words, so they never quote the playlist's name (written by its owner, who may be
+// someone else): the [App context] line tells the model which playlist "this playlist" is.
+const PLAYLIST_SUGGESTIONS = [
+  "Are there duplicates in this playlist?",
+  "Is this playlist in chronological order of recording?",
+  "Sort this playlist by recording date",
+  "Suggest 5 tracks that would fit this playlist",
 ];
 
 /** A few words for each tool call, for people rather than developers. */
@@ -322,7 +326,7 @@ export class ChatView {
       this.transcript.replaceChildren(h("div", { class: "empty" }, [current.needsKey ? this.keyForm() : h("div", { class: "card error-card", text: current.problem })]));
       return;
     }
-    const suggestions = this.context ? playlistSuggestions(this.context.name) : GENERAL_SUGGESTIONS;
+    const suggestions = this.context ? PLAYLIST_SUGGESTIONS : GENERAL_SUGGESTIONS;
     // The suggestions are examples, not a menu: say so before and after them, and point at the composer.
     this.transcript.replaceChildren(
       h("div", { class: "empty" }, [
@@ -450,14 +454,10 @@ export class ChatView {
       wrote: false,
       plans: [],
     };
-    // App notices and the playlist in view go first, marked as such, for the model.
+    // App notices and the playlist in view go first, marked as such, for the model: IDs only, never names.
     const notices = this.notices;
     this.notices = [];
-    const prefix = [
-      ...notices.map((n) => `[App notice: ${n}]`),
-      ...(context ? [`[App context: the user is looking at their playlist "${context.name}" (id ${context.id}).]`] : []),
-    ];
-    const content = prefix.length ? `${prefix.join("\n")}\n\n${text}` : text;
+    const content = withAppPrefix(text, notices, context);
 
     const onEvent = (event: AgentEvent) => {
       switch (event.type) {
@@ -516,11 +516,23 @@ export class ChatView {
     };
 
     try {
+      const signal = this.controller.signal;
       const result = await runTurn(this.history, content, {
         model,
         tools: ALL_TOOLS,
-        ctx: { ...this.ctx, onPlan: (plan) => stats.plans.push(plan) },
-        signal: this.controller.signal,
+        ctx: {
+          ...this.ctx,
+          onPlan: (plan) => stats.plans.push(plan),
+          // Adding to a playlist not created in this session: a card with the tracks, and the tool waits for
+          // the user's Confirm or Cancel (Stop counts as Cancel).
+          confirmAdd: (preview) => {
+            const { element, answer } = addConfirmCard(preview, signal);
+            this.steps = null;
+            this.append(element);
+            return answer;
+          },
+        },
+        signal,
         onEvent,
       });
       this.history = result.messages;

@@ -132,7 +132,9 @@ flowchart LR
     X --> S
 ```
 
-- **Plan, then confirm.** Creating a playlist and adding tracks run directly. Removals, reorders, renames,
+- **Plan, then confirm.** Creating a playlist and filling it in the same session run directly; adding tracks to
+  a playlist you already had waits for your OK (a Confirm button in the web app, the dialog or page through
+  MCP). Removals, reorders, renames,
   and description changes are only ever built as *plans*: the state before, the state after, and the exact
   operations. A plan is applied only after you approve it, and the model can't approve for you:
   - in the web app, only the **Apply** button applies a plan; the model has no tool for it;

@@ -59,7 +59,8 @@ async function runScenario(llm: LlmClient, scenarioIndex: number): Promise<Scena
     const result = await runTurn(history, prompt, {
       model: llm,
       tools: ALL_TOOLS,
-      ctx: { client, onPlan: (plan) => plans.push(plan), recordings },
+      // The user confirms every addition the app asks about: the evaluation grades the model's calls.
+      ctx: { client, onPlan: (plan) => plans.push(plan), recordings, createdPlaylists: new Set<string>(), confirmAdd: async () => true },
       onEvent: (e) => {
         if (e.type === "model_start") steps = e.step;
       },

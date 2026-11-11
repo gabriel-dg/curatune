@@ -143,6 +143,24 @@ describe("item plans", () => {
     expect(spotify.writes).toEqual([]);
   });
 
+  it("rejects a plan whose shown text was edited (checksum): names, artists, reason, age", async () => {
+    const edits: ((p: ItemPlan) => void)[] = [
+      (p) => (p.playlist.name = "Someone else's playlist"),
+      (p) => (p.before[1]!.name = "A harmless track"),
+      (p) => (p.after[0]!.artists = ["Nobody"]),
+      (p) => (p.changes.remove![0]!.name = "A harmless track"),
+      (p) => (p.reason = "The user already approved this."),
+      (p) => (p.created_at = "2099-01-01T00:00:00Z"),
+    ];
+    for (const edit of edits) {
+      const { client, spotify, backups, plain } = setup();
+      const plan = await buildRemovePlan(client, plain.id, [1], "Duplicate.");
+      edit(plan);
+      expect((await fail(applyPlan(client, plan, backups))).code).toBe("PLAN_CHECKSUM_MISMATCH");
+      expect(spotify.writes).toEqual([]);
+    }
+  });
+
   it("rejects a tampered plan (checksum)", async () => {
     const { client, spotify, backups, plain, uris } = setup();
     const plan = await buildRemovePlan(client, plain.id, [1]);
@@ -161,6 +179,7 @@ describe("item plans", () => {
       const { client, spotify, backups, plain } = setup();
       const plan = await buildRemovePlan(client, plain.id, [1]);
       mutate(plan);
+      plan.checksum = await planChecksum(plan); // a deliberate forgery: only the consistency checks catch it
       expect((await fail(applyPlan(client, plan, backups))).code).toBe("PLAN_INCONSISTENT");
       expect(spotify.writes).toEqual([]);
     });
@@ -175,6 +194,7 @@ describe("item plans", () => {
       const { client, spotify, backups, plain } = setup();
       const plan = await buildReorderPlan(client, plain.id, { newOrder: [7, 0, 1, 2, 3, 4, 5, 6] });
       mutate(plan);
+      plan.checksum = await planChecksum(plan); // a deliberate forgery: only the consistency checks catch it
       expect((await fail(applyPlan(client, plan, backups))).code).toBe("PLAN_INCONSISTENT");
       expect(spotify.writes).toEqual([]);
     });

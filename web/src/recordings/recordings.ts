@@ -3,6 +3,8 @@
 // - Stored in IndexedDB (through an async KeyValueStore) instead of data/recordings.json. The JSON format
 //   is the same, so importJson/exportJson move data to and from curatune.
 // - All entries live under one key, so an upsert replaces the whole map at once (all-or-nothing).
+// - upsert's `overwrite` flag and `skipped` list follow curatune commit f88bce2 (RecordingStore.upsert): the
+//   recordings_set tool never replaces a stored date, as curatune's MCP recordings_set; importing a file does.
 //
 // Spotify only exposes the release date of an edition, not when a track was recorded. Recording dates
 // come from discographies, the user, or a model's knowledge, and are stored with their source and
@@ -72,6 +74,8 @@ export function validateEntry(raw: unknown): [string, RecordingEntry] {
 export interface UpsertResult {
   created: number;
   updated: number;
+  /** URIs that already had an entry and were left as they were (only with overwrite false). */
+  skipped: string[];
   total: number;
 }
 
@@ -86,15 +90,27 @@ export class RecordingStore {
     await this.kv.set(STORE_KEY, data);
   }
 
-  /** Add or update entries. Every entry is validated before anything is written. */
-  async upsert(rawEntries: unknown[]): Promise<UpsertResult> {
+  /**
+   * Add or update entries. Every entry is validated before anything is written. With `overwrite` false,
+   * entries already stored are left as they are and listed in `skipped` (stored dates may be hand-curated).
+   */
+  async upsert(rawEntries: unknown[], overwrite = true): Promise<UpsertResult> {
     if (!Array.isArray(rawEntries) || !rawEntries.length) throw invalid("Expected a non-empty array of recording entries.");
-    const validated = rawEntries.map(validateEntry); // all-or-nothing
+    const validated = new Map(rawEntries.map(validateEntry)); // all-or-nothing; a repeated uri: last wins
     const data = await this.load();
-    const created = new Set(validated.map(([uri]) => uri).filter((uri) => !(uri in data)));
-    for (const [uri, entry] of validated) data[uri] = entry;
-    await this.save(data);
-    return { created: created.size, updated: validated.length - created.size, total: Object.keys(data).length };
+    let created = 0;
+    let updated = 0;
+    const skipped: string[] = [];
+    for (const [uri, entry] of validated) {
+      if (!(uri in data)) created += 1;
+      else if (!overwrite) {
+        skipped.push(uri);
+        continue;
+      } else updated += 1;
+      data[uri] = entry;
+    }
+    if (created || updated) await this.save(data);
+    return { created, updated, skipped, total: Object.keys(data).length };
   }
 
   async remove(uris: string[]): Promise<number> {

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildQuery } from "../src/spotify/catalog";
 import { CuratuneError } from "../src/spotify/errors";
 import { SpotifyClient } from "../src/spotify/http";
-import { executeTool, MAX_RESULT_CHARS, READ_TOOLS, toolDefinitions, type Tool } from "../src/tools";
+import { executeTool, MAX_RESULT_CHARS, READ_TOOLS, RECORDING_TOOLS, toolDefinitions, type Tool } from "../src/tools";
+import { THIRD_PARTY_NOTE } from "../src/tools/types";
 import { validateArgs, type ObjectSchema } from "../src/tools/schema";
 import { buildFixture, FakeSpotify, INJECTION_DESCRIPTION } from "./fake-spotify";
 import { noSleep, rejection } from "./helpers";
@@ -254,5 +255,13 @@ describe("buildQuery", () => {
     expect(buildQuery({ query: " free ", track: 'Say "Hi"', artist: "Bird", year: "1945-1947" })).toBe(
       'free track:"Say Hi" artist:Bird year:1945-1947',
     );
+  });
+});
+
+describe("third-party text", () => {
+  it("every read tool whose result carries Spotify text says it is data, not instructions", () => {
+    for (const tool of [...READ_TOOLS, RECORDING_TOOLS.find((t) => t.name === "recordings_show")!]) {
+      expect(tool.description, tool.name).toContain(THIRD_PARTY_NOTE.trim());
+    }
   });
 });

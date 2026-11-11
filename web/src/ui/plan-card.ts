@@ -8,6 +8,7 @@ import { CuratuneError } from "../spotify/errors";
 import type { SpotifyClient } from "../spotify/http";
 import type { KeyValueStore } from "../storage/kv";
 import type { WriteReport } from "../tools";
+import { noticeText, planLabel } from "./app-messages";
 import { spotifyPlaylistLink } from "./cards";
 import { h } from "./dom";
 import { icon } from "./icons";
@@ -18,9 +19,13 @@ export interface PlanCardOptions {
   backups: KeyValueStore;
   /** A write happened (the plan was applied, verified or not). */
   onWrite: (report: WriteReport) => void;
-  /** Something the model should learn in the next turn (applied, failed, discarded). */
+  /** Something the model should learn in the next turn (applied, failed, discarded). IDs and counts only, no
+   * Spotify text (./app-messages.ts). */
   onNotice: (notice: string) => void;
 }
+
+/** Above the model's reason, so it never reads as something the app checked (as curatune's confirm.py labels it). */
+export const REASON_LABEL = "The assistant's explanation (written by the AI, not checked by the app):";
 
 /** Above this many tracks, the diff shows only the changed ones (and their neighbours for removals). */
 const FULL_DIFF_LIMIT = 40;
@@ -139,7 +144,9 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
       : h("div", { class: "plan-summary muted small", text: `${plan.before.length} → ${plan.after.length} tracks · ${plan.operations.length} operation${plan.operations.length === 1 ? "" : "s"}` });
   const card = h("div", { class: "card plan-card" }, [
     h("div", { class: "card-title" }, [h("span", { class: "badge plan" }, ["Plan"]), h("strong", { text: planTitle(plan) })]),
-    plan.reason ? h("div", { class: "plan-reason", text: plan.reason }) : null,
+    plan.reason
+      ? h("div", { class: "plan-reason" }, [h("div", { class: "plan-reason-label muted small", text: REASON_LABEL }), h("div", { text: `“${plan.reason}”` })])
+      : null,
     plan.kind === "details" ? detailsDiff(plan) : plan.kind === "remove" ? removeDiff(plan) : reorderDiff(plan),
     summary,
     h("div", { class: "card-actions" }, [spotifyPlaylistLink(plan.playlist.id)]),
@@ -157,7 +164,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
 
   discardButton.addEventListener("click", () => {
     finish("Discarded · nothing was changed", "muted");
-    options.onNotice(`The user discarded plan ${plan.plan_id} (${planTitle(plan)}). Nothing was changed.`);
+    options.onNotice(`The user discarded ${planLabel(plan)}. Nothing was changed.`);
   });
 
   applyButton.addEventListener("click", async () => {
@@ -174,7 +181,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
       finish(message, "failed");
       if (ranOperations) options.onWrite({ title: `Plan partly applied: ${planTitle(plan)}`, lines: [message], playlistId: plan.playlist.id, warnings: [message] });
       const code = exc instanceof CuratuneError ? exc.code : "ERROR";
-      options.onNotice(`The user pressed Apply on plan ${plan.plan_id} (${planTitle(plan)}) and it failed with ${code}: ${message}`);
+      options.onNotice(`The user pressed Apply on ${planLabel(plan)} and it failed with ${code}: ${noticeText(message)}`);
       return;
     }
     const verified = result.verified ? "Applied and verified" : "Applied, but reads do not show the change yet";
@@ -192,7 +199,7 @@ export function planCard(plan: Plan, options: PlanCardOptions): HTMLElement {
       warnings: userWarnings(result.warnings),
       ...(plan.kind === "details" ? {} : { itemCount: plan.after.length }),
     });
-    options.onNotice(`The user applied plan ${plan.plan_id} (${planTitle(plan)}). ${verified}.`);
+    options.onNotice(`The user applied ${planLabel(plan)}. ${verified}.`);
   });
 
   return card;
