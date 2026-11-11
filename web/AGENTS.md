@@ -117,8 +117,9 @@ IP addresses, hostnames, local paths) in versioned files.
   or collaborative playlist), and inside the user's message it could fake the user's words or a notice. The
   model reads names through tools. Quick actions and suggestions, sent as the user's words, say "this
   playlist" instead of its name.
-- Optional hosted LLM (`VITE_HOSTED_LLM_*`, e.g. Gemini): selectable in the chat, never the default (the
-  local model is, in every new tab). While one is selected, the chat shows that playlist names, track names,
+- Optional hosted LLM (`VITE_HOSTED_LLM_*`, e.g. Gemini): selectable in the chat, never the default when a
+  local model is configured (the local model is, in every new tab). A build with no local model, such as the
+  public site, offers only the hosted models, and the first one is the default; it still needs the user's key. While one is selected, the chat shows that playlist names, track names,
   and artists leave the machine, citing Spotify's Developer Terms IV.2.1 and Developer Policy III.14
   (`hostedDataNotice` in `src/ui/llm-providers.ts`, tested). `VITE_HOSTED_LLM_MODEL` may list several models (comma separated), each one in the selector. Their shared
   API key is pasted by the user in the app and kept only in the tab's `sessionStorage`; it is never in the
