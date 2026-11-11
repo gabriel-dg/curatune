@@ -75,6 +75,19 @@ describe("providers", () => {
     expect([...storage.data.keys()]).toEqual(["curatune-web.llm-provider"]);
   });
 
+  it("leaves out an unconfigured local model when a hosted one is configured, as on the public site", () => {
+    const fetch = async () => json({});
+    const site = buildProviders({ llmBaseUrl: "", llmModel: "", hostedLlm: config.hostedLlm }, fetch);
+    expect(site.map((p) => p.id)).toEqual(["hosted:gemini-3.8-flash", "hosted:gemini-3.5-flash-lite"]);
+    expect(pickProvider(site, null).id).toBe("hosted:gemini-3.8-flash");
+    expect(pickProvider(site, "local").id).toBe("hosted:gemini-3.8-flash");
+    expect(site.every((p) => p.requiresKey && hostedDataNotice(p) !== null)).toBe(true);
+    // Half a local setup is no local model either.
+    expect(buildProviders({ ...config, llmModel: "" }, fetch).map((p) => p.id)).not.toContain("local");
+    // With nothing configured, the local entry stays, so the chat says what to set.
+    expect(buildProviders({ llmBaseUrl: "", llmModel: "", hostedLlm: null }, fetch).map((p) => p.id)).toEqual(["local"]);
+  });
+
   it("picks the saved provider; an old saved \"hosted\" means the first hosted model", () => {
     const providers = buildProviders(config, async () => json({}));
     expect(pickProvider(providers, "hosted:gemini-3.5-flash-lite").model).toBe("gemini-3.5-flash-lite");
@@ -83,7 +96,7 @@ describe("providers", () => {
     expect(pickProvider(providers, null).id).toBe("local");
   });
 
-  it("defaults to the local model, and says what leaves the machine only for hosted ones", () => {
+  it("defaults to the local model when there is one, and says what leaves the machine only for hosted ones", () => {
     const providers = buildProviders(config, async () => json({}));
     expect(providers[0]).toMatchObject({ id: "local", hosted: false });
     expect(providers.slice(1).every((p) => p.hosted)).toBe(true);

@@ -1,6 +1,6 @@
-// The models the chat can use: the local one (LM Studio or Ollama, the default) and, optionally, one or more
-// models of a hosted provider (e.g. Gemini 3.8 Flash and 3.5 Flash Lite). The hosted provider's API key is
-// pasted by the user, shared by its models, and kept only in this tab's sessionStorage, like the Spotify
+// The models the chat can use: the local one (LM Studio or Ollama, the default when configured) and, optionally,
+// one or more models of a hosted provider (e.g. Gemini 3.8 Flash and 3.5 Flash Lite). The hosted provider's API
+// key is pasted by the user, shared by its models, and kept only in this tab's sessionStorage, like the Spotify
 // token; it is sent only to that provider (see src/agent/llm.ts).
 
 import type { KeyValueStorage } from "../spotify/auth";
@@ -14,7 +14,8 @@ export interface ProviderOption {
   /** Shown in the model selector, e.g. "Local · ornith-1.5-9b-mlx". */
   label: string;
   model: string;
-  /** A hosted provider: playlist data leaves the user's machine (see hostedDataNotice). Never the default. */
+  /** A hosted provider: playlist data leaves the user's machine (see hostedDataNotice). The default only in a
+   * build without a local model, such as the public site, where it still needs the user's key first. */
   hosted: boolean;
   /** Hosted providers need an API key from the user. */
   requiresKey: boolean;
@@ -66,8 +67,13 @@ export function buildProviders(
   config: { llmBaseUrl: string; llmModel: string; hostedLlm: { baseUrl: string; models: string[]; name: string } | null },
   fetch: (input: string, init?: RequestInit) => Promise<Response>,
 ): ProviderOption[] {
-  const providers: ProviderOption[] = [
-    {
+  const hosted = config.hostedLlm;
+  // A build with a hosted model and no local one (the public site) must not offer, or default to, a local model
+  // that can't work. With neither configured, the local entry stays so the chat says what to set.
+  const hasLocal = Boolean(config.llmBaseUrl && config.llmModel);
+  const providers: ProviderOption[] = [];
+  if (hasLocal || !hosted?.models.length) {
+    providers.push({
       id: "local",
       name: "Local",
       label: `Local · ${config.llmModel || "not configured"}`,
@@ -77,9 +83,8 @@ export function buildProviders(
       keyId: null,
       host: hostOf(config.llmBaseUrl),
       create: () => new LlmClient({ baseUrl: config.llmBaseUrl, model: config.llmModel, fetch }),
-    },
-  ];
-  const hosted = config.hostedLlm;
+    });
+  }
   for (const model of hosted?.models ?? []) {
     providers.push({
       id: `hosted:${model}`,
@@ -112,7 +117,7 @@ export function hostedDataNotice(provider: ProviderOption): string | null {
 }
 
 /** The provider saved as selected in this tab; "hosted" (before several hosted models) means the first hosted
- * one; anything else, or nothing saved, means the local one, which is always the default. */
+ * one; anything else, or nothing saved, means the first provider: the local one when the build has it. */
 export function pickProvider(providers: ProviderOption[], selected: string | null): ProviderOption {
   return providers.find((p) => p.id === selected) ?? (selected === "hosted" ? providers.find((p) => p.keyId === "hosted") : undefined) ?? providers[0]!;
 }

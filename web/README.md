@@ -25,7 +25,8 @@ It is the browser side of [curatune](../README.md): the same rules as the Python
 ## Which model sees what
 
 - **A local model is the default**, in every new tab: an OpenAI-compatible server you run, such as LM
-  Studio or Ollama. Your playlist data stays on your own computers.
+  Studio or Ollama. Your playlist data stays on your own computers. A build without one, such as the hosted
+  demo, offers only the hosted model.
 - **A hosted model, such as Gemini, is optional**, chosen in the chat. While one is selected, your messages
   and the playlist data the assistant reads (playlist names, track names, and artists) leave your computer
   for that provider, and the chat shows a notice saying so, citing Spotify's Developer Terms (IV.2.1) and
